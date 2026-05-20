@@ -2890,7 +2890,7 @@ const COMANDA_TEMPLATE = [
       {tipo:'campo', label:'CONFIRMACIÓN FINAL DE INVITADOS', key:'conf_invitados'},
       {tipo:'seccion', label:'GENERALIDADES DEL EVENTO'},
       {tipo:'campo_readonly', label:'Nombre del evento', key:'_nombre_evento'},
-      {tipo:'campo', label:'Fecha', key:'fecha', inputType:'text'},
+      {tipo:'campo', label:'Fecha', key:'fecha', inputType:'date'},
       {tipo:'campo', label:'Horario de Inicio del evento', key:'horario_inicio'},
       {tipo:'campo', label:'Horario de Finalización del evento', key:'horario_fin'},
       {tipo:'campo', label:'Tipo de evento', key:'tipo_evento'},
@@ -3288,6 +3288,14 @@ function switchEventoSheet(idx){
 function renderEventoSheet(ev, sheetIdx){
   const sheet = COMANDA_TEMPLATE[sheetIdx];
   const datos = ev.datos;
+
+  // Sincronizar campos compartidos desde EVENTO hacia todas las solapas
+  Object.entries(CAMPOS_COMPARTIDOS).forEach(([origen, destinos])=>{
+    if(datos[origen]){
+      destinos.forEach(dest=>{ if(!datos[dest]) datos[dest] = datos[origen]; });
+    }
+  });
+
   let html = `<div style="padding:0 4px">`;
 
   sheet.campos.forEach(c=>{
