@@ -602,6 +602,10 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <label>Nombre del evento</label>
       <input type="text" id="evento-nombre-input" placeholder="Ej: Cumpleaños corporativo enero" style="width:100%;margin-top:6px">
     </div>
+    <div class="form-field" style="margin-bottom:20px">
+      <label>Fecha del evento</label>
+      <input type="date" id="fecha_evento_alta" style="width:100%;margin-top:6px">
+    </div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn btn-outline" onclick="cerrarModal('modal-evento-nuevo')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarNuevoEvento()">✓ Crear evento</button>
@@ -2888,7 +2892,7 @@ const COMANDA_TEMPLATE = [
     campos: [
       {tipo:'titulo', label:'FICHA TÉCNICA EVENTO'},
       {tipo:'info', label:'Completar únicamente las celdas editables'},
-      {tipo:'campo', label:'CONFIRMACIÓN FINAL DE INVITADOS', key:'conf_invitados'},
+      {tipo:'invitados_confirmacion', label:'CONFIRMACIÓN DE INVITADOS'},
       {tipo:'seccion', label:'GENERALIDADES DEL EVENTO'},
       {tipo:'campo_readonly', label:'Nombre del evento', key:'_nombre_evento'},
       {tipo:'campo', label:'Fecha', key:'fecha', inputType:'date'},
@@ -2901,7 +2905,6 @@ const COMANDA_TEMPLATE = [
       {tipo:'campo', label:'Contacto durante el evento', key:'contacto_evento'},
       {tipo:'seccion', label:'INVITADOS'},
       {tipo:'campo', label:'Perfil de invitados', key:'perfil_invitados', inputType:'textarea'},
-      {tipo:'campos_multi', label:'Cantidad', keys:[{k:'cant_adultos',l:'Adultos'},{k:'cant_jovenes',l:'Jóvenes'},{k:'cant_menores',l:'Menores'}]},
       {tipo:'campo', label:'Dietas especiales — Detalle', key:'dietas_especiales', inputType:'textarea'},
       {tipo:'campo', label:'Observaciones', key:'obs_invitados', inputType:'textarea'},
       {tipo:'seccion', label:'ADMINISTRACIÓN / RRHH'},
@@ -3147,11 +3150,21 @@ function eliminarPeriodo(id){
   sbSave(true);
 }
 
+// Formatea una fecha ISO (YYYY-MM-DD) en formato legible en español
+function formatFechaLarga(fechaISO){
+  if(!fechaISO) return '';
+  const MESES_LARGO=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const [y,m,d] = String(fechaISO).split('-').map(Number);
+  if(!y||!m||!d) return '';
+  return `${d} de ${MESES_LARGO[m-1]} de ${y}`;
+}
+
 // ── Abrir período (ver lista de eventos) ─────────────────────────
 function abrirPeriodo(periodoId){
   comandaPeriodoActual = periodoId;
   const p = DB.comanda.periodos.find(x=>x.id===periodoId);
-  const evs = DB.comanda.eventos[periodoId]||[];
+  const evs = [...(DB.comanda.eventos[periodoId]||[])].sort((a,b)=>
+    (a.datos?.fecha||'9999-99-99').localeCompare(b.datos?.fecha||'9999-99-99'));
   const c = document.getElementById('comanda-periodos-list');
   c.innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
@@ -3167,16 +3180,21 @@ function abrirPeriodo(periodoId){
             <div style="flex:1;min-width:200px">
               <div style="display:flex;align-items:center;gap:8px">
                 <input type="text" value="${escH(ev.nombre)}" id="ev-nombre-${ev.id}"
-                  data-pid="${periodoId}" data-eid="${ev.id}"
                   style="font-weight:700;font-size:14px;color:var(--text);background:transparent;border:none;border-bottom:1px solid var(--border);padding:2px 4px;font-family:inherit;outline:none;width:100%;max-width:400px;transition:all .2s;cursor:text"
                   onfocus="this.style.borderBottomColor='var(--mp-violet)';this.style.background='var(--surface2)'"
-                  onblur="renombrarEvento(this.dataset.pid,this.dataset.eid,this.value);this.style.borderBottomColor='var(--border)';this.style.background='transparent'"
+                  onblur="renombrarEvento('${periodoId}','${ev.id}',this.value);this.style.borderBottomColor='var(--border)';this.style.background='transparent'"
                   onkeydown="if(event.key==='Enter'){this.blur()}"
                   placeholder="Nombre del evento"
                   title="Editá el nombre del evento">
                 <span style="font-size:10px;color:var(--text3)">✏️</span>
               </div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px">Creado: ${ev.creado||'—'}</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+                <input type="date" id="ev-fecha-${ev.id}" value="${escH(ev.datos?.fecha||'')}"
+                  style="font-size:11px;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-family:inherit;outline:none;cursor:pointer"
+                  onchange="cambiarFechaEvento('${periodoId}','${ev.id}',this.value)"
+                  title="Editá la fecha del evento">
+                ${ev.datos?.fecha ? `<span style="font-size:11px;color:var(--text3)">${formatFechaLarga(ev.datos.fecha)}</span>` : `<span style="font-size:11px;color:var(--text3)">Sin fecha</span>`}
+              </div>
             </div>
             <button class="btn btn-outline" style="padding:5px 12px;font-size:11px" onclick="abrirEvento('${periodoId}','${ev.id}')">📝 Abrir</button>
             <button class="btn btn-outline" style="padding:5px 12px;font-size:11px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="exportarEventoPDFById('${periodoId}','${ev.id}')">📄 PDF</button>
@@ -3189,12 +3207,14 @@ function abrirPeriodo(periodoId){
 
 function abrirModalNuevoEvento(){
   document.getElementById('evento-nombre-input').value='';
+  document.getElementById('fecha_evento_alta').value='';
   document.getElementById('modal-evento-nuevo').classList.add('open');
 }
 
 function guardarNuevoEvento(){
   const nombre = document.getElementById('evento-nombre-input').value.trim();
   if(!nombre){alert('Ingresá un nombre para el evento.');return;}
+  const fechaEventoAlta = document.getElementById('fecha_evento_alta').value;
   if(!DB.comanda.eventos[comandaPeriodoActual]) DB.comanda.eventos[comandaPeriodoActual]=[];
   const id = 'ev_'+Date.now();
   const fecha = new Date().toLocaleDateString('es-AR');
@@ -3220,6 +3240,7 @@ function guardarNuevoEvento(){
       datos[c.key]=JSON.parse(JSON.stringify(c.rows));
     });
   });
+  datos['fecha'] = fechaEventoAlta || '';
   DB.comanda.eventos[comandaPeriodoActual].push({id,nombre,creado:fecha,datos});
   cerrarModal('modal-evento-nuevo');
   abrirPeriodo(comandaPeriodoActual);
@@ -3240,6 +3261,14 @@ function renombrarEvento(periodoId, eventoId, nuevoNombre){
     const titulo = document.getElementById('modal-evento-titulo');
     if(titulo) titulo.textContent='📋 '+nombre;
   }
+  sbSave(true);
+}
+function cambiarFechaEvento(periodoId, eventoId, nuevaFecha){
+  const ev = DB.comanda.eventos[periodoId]?.find(e=>e.id===eventoId);
+  if(!ev) return;
+  if(!ev.datos) ev.datos={};
+  ev.datos.fecha = nuevaFecha||'';
+  abrirPeriodo(periodoId);
   sbSave(true);
 }
 function eliminarEvento(periodoId,eventoId){
@@ -3290,11 +3319,13 @@ function renderEventoSheet(ev, sheetIdx){
   const sheet = COMANDA_TEMPLATE[sheetIdx];
   const datos = ev.datos;
 
+  // Recalcular total de invitados (adultos + jóvenes + menores) antes de sincronizar
+  datos.invitados_total = (parseInt(datos.cant_adultos)||0)+(parseInt(datos.cant_jovenes)||0)+(parseInt(datos.cant_menores)||0);
+
   // Sincronizar campos compartidos desde EVENTO hacia todas las solapas
   Object.entries(CAMPOS_COMPARTIDOS).forEach(([origen, destinos])=>{
-    if(datos[origen]){
-      destinos.forEach(dest=>{ if(!datos[dest]) datos[dest] = datos[origen]; });
-    }
+    const val = datos[origen]!==undefined ? datos[origen] : '';
+    destinos.forEach(dest=>{ datos[dest] = val; });
   });
 
   let html = `<div style="padding:0 4px">`;
@@ -3312,6 +3343,54 @@ function renderEventoSheet(ev, sheetIdx){
         <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
         <input type="text" value="${escH(val)}" readonly
           style="width:100%;max-width:500px;background:rgba(92,45,110,.07);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;cursor:default;font-weight:600">
+      </div>`;
+    } else if(c.tipo==='invitados_confirmacion'){
+      const adultos = datos.cant_adultos||'';
+      const jovenes = datos.cant_jovenes||'';
+      const menores = datos.cant_menores||'';
+      const total = datos.invitados_total||0;
+      const confirmado = datos.invitados_estado==='confirmado';
+      html+=`<div style="margin-bottom:18px">
+        <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:6px">${escH(c.label||'CONFIRMACIÓN DE INVITADOS')}</label>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+          <div class="form-field" style="flex:1;min-width:110px">
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Adultos</label>
+            <input type="number" min="0" value="${escH(String(adultos))}" data-key="cant_adultos"
+              style="width:100%;background:${adultos?'var(--surface2)':'rgba(220,53,69,0.09)'};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 9px;font-size:12px;font-family:inherit;outline:none"
+              oninput="updateInvitadosCantidad('cant_adultos',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'">
+          </div>
+          <div class="form-field" style="flex:1;min-width:110px">
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Jóvenes</label>
+            <input type="number" min="0" value="${escH(String(jovenes))}" data-key="cant_jovenes"
+              style="width:100%;background:${jovenes?'var(--surface2)':'rgba(220,53,69,0.09)'};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 9px;font-size:12px;font-family:inherit;outline:none"
+              oninput="updateInvitadosCantidad('cant_jovenes',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'">
+          </div>
+          <div class="form-field" style="flex:1;min-width:110px">
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Niños</label>
+            <input type="number" min="0" value="${escH(String(menores))}" data-key="cant_menores"
+              style="width:100%;background:${menores?'var(--surface2)':'rgba(220,53,69,0.09)'};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 9px;font-size:12px;font-family:inherit;outline:none"
+              oninput="updateInvitadosCantidad('cant_menores',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'">
+          </div>
+          <div class="form-field" style="flex:1;min-width:110px">
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Total</label>
+            <input type="number" id="invitados-total-display" value="${total}" readonly
+              style="width:100%;background:rgba(92,45,110,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 9px;font-size:12px;font-family:inherit;outline:none;cursor:default;font-weight:700">
+          </div>
+          <button type="button" onclick="toggleInvitadosEstado()"
+            style="padding:8px 14px;border-radius:6px;border:none;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;color:#fff;background:${confirmado?'#2e8b3d':'#c0392b'}">
+            ${confirmado?'✅ Invitados confirmados':'⚠️ Invitados a confirmar'}
+          </button>
+        </div>
+      </div>`;
+    } else if(c.tipo==='campo' && CAMPOS_DESTINO_A_ORIGEN[c.key]){
+      const val = datos[c.key]||'';
+      html+=`<div class="form-field" style="margin-bottom:14px">
+        <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
+        ${c.inputType==='textarea'
+          ? `<textarea rows="3" readonly data-key="${c.key}" style="width:100%;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical;outline:none;cursor:not-allowed">${escH(val)}</textarea>`
+          : `<input type="${c.inputType||'text'}" value="${escH(val)}" readonly data-key="${c.key}"
+              style="width:100%;max-width:500px;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">`}
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;font-style:italic">Se edita desde la solapa Evento</div>
       </div>`;
     } else if(c.tipo==='campo'){
       const val = datos[c.key]||'';
@@ -3336,13 +3415,22 @@ function renderEventoSheet(ev, sheetIdx){
       if(c.label) html+=`<label style="font-size:11px;color:var(--text3);font-weight:600;width:100%;margin-bottom:-8px">${escH(c.label)}</label>`;
       c.keys.forEach(k=>{
         const v = datos[k.k]||'';
-        const vBg = (!v||String(v).trim()==='') ? 'rgba(220,53,69,0.09)' : 'var(--surface2)';
-        html+=`<div class="form-field" style="flex:1;min-width:140px">
-          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">${escH(k.l)}</label>
-          <input type="${k.t||'text'}" value="${escH(v)}"
-            style="width:100%;background:${vBg};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 9px;font-size:12px;font-family:inherit;outline:none"
-            oninput="updateEventoDato('${k.k}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'">
-        </div>`;
+        if(CAMPOS_DESTINO_A_ORIGEN[k.k]){
+          html+=`<div class="form-field" style="flex:1;min-width:140px">
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">${escH(k.l)}</label>
+            <input type="${k.t||'text'}" value="${escH(v)}" readonly data-key="${k.k}"
+              style="width:100%;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 9px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">
+            <div style="font-size:9px;color:var(--text3);margin-top:2px;font-style:italic">Se edita desde Evento</div>
+          </div>`;
+        } else {
+          const vBg = (!v||String(v).trim()==='') ? 'rgba(220,53,69,0.09)' : 'var(--surface2)';
+          html+=`<div class="form-field" style="flex:1;min-width:140px">
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">${escH(k.l)}</label>
+            <input type="${k.t||'text'}" value="${escH(v)}" data-key="${k.k}"
+              style="width:100%;background:${vBg};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 9px;font-size:12px;font-family:inherit;outline:none"
+              oninput="updateEventoDato('${k.k}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'">
+          </div>`;
+        }
       });
       html+=`</div>`;
     } else if(c.tipo==='opciones_bool'){
@@ -3360,9 +3448,10 @@ function renderEventoSheet(ev, sheetIdx){
       const numCols = ['Unidades','Peso (g)','Cantidad'];
       html+=`<div style="margin-bottom:16px">`;
       if(c.seccion) html+=`<div style="font-weight:600;color:var(--text3);font-size:11px;margin-bottom:6px;letter-spacing:.5px">${escH(c.seccion)}</div>`;
+      if(c.tipo==='tabla_menu') html+=`<button class="btn btn-outline" style="margin-bottom:8px;font-size:11px" onclick="pegarMenuPortapapeles('${c.key}',${c.cols.length})">📋 Pegar menú</button>`;
       html+=`<div class="tw" style="overflow-x:auto"><table style="min-width:700px;table-layout:fixed;width:100%">
-        <colgroup>${c.cols.map(col=>`<col style="width:${col==='Menú'?'42%':numCols.includes(col)?'7%':'11%'}">`).join('')}<col style="width:34px"></colgroup>
-        <thead><tr>${c.cols.map(col=>`<th style="font-size:11px;padding:4px 5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(col)}</th>`).join('')}<th></th></tr></thead>
+        <colgroup>${c.cols.map(col=>`<col style="width:${col==='Menú'?'42%':numCols.includes(col)?'7%':'11%'}">`).join('')}<col style="width:30px"><col style="width:30px"></colgroup>
+        <thead><tr>${c.cols.map(col=>`<th style="font-size:11px;padding:4px 5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(col)}</th>`).join('')}<th></th><th></th></tr></thead>
         <tbody id="tabla_${c.key}">`;
       rows.forEach((row,ri)=>{
         html+=`<tr>`;
@@ -3374,6 +3463,7 @@ function renderEventoSheet(ev, sheetIdx){
             style="width:100%;${bg}border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
             oninput="updateEventoTabla('${c.key}',${ri},${ci},this.value);this.style.background=this.value.trim()?'transparent':'rgba(220,53,69,0.09)'"></td>`;
         });
+        html+=`<td style="padding:2px"><button class="btn btn-outline" style="padding:2px 5px;font-size:10px" onclick="insertEventoTablaRow('${c.key}',${ri},${c.cols.length})" title="Insertar fila debajo">+</button></td>`;
         html+=`<td style="padding:2px"><button class="btn btn-danger" style="padding:2px 5px;font-size:10px" onclick="removeEventoTablaRow('${c.key}',${ri})">🗑</button></td>`;
         html+=`</tr>`;
       });
@@ -3497,9 +3587,16 @@ const CAMPOS_COMPARTIDOS = {
   'cant_adultos':   ['com_inv_adultos','fm_adultos'],
   'cant_jovenes':   ['com_inv_jovenes','fm_jovenes'],
   'cant_menores':   ['com_inv_menores','fm_menores'],
+  'invitados_total':['com_inv_total','vco_invitados','vsa_invitados','eva_invitados','fm_invitados','bar_personas'],
   'contacto':       ['fm_contacto'],
   'contacto_evento':['fm_contacto_evento'],
 };
+
+// Mapa inverso: destKey -> origenKey. Los campos destino se editan solo desde EVENTO.
+const CAMPOS_DESTINO_A_ORIGEN = {};
+Object.entries(CAMPOS_COMPARTIDOS).forEach(([origen, destinos])=>{
+  destinos.forEach(dest=>{ CAMPOS_DESTINO_A_ORIGEN[dest] = origen; });
+});
 
 function updateEventoDato(key, val){
   const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
@@ -3512,6 +3609,24 @@ function updateEventoDato(key, val){
       if(inputEl) inputEl.value = val;
     });
   }
+}
+
+// ── Segmentación de invitados (Adultos/Jóvenes/Niños) ─────────────
+function updateInvitadosCantidad(key, val){
+  updateEventoDato(key, val);
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const total = (parseInt(ev.datos.cant_adultos)||0)+(parseInt(ev.datos.cant_jovenes)||0)+(parseInt(ev.datos.cant_menores)||0);
+  ev.datos.invitados_total = total;
+  const totalEl = document.getElementById('invitados-total-display');
+  if(totalEl) totalEl.value = total;
+}
+
+function toggleInvitadosEstado(){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  ev.datos.invitados_estado = ev.datos.invitados_estado==='confirmado' ? 'a_confirmar' : 'confirmado';
+  renderEventoSheet(ev, comandaSheetActual);
 }
 
 // ── Importar desde PDF ────────────────────────────────────────────
@@ -3773,6 +3888,35 @@ function addEventoTablaRow(key, numCols){
   if(!ev) return;
   if(!ev.datos[key]) ev.datos[key]=[];
   ev.datos[key].push(new Array(numCols).fill(''));
+  renderEventoSheet(ev, comandaSheetActual);
+}
+
+function insertEventoTablaRow(key, rowIndex, colCount){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  if(!ev.datos[key]) ev.datos[key]=[];
+  ev.datos[key].splice(rowIndex+1, 0, new Array(colCount).fill(''));
+  renderEventoSheet(ev, comandaSheetActual);
+}
+
+async function pegarMenuPortapapeles(key, numCols){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  let texto = '';
+  try{
+    texto = await navigator.clipboard.readText();
+  }catch(err){
+    alert('No se pudo leer el portapapeles. Revisá los permisos del navegador.');
+    return;
+  }
+  const lineas = texto.split(/\r?\n/).map(l=>l.trim()).filter(l=>l!=='');
+  if(!lineas.length){ alert('El portapapeles no contiene texto.'); return; }
+  if(!ev.datos[key]) ev.datos[key]=[];
+  lineas.forEach(linea=>{
+    const row = new Array(numCols).fill('');
+    row[0] = linea;
+    ev.datos[key].push(row);
+  });
   renderEventoSheet(ev, comandaSheetActual);
 }
 
