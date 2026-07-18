@@ -2903,6 +2903,14 @@ const COMANDA_TEMPLATE = [
         {label:'Categoría', key:'tipo_categoria', inputType:'select', opciones:['','Empresarial','Social','Prensa','Informal','Casamiento','Cumpleaños','Otro']},
         {label:'Detalle', key:'tipo_detalle', inputType:'text'}
       ]},
+      {tipo:'seccion', label:'PERSONAL DEL EVENTO'},
+      {tipo:'grupo_personal_evento', campos:[
+        {label:'Cocineros', key:'personal_cocineros', inputType:'number'},
+        {label:'Managers', key:'personal_managers', inputType:'number'},
+        {label:'Camareros', key:'personal_camareros', inputType:'number'},
+        {label:'Asistentes', key:'personal_asistentes', inputType:'number'},
+        {label:'Otros', key:'personal_otros', inputType:'number'}
+      ], obsKey:'personal_obs'},
       {tipo:'campo', label:'Descripción', key:'descripcion', inputType:'textarea'},
       {tipo:'campo_check', label:'Servicios incluidos', key:'servicios', opciones:['Comida','Personal','Barra','Vajilla','Equipamiento']},
       {tipo:'campo', label:'Contacto', key:'contacto'},
@@ -2958,6 +2966,13 @@ const COMANDA_TEMPLATE = [
       {tipo:'info', label:'Completar únicamente casillas con recuadro'},
       {tipo:'campo_readonly', label:'Nombre del evento', key:'_nombre_evento'},
       {tipo:'campo', label:'Tipo de evento', key:'com_tipo_evento'},
+      {tipo:'grupo_personal_evento', readonly:true, campos:[
+        {label:'Cocineros', key:'com_personal_cocineros', inputType:'number'},
+        {label:'Managers', key:'com_personal_managers', inputType:'number'},
+        {label:'Camareros', key:'com_personal_camareros', inputType:'number'},
+        {label:'Asistentes', key:'com_personal_asistentes', inputType:'number'},
+        {label:'Otros', key:'com_personal_otros', inputType:'number'}
+      ], obsKey:'com_personal_obs'},
       {tipo:'campo', label:'Encargado', key:'com_encargado'},
       {tipo:'seccion', label:'JORNADA DE TRABAJO Y CANTIDADES DE PERSONAS'},
       {tipo:'campos_multi', label:'', keys:[{k:'com_fecha',l:'Fecha',t:'date'},{k:'com_hora_ini',l:'Hora Comienzo'},{k:'com_hora_fin',l:'Hora Finalización'}]},
@@ -3061,6 +3076,13 @@ const COMANDA_TEMPLATE = [
       {tipo:'campo', label:'Fecha', key:'fm_fecha', inputType:'date'},
       {tipo:'campo', label:'Descripción general del evento', key:'fm_descripcion', inputType:'textarea'},
       {tipo:'campo', label:'Tipo de evento', key:'fm_tipo'},
+      {tipo:'grupo_personal_evento', readonly:true, campos:[
+        {label:'Cocineros', key:'fm_personal_cocineros', inputType:'number'},
+        {label:'Managers', key:'fm_personal_managers', inputType:'number'},
+        {label:'Camareros', key:'fm_personal_camareros', inputType:'number'},
+        {label:'Asistentes', key:'fm_personal_asistentes', inputType:'number'},
+        {label:'Otros', key:'fm_personal_otros', inputType:'number'}
+      ], obsKey:'fm_personal_obs'},
       {tipo:'campo', label:'Horario inicio', key:'fm_hora_ini'},
       {tipo:'campo', label:'Horario finalización', key:'fm_hora_fin'},
       {tipo:'campo', label:'Horario ingreso proveedores/personal', key:'fm_hora_personal'},
@@ -3228,6 +3250,8 @@ function guardarNuevoEvento(){
     sheet.campos.forEach(c=>{
       if(c.key) datos[c.key]='';
       if(c.keys) c.keys.forEach(k=>datos[k.k]='');
+      if(c.campos) c.campos.forEach(f=>{ if(f.key) datos[f.key]=''; });
+      if(c.obsKey) datos[c.obsKey]='';
       if(c.opciones_bool) c.opciones_bool.forEach(o=>datos[o.k]=false);
       if(c.opciones) c.opciones && (datos[c.key||c.label]=[]);
     });
@@ -3407,6 +3431,38 @@ function renderEventoSheet(ev, sheetIdx){
           </div>`;
         }
       });
+      html+=`</div>`;
+    } else if(c.tipo==='grupo_personal_evento'){
+      const fields = c.campos||[];
+      const obsVal = datos[c.obsKey]||'';
+      html+=`<div style="margin-bottom:16px">`;
+      html+=`<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">`;
+      fields.forEach(f=>{
+        const val = datos[f.key]||'';
+        if(c.readonly){
+          html+=`<div class="form-field" style="flex:1;min-width:140px">
+            <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(f.label)}</label>
+            <input type="${f.inputType||'text'}" value="${escH(val)}" readonly data-key="${f.key}"
+              style="width:100%;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">
+          </div>`;
+        } else {
+          const emptyBg = (!val||String(val).trim()==='') ? 'rgba(220,53,69,0.09)' : 'var(--surface2)';
+          html+=`<div class="form-field" style="flex:1;min-width:140px">
+            <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(f.label)}</label>
+            <input type="${f.inputType||'text'}" min="0" value="${escH(val)}" data-key="${f.key}"
+              style="width:100%;background:${emptyBg};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none"
+              oninput="updateEventoDato('${f.key}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'">
+          </div>`;
+        }
+      });
+      html+=`</div>`;
+      html+=`<div class="form-field">
+        <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">Observaciones de personal</label>
+        ${c.readonly
+          ? `<textarea rows="3" readonly data-key="${c.obsKey}" style="width:100%;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical;outline:none;cursor:not-allowed">${escH(obsVal)}</textarea>`
+          : `<textarea rows="3" data-key="${c.obsKey}" style="width:100%;background:${(!obsVal||String(obsVal).trim()==='')?'rgba(220,53,69,0.09)':'var(--surface2)'};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical;outline:none" oninput="updateEventoDato('${c.obsKey}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'">${escH(obsVal)}</textarea>`}
+        ${c.readonly ? `<div style="font-size:10px;color:var(--text3);margin-top:3px;font-style:italic">Se edita desde la solapa Evento</div>` : ''}
+      </div>`;
       html+=`</div>`;
     } else if(c.tipo==='campo' && CAMPOS_DESTINO_A_ORIGEN[c.key]){
       const val = getValorCampoCompartido(c.key, datos);
@@ -3610,6 +3666,12 @@ const CAMPOS_COMPARTIDOS = {
   'tipo_formato':   ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'],
   'tipo_categoria': ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'],
   'tipo_detalle':   ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'],
+  'personal_cocineros':['com_personal_cocineros','fm_personal_cocineros'],
+  'personal_managers':['com_personal_managers','fm_personal_managers'],
+  'personal_camareros':['com_personal_camareros','fm_personal_camareros'],
+  'personal_asistentes':['com_personal_asistentes','fm_personal_asistentes'],
+  'personal_otros':['com_personal_otros','fm_personal_otros'],
+  'personal_obs':['com_personal_obs','fm_personal_obs'],
   'locacion':       ['com_locacion','eva_locacion','fm_locacion'],
   'ubicacion':      ['com_direccion','fm_ubicacion'],
   'cant_adultos':   ['com_inv_adultos','fm_adultos'],
