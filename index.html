@@ -2898,7 +2898,11 @@ const COMANDA_TEMPLATE = [
       {tipo:'campo', label:'Fecha', key:'fecha', inputType:'date'},
       {tipo:'campo', label:'Horario de Inicio del evento', key:'horario_inicio'},
       {tipo:'campo', label:'Horario de Finalización del evento', key:'horario_fin'},
-      {tipo:'campo', label:'Tipo de evento', key:'tipo_evento'},
+      {tipo:'grupo_tipo_evento', campos:[
+        {label:'Formato', key:'tipo_formato', inputType:'select', opciones:['','Desayuno','Brunch','Almuerzo','Merienda','Coffee Break','Coctel','Cena','Full Day','Otro']},
+        {label:'Categoría', key:'tipo_categoria', inputType:'select', opciones:['','Empresarial','Social','Prensa','Informal','Casamiento','Cumpleaños','Otro']},
+        {label:'Detalle', key:'tipo_detalle', inputType:'text'}
+      ]},
       {tipo:'campo', label:'Descripción', key:'descripcion', inputType:'textarea'},
       {tipo:'campo_check', label:'Servicios incluidos', key:'servicios', opciones:['Comida','Personal','Barra','Vajilla','Equipamiento']},
       {tipo:'campo', label:'Contacto', key:'contacto'},
@@ -3382,8 +3386,30 @@ function renderEventoSheet(ev, sheetIdx){
           </button>
         </div>
       </div>`;
+    } else if(c.tipo==='grupo_tipo_evento'){
+      html+=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">`;
+      c.campos.forEach(f=>{
+        const val = datos[f.key]||'';
+        if(f.inputType==='select'){
+          html+=`<div class="form-field" style="flex:1;min-width:180px">
+            <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(f.label)}</label>
+            <select data-key="${f.key}" onchange="updateEventoDato('${f.key}',this.value)"
+              style="width:100%;background:${(!val||String(val).trim()==='')?'rgba(220,53,69,0.09)':'var(--surface2)'};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none">
+              ${(f.opciones||[]).map(opt=>`<option value="${escH(opt)}" ${val===opt?'selected':''}>${escH(opt||'Seleccionar')}</option>`).join('')}
+            </select>
+          </div>`;
+        } else {
+          html+=`<div class="form-field" style="flex:1;min-width:180px">
+            <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(f.label)}</label>
+            <input type="text" value="${escH(val)}" data-key="${f.key}"
+              style="width:100%;background:${(!val||String(val).trim()==='')?'rgba(220,53,69,0.09)':'var(--surface2)'};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none"
+              oninput="updateEventoDato('${f.key}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'">
+          </div>`;
+        }
+      });
+      html+=`</div>`;
     } else if(c.tipo==='campo' && CAMPOS_DESTINO_A_ORIGEN[c.key]){
-      const val = datos[c.key]||'';
+      const val = getValorCampoCompartido(c.key, datos);
       html+=`<div class="form-field" style="margin-bottom:14px">
         <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
         ${c.inputType==='textarea'
@@ -3581,7 +3607,9 @@ const CAMPOS_COMPARTIDOS = {
   'fecha':          ['com_fecha','bar_fecha','vco_fecha','vsa_fecha','eva_fecha','fm_fecha'],
   'horario_inicio': ['com_hora_ini','eva_hora_ini','fm_hora_ini'],
   'horario_fin':    ['com_hora_fin','eva_hora_fin','fm_hora_fin'],
-  'tipo_evento':    ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'],
+  'tipo_formato':   ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'],
+  'tipo_categoria': ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'],
+  'tipo_detalle':   ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'],
   'locacion':       ['com_locacion','eva_locacion','fm_locacion'],
   'ubicacion':      ['com_direccion','fm_ubicacion'],
   'cant_adultos':   ['com_inv_adultos','fm_adultos'],
@@ -3598,10 +3626,33 @@ Object.entries(CAMPOS_COMPARTIDOS).forEach(([origen, destinos])=>{
   destinos.forEach(dest=>{ CAMPOS_DESTINO_A_ORIGEN[dest] = origen; });
 });
 
+function getTextoTipoEvento(datos){
+  return [datos.tipo_formato, datos.tipo_categoria, datos.tipo_detalle]
+    .filter(v=>String(v||'').trim())
+    .join(' — ');
+}
+
+function getValorCampoCompartido(key, datos){
+  if(['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo','tipo_evento'].includes(key)){
+    return getTextoTipoEvento(datos);
+  }
+  return datos[key] ?? '';
+}
+
 function updateEventoDato(key, val){
   const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
   if(!ev) return;
   ev.datos[key] = val;
+  if(['tipo_formato','tipo_categoria','tipo_detalle'].includes(key)){
+    const texto = getTextoTipoEvento(ev.datos);
+    ev.datos.tipo_evento = texto;
+    ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'].forEach(destKey=>{
+      ev.datos[destKey] = texto;
+      const inputEl = document.querySelector('[data-key="'+destKey+'"]');
+      if(inputEl) inputEl.value = texto;
+    });
+    return;
+  }
   if(CAMPOS_COMPARTIDOS[key]){
     CAMPOS_COMPARTIDOS[key].forEach(destKey=>{
       ev.datos[destKey] = val;
