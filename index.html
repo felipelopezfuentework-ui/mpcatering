@@ -2665,9 +2665,54 @@ firebase.initializeApp(FB_CONFIG);
 const fbDb=firebase.firestore();
 const FB_DOC=fbDb.collection('mp_data').doc('main');
 
+// ── Conversión de arrays anidados (Firestore no soporta array dentro de array) ──
+// Un array que contiene arrays entre sus elementos se convierte, de forma completa
+// y recursiva, en un objeto indexado por posición: [["a","b"],["c","d"]] -> {"0":{"0":"a","1":"b"},"1":{"0":"c","1":"d"}}
+function arrayAObjetoIndexado(arr){
+  const obj={};
+  arr.forEach((v,i)=>{
+    if(Array.isArray(v)) obj[i]=arrayAObjetoIndexado(v);
+    else if(v&&typeof v==='object') obj[i]=objetoConArraysConvertidos(v);
+    else obj[i]=v;
+  });
+  return obj;
+}
+function objetoConArraysConvertidos(o){
+  const obj={};
+  Object.keys(o).forEach(k=>{ obj[k]=convertirArraysAnidados(o[k]); });
+  return obj;
+}
+function convertirArraysAnidados(value){
+  if(Array.isArray(value)){
+    if(value.some(v=>Array.isArray(v))) return arrayAObjetoIndexado(value);
+    return value.map(v=>convertirArraysAnidados(v));
+  }
+  if(value&&typeof value==='object') return objetoConArraysConvertidos(value);
+  return value;
+}
+// Reconversión inversa al cargar: un objeto cuyas claves son "0","1","2"... secuenciales
+// se interpreta como un array que fue convertido antes de guardar.
+function esObjetoIndexado(o){
+  if(!o||typeof o!=='object'||Array.isArray(o)) return false;
+  const keys=Object.keys(o);
+  if(keys.length===0) return false;
+  return keys.every((k,i)=>k===String(i));
+}
+function reconvertirArraysAnidados(value){
+  if(Array.isArray(value)) return value.map(v=>reconvertirArraysAnidados(v));
+  if(value&&typeof value==='object'){
+    if(esObjetoIndexado(value)) return Object.keys(value).map(k=>reconvertirArraysAnidados(value[k]));
+    const obj={};
+    Object.keys(value).forEach(k=>{ obj[k]=reconvertirArraysAnidados(value[k]); });
+    return obj;
+  }
+  return value;
+}
+
 async function sbSave(silent=false){
   try{
-    await FB_DOC.set({payload:DB,updated_at:new Date().toISOString()});
+    const payload=convertirArraysAnidados(DB);
+    await FB_DOC.set({payload,updated_at:new Date().toISOString()});
     // Backup local
     try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
     const el=document.getElementById('autosave-indicator');
@@ -2686,7 +2731,7 @@ async function sbLoad(){
   try{
     const doc=await FB_DOC.get();
     if(doc.exists&&doc.data().payload){
-      const p=doc.data().payload;
+      const p=reconvertirArraysAnidados(doc.data().payload);
       if(p.insumos&&p.insumos.length>=100){
         DB=p;
         if(!DB.platos_config)DB.platos_config={};
