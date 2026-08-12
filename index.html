@@ -4303,21 +4303,36 @@ function ensureSpace(doc, y, needed, H, margin, pageState){
   return y;
 }
 
+// Dibuja un bloque de líneas centrado verticalmente dentro de una caja [boxTop, boxTop+boxHeight],
+// con espaciado uniforme y proporcional entre líneas (mismo lineHeight para todas).
+function drawLinesCentered(doc, lines, x, boxTop, boxHeight, lineHeight){
+  if(!lines || !lines.length) return;
+  const contentHeight=lines.length*lineHeight;
+  const offset=Math.max(0, (boxHeight-contentHeight)/2);
+  let ly=boxTop + offset + lineHeight*0.72;
+  lines.forEach(line=>{
+    doc.text(line, x, ly);
+    ly += lineHeight;
+  });
+}
+
 function renderFieldBlock(doc, label, value, x, y, contentWidth, margin){
   const textValue=limpiarValorPDF(value);
   if(!textValue) return y;
   const labelText=limpiarValorPDF(label);
   const lines=doc.splitTextToSize(textValue, contentWidth - 60);
   const lineHeight=4.8;
+  const padY=0.7;
+  const blockHeight=lines.length*lineHeight + padY*2;
   doc.setFont('helvetica','bold');
   doc.setFontSize(10);
   doc.setTextColor(70,70,70);
-  doc.text(labelText, x, y);
+  drawLinesCentered(doc, [labelText], x, y, blockHeight, lineHeight);
   doc.setFont('helvetica','normal');
   doc.setFontSize(10);
   doc.setTextColor(30,10,46);
-  doc.text(lines, x + 60, y);
-  return y + Math.max(6.2, lines.length*lineHeight);
+  drawLinesCentered(doc, lines, x + 60, y, blockHeight, lineHeight);
+  return y + blockHeight;
 }
 
 function renderTableBlock(doc, c, rows, x, y, contentWidth, margin, pageState){
@@ -4335,24 +4350,25 @@ function renderTableBlock(doc, c, rows, x, y, contentWidth, margin, pageState){
     colWidths=cols.map(()=>eq);
   }
   const lineHeight=4.3;
+  const padY=1.6; // relleno vertical uniforme arriba/abajo del contenido de cada fila/encabezado
 
   doc.setFont('helvetica','bold');
   doc.setFontSize(10);
   const headerLineSets=cols.map((col, idx)=>doc.splitTextToSize(String(col||''), Math.max((colWidths[idx]||0)-3, 10)));
   const headerLines=Math.max(1, ...headerLineSets.map(l=>l.length));
-  const headerHeight=headerLines*lineHeight + 3;
+  const headerHeight=headerLines*lineHeight + padY*2;
 
   let tableY=ensureSpace(doc, y, headerHeight+9, pageState.H, margin, pageState);
   doc.setTextColor(60,60,60);
   let cursor=x;
   cols.forEach((col, idx)=>{
-    doc.text(headerLineSets[idx], cursor + 1.5, tableY+3.4);
+    drawLinesCentered(doc, headerLineSets[idx], cursor + 1.5, tableY, headerHeight, lineHeight);
     cursor += colWidths[idx] || 0;
   });
   doc.setDrawColor(180,180,180);
   doc.setLineWidth(0.3);
   doc.line(x, tableY+headerHeight, x+tableWidth, tableY+headerHeight);
-  let rowY=tableY + headerHeight + lineHeight;
+  let rowY=tableY + headerHeight;
 
   rows.forEach((row)=>{
     doc.setFont('helvetica','normal');
@@ -4363,18 +4379,17 @@ function renderTableBlock(doc, c, rows, x, y, contentWidth, margin, pageState){
       return disp ? doc.splitTextToSize(disp, Math.max((colWidths[idx]||0)-3, 10)) : [];
     });
     const rowLines=Math.max(1, ...cellLineSets.map(l=>l.length));
-    const rowHeight=rowLines*lineHeight + 2.5;
+    const rowHeight=rowLines*lineHeight + padY*2;
     rowY = ensureSpace(doc, rowY, rowHeight+1.5, pageState.H, margin, pageState);
     doc.setTextColor(30,30,30);
     let cursor2=x;
     cellLineSets.forEach((lines, idx)=>{
-      if(lines.length) doc.text(lines, cursor2 + 1.5, rowY);
+      drawLinesCentered(doc, lines, cursor2 + 1.5, rowY, rowHeight, lineHeight);
       cursor2 += colWidths[idx] || 0;
     });
-    const sepY=rowY + rowHeight - lineHeight + 1.8;
     doc.setDrawColor(224,224,224);
     doc.setLineWidth(0.15);
-    doc.line(x, sepY, x+tableWidth, sepY);
+    doc.line(x, rowY+rowHeight, x+tableWidth, rowY+rowHeight);
     rowY += rowHeight;
   });
   return rowY + 2;
