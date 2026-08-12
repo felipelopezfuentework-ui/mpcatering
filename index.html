@@ -269,6 +269,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -2649,22 +2651,23 @@ function delMaestroSub(i){DB.maestro_subs.splice(i,1);renderMaestros();}
 function cerrarModal(id){ddClose();document.getElementById(id).classList.remove('open');}
 function showAlert(id,type,msg){const el=document.getElementById(id);if(!el)return;el.className='alert alert-'+type+' show';el.textContent=msg;setTimeout(()=>el.classList.remove('show'),4000);}
 // ══════════════════════════════════════════════════════════════════
-//  SUPABASE SYNC
+//  FIREBASE FIRESTORE SYNC
 // ══════════════════════════════════════════════════════════════════
-const SB_URL='https://mzuxgaqddohfydtwlkov.supabase.co';
-const SB_KEY='sb_publishable_NwN5gbWK1hnJRnuE3NEmMQ_Nci1R5Vh';
-const SB_HEADERS={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+const FB_CONFIG={
+  apiKey:"AIzaSyA469FTgsRZ9W4IjyzcsgD1ZvR5HXO1OCs",
+  authDomain:"mpsistema-320ff.firebaseapp.com",
+  projectId:"mpsistema-320ff",
+  storageBucket:"mpsistema-320ff.firebasestorage.app",
+  messagingSenderId:"156989249495",
+  appId:"1:156989249495:web:d603f7bde95978327e5d92"
+};
+firebase.initializeApp(FB_CONFIG);
+const fbDb=firebase.firestore();
+const FB_DOC=fbDb.collection('mp_data').doc('main');
 
 async function sbSave(silent=false){
   try{
-    const body=JSON.stringify({id:'main',payload:DB,updated_at:new Date().toISOString()});
-    // Upsert: inserta o actualiza en un solo request
-    const r=await fetch(SB_URL+'/rest/v1/mp_data',{
-      method:'POST',
-      headers:{...SB_HEADERS,'Prefer':'resolution=merge-duplicates,return=minimal'},
-      body
-    });
-    if(!r.ok){const t=await r.text();throw new Error(r.status+' '+t);}
+    await FB_DOC.set({payload:DB,updated_at:new Date().toISOString()});
     // Backup local
     try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
     const el=document.getElementById('autosave-indicator');
@@ -2681,10 +2684,9 @@ async function sbSave(silent=false){
 
 async function sbLoad(){
   try{
-    const r=await fetch(SB_URL+'/rest/v1/mp_data?id=eq.main&select=payload',{headers:SB_HEADERS});
-    const rows=await r.json();
-    if(rows&&rows.length>0&&rows[0].payload){
-      const p=rows[0].payload;
+    const doc=await FB_DOC.get();
+    if(doc.exists&&doc.data().payload){
+      const p=doc.data().payload;
       if(p.insumos&&p.insumos.length>=100){
         DB=p;
         if(!DB.platos_config)DB.platos_config={};
@@ -4071,119 +4073,306 @@ function exportarEventoPDF(){
 function exportarPestañaPDF(){
   exportarPestañaPDFById(comandaPeriodoActual, comandaEventoActual, comandaSheetActual);
 }
+function formatFechaPDF(value){
+  if(value===null||value===undefined||value==='') return '';
+  const str=String(value).trim();
+  if(!str||str==='—') return '';
+  const m=str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m){
+    const d=new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+    if(!isNaN(d.getTime())) return `${d.getDate()} de ${MESES[d.getMonth()+1].toLowerCase()} de ${d.getFullYear()}`;
+  }
+  const parsed=Date.parse(str);
+  if(!isNaN(parsed)){
+    const d=new Date(parsed);
+    return `${d.getDate()} de ${MESES[d.getMonth()+1].toLowerCase()} de ${d.getFullYear()}`;
+  }
+  return str;
+}
+
+function limpiarValorPDF(value){
+  if(value===null||value===undefined) return '';
+  if(typeof value==='boolean') return value ? 'Sí' : '';
+  let text=String(value).trim();
+  if(!text||text==='—'||text==='--'||text==='---') return '';
+  text=text.replace(/https?:\/\/[^\s]+/gi,'')
+    .replace(/www\.[^\s]+/gi,'')
+    .replace(/(?:maps\.app\.)?goo\.gl\/[^\s]+/gi,'')
+    .replace(/maps\.google\.[^\s]+/gi,'');
+  text=text.replace(/\s+/g,' ').trim();
+  return text;
+}
+
+function getValorCampoPDF(ev, c){
+  if(c.tipo==='campo_readonly') return limpiarValorPDF(ev.nombre || ev.datos[c.key] || '');
+  if(!c.key) return '';
+  const raw=ev.datos?.[c.key];
+  if(raw===null||raw===undefined||raw==='') return '';
+  if(typeof raw==='string') return limpiarValorPDF(raw);
+  if(typeof raw==='number') return limpiarValorPDF(raw);
+  if(Array.isArray(raw)) return raw.length ? raw.join(', ') : '';
+  return limpiarValorPDF(raw);
+}
+
+function getValorMultiPDF(ev, key){
+  const raw=ev.datos?.[key];
+  return limpiarValorPDF(raw);
+}
+
+function buildValueItems(ev, item){
+  if(item.tipo==='campo_readonly') return [];
+  if(item.tipo==='campo'){
+    const val=getValorCampoPDF(ev, item);
+    return val ? [{label:item.label, value: item.key==='fecha' || item.key==='fm_fecha' || item.key==='com_fecha' || item.key==='bar_fecha' || item.key==='eva_fecha' || item.key==='vco_fecha' || item.key==='vsa_fecha' ? formatFechaPDF(val) : val}] : [];
+  }
+  if(item.tipo==='campos_multi'){
+    const items=[];
+    item.keys.forEach(k=>{
+      const val=getValorMultiPDF(ev, k.k);
+      const display= k.t==='date' ? formatFechaPDF(val) : val;
+      if(display) items.push({label:k.l, value:display});
+    });
+    return items.length ? items : [];
+  }
+  if(item.tipo==='grupo_personal_evento' || item.tipo==='grupo_tipo_evento'){
+    const items=[];
+    (item.campos||[]).forEach(sub=>{
+      const val=getValorMultiPDF(ev, sub.key);
+      if(val) items.push({label:sub.label, value:val});
+    });
+    const obsKey=item.obsKey;
+    if(obsKey){
+      const obs=getValorMultiPDF(ev, obsKey);
+      if(obs) items.push({label:'Observación', value:obs});
+    }
+    return items.length ? items : [];
+  }
+  if(item.tipo==='opciones_bool'){
+    const active=(item.opciones||[]).filter(o=>ev.datos?.[o.k]);
+    return active.length ? [{label:'Servicios', value:active.map(o=>o.l).join(' · ')}] : [];
+  }
+  if(item.tipo==='campo_check'){
+    const list=[];
+    if(item.opciones){
+      item.opciones.forEach(opt=>{
+        const val=ev.datos?.[item.key]?.includes?.(opt) || ev.datos?.[item.key]===opt || ev.datos?.[opt.toLowerCase()];
+        if(val) list.push(opt);
+      });
+    }
+    return list.length ? [{label:item.label, value:list.join(' · ')}] : [];
+  }
+  if(item.tipo==='tabla_libre'||item.tipo==='tabla_menu'||item.tipo==='tabla_bebidas'||item.tipo==='tabla_checks'||item.tipo==='tabla_evaluacion'||item.tipo==='tabla_personal'||item.tipo==='tabla_dietas'){
+    const rows=Array.isArray(ev.datos?.[item.key]) ? ev.datos[item.key] : [];
+    const visibleRows=rows.filter(row=>{
+      if(Array.isArray(row)) return row.some(cell=>limpiarValorPDF(cell));
+      if(!row) return false;
+      return Object.values(row).some(cell=>limpiarValorPDF(cell));
+    });
+    return visibleRows.length ? [{label:item.label||'', value:visibleRows, type:item.tipo, cols:item.cols || []}] : [];
+  }
+  return [];
+}
+
+function buildRenderableSections(sheet, ev){
+  const sections=[];
+  let current=null;
+  const flush=()=>{
+    if(current && current.items.some(it=>it && it.length)) sections.push(current);
+    current=null;
+  };
+  sheet.campos.forEach(c=>{
+    if(c.tipo==='titulo'||c.tipo==='info') return;
+    if(c.tipo==='seccion'){
+      flush();
+      current={title:c.label, items:[]};
+      return;
+    }
+    const built=buildValueItems(ev, c);
+    if(built.length){
+      if(!current) current={title:'', items:[]};
+      current.items.push(built);
+    }
+  });
+  flush();
+  return sections;
+}
+
+function drawPageHeader(doc, title, eventName, pageNo, W, H, margin){
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(10);
+  doc.setTextColor(60,60,60);
+  doc.text('Mariana Pages Catering', margin, margin+3);
+  doc.text(eventName || 'Evento', W/2, margin+3, {align:'center', maxWidth:(W-margin*2)-120});
+  doc.setFont('helvetica','normal');
+  doc.text('Pág. '+pageNo, W-margin, margin+3, {align:'right'});
+  doc.setDrawColor(200,200,200);
+  doc.setLineWidth(0.25);
+  doc.line(margin, margin+5.5, W-margin, margin+5.5);
+  doc.setTextColor(30,30,30);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(12);
+  doc.text(title, margin, margin+12);
+  doc.setDrawColor(215,215,215);
+  doc.setLineWidth(0.2);
+  doc.line(margin, margin+14.5, W-margin, margin+14.5);
+}
+
+function ensureSpace(doc, y, needed, H, margin, pageState){
+  if(y+needed>H-margin-6){
+    doc.addPage();
+    pageState.pageNo += 1;
+    drawPageHeader(doc, pageState.title, pageState.eventName, pageState.pageNo, pageState.W, pageState.H, pageState.margin);
+    return pageState.margin + 19;
+  }
+  return y;
+}
+
+function renderFieldBlock(doc, label, value, x, y, contentWidth, margin){
+  const textValue=limpiarValorPDF(value);
+  if(!textValue) return y;
+  const labelText=limpiarValorPDF(label);
+  const lines=doc.splitTextToSize(textValue, contentWidth - 60);
+  const lineHeight=4.8;
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(10);
+  doc.setTextColor(70,70,70);
+  doc.text(labelText, x, y);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(30,10,46);
+  doc.text(lines, x + 60, y);
+  return y + Math.max(6.2, lines.length*lineHeight);
+}
+
+function renderTableBlock(doc, c, rows, x, y, contentWidth, margin, pageState){
+  if(!rows.length) return y;
+  const cols=c.cols||[];
+  const tableWidth=contentWidth;
+  const isMenu = c.tipo==='tabla_menu' && cols.length>1;
+  let colWidths;
+  if(isMenu){
+    const menuW=tableWidth*0.5;
+    const restW=(tableWidth-menuW)/(cols.length-1);
+    colWidths=cols.map((_,idx)=> idx===0 ? menuW : restW);
+  } else {
+    const eq=tableWidth/cols.length;
+    colWidths=cols.map(()=>eq);
+  }
+  const lineHeight=4.3;
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(10);
+  const headerLineSets=cols.map((col, idx)=>doc.splitTextToSize(String(col||''), Math.max((colWidths[idx]||0)-3, 10)));
+  const headerLines=Math.max(1, ...headerLineSets.map(l=>l.length));
+  const headerHeight=headerLines*lineHeight + 3;
+
+  let tableY=ensureSpace(doc, y, headerHeight+9, pageState.H, margin, pageState);
+  doc.setTextColor(60,60,60);
+  let cursor=x;
+  cols.forEach((col, idx)=>{
+    doc.text(headerLineSets[idx], cursor + 1.5, tableY+3.4);
+    cursor += colWidths[idx] || 0;
+  });
+  doc.setDrawColor(180,180,180);
+  doc.setLineWidth(0.3);
+  doc.line(x, tableY+headerHeight, x+tableWidth, tableY+headerHeight);
+  let rowY=tableY + headerHeight + lineHeight;
+
+  rows.forEach((row)=>{
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    const cellLineSets=cols.map((col, idx)=>{
+      const raw=Array.isArray(row)?row[idx]:row[cols[idx]];
+      const disp=raw===true?'Sí':raw===false?'':limpiarValorPDF(raw);
+      return disp ? doc.splitTextToSize(disp, Math.max((colWidths[idx]||0)-3, 10)) : [];
+    });
+    const rowLines=Math.max(1, ...cellLineSets.map(l=>l.length));
+    const rowHeight=rowLines*lineHeight + 2.5;
+    rowY = ensureSpace(doc, rowY, rowHeight+1.5, pageState.H, margin, pageState);
+    doc.setTextColor(30,30,30);
+    let cursor2=x;
+    cellLineSets.forEach((lines, idx)=>{
+      if(lines.length) doc.text(lines, cursor2 + 1.5, rowY);
+      cursor2 += colWidths[idx] || 0;
+    });
+    const sepY=rowY + rowHeight - lineHeight + 1.8;
+    doc.setDrawColor(224,224,224);
+    doc.setLineWidth(0.15);
+    doc.line(x, sepY, x+tableWidth, sepY);
+    rowY += rowHeight;
+  });
+  return rowY + 2;
+}
+
 function exportarPestañaPDFById(periodoId, eventoId, sheetIdx){
   const ev = DB.comanda.eventos[periodoId]?.find(e=>e.id===eventoId);
   if(!ev){alert('Evento no encontrado.');return;}
   const sheet = COMANDA_TEMPLATE[sheetIdx];
   const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
   const W=doc.internal.pageSize.getWidth();
   const H=doc.internal.pageSize.getHeight();
-  const margin=14;
-  let y=margin;
+  const margin=10;
+  const contentWidth=W-margin*2;
+  const eventName=limpiarValorPDF(ev.nombre || ev.datos?._nombre_evento || '') || 'Evento sin nombre';
+  const fecha = formatFechaPDF(ev.datos?.fecha || ev.datos?.fm_fecha || ev.datos?.com_fecha || ev.datos?.bar_fecha || ev.datos?.eva_fecha || ev.datos?.vco_fecha || ev.datos?.vsa_fecha);
+  const invitados = limpiarValorPDF(ev.datos?.com_inv_total || ev.datos?.fm_invitados || ev.datos?.vsa_invitados || ev.datos?.vco_invitados || ev.datos?.eva_invitados);
+  const pageState={pageNo:1,title:sheet.nombre,eventName, W, H, margin};
+  drawPageHeader(doc, sheet.nombre, eventName, pageState.pageNo, W, H, margin);
+  let y=margin+19;
 
-  function checkPage(needed=10){
-    if(y+needed>H-14){doc.addPage();y=margin;addHeader();}
-  }
-  function addHeader(){
-    doc.setFillColor(61,26,82);
-    doc.rect(0,0,W,10,'F');
-    doc.setTextColor(200,169,81);
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(7);
-    doc.text('Mariana Pages Catering  ·  '+ev.nombre+' — '+sheet.nombre,W/2,6.5,{align:'center'});
-    doc.setTextColor(0,0,0);
-    y=14;
-  }
-
-  // Header de portada
-  doc.setFillColor(61,26,82);
-  doc.rect(0,0,W,32,'F');
-  doc.setTextColor(200,169,81);
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(14);
-  doc.text(sheet.nombre,W/2,13,{align:'center'});
+  doc.setFont('helvetica','normal');
   doc.setFontSize(10);
-  doc.setTextColor(240,230,255);
-  doc.text(ev.nombre,W/2,22,{align:'center'});
-  y=40;
+  doc.setTextColor(90,90,90);
+  const summaryParts=[];
+  if(eventName) summaryParts.push(eventName);
+  if(fecha) summaryParts.push(fecha);
+  if(invitados) summaryParts.push('Invitados: '+invitados);
+  if(summaryParts.length) {
+    doc.text(summaryParts.join('     ·     '), margin, y);
+    y += 6;
+  }
+  doc.setDrawColor(220,220,220);
+  doc.line(margin, y, W-margin, y);
+  y += 6;
 
-  // Renderizar campos de la pestaña
-  sheet.campos.forEach(c=>{
-    if(c.tipo==='titulo'||c.tipo==='info') return;
-    if(c.tipo==='seccion'){
-      checkPage(10);
-      doc.setFillColor(237,229,245);
-      doc.rect(margin,y-3,W-margin*2,8,'F');
-      doc.setTextColor(61,26,82);doc.setFont('helvetica','bold');doc.setFontSize(8);
-      doc.text(c.label,margin+3,y+1.5);
-      y+=10;
-    } else if(c.tipo==='campo'||c.tipo==='campo_readonly'){
-      checkPage(8);
-      const val=c.tipo==='campo_readonly'?ev.nombre:String(ev.datos[c.key]||'');
-      doc.setTextColor(100,70,130);doc.setFont('helvetica','bold');doc.setFontSize(7.5);
-      doc.text(c.label+':',margin,y);
-      doc.setTextColor(30,10,46);doc.setFont('helvetica','normal');
-      const lines=doc.splitTextToSize(val||'—',W-margin-60);
-      doc.text(lines,margin+60,y);
-      y+=Math.max(6,lines.length*5);
-    } else if(c.tipo==='campos_multi'){
-      checkPage(8);
-      c.keys.forEach(k=>{
-        const val=String(ev.datos[k.k]||'');
-        doc.setTextColor(100,70,130);doc.setFont('helvetica','bold');doc.setFontSize(7.5);
-        doc.text(k.l+':',margin,y);
-        doc.setTextColor(30,10,46);doc.setFont('helvetica','normal');
-        doc.text(val||'—',margin+40,y);
-        y+=6;checkPage(6);
-      });
-    } else if(c.tipo==='opciones_bool'){
-      checkPage(8);
-      const active=c.opciones.filter(o=>ev.datos[o.k]);
-      if(active.length){
-        doc.setTextColor(30,10,46);doc.setFont('helvetica','normal');doc.setFontSize(7.5);
-        doc.text('Servicios: '+active.map(o=>o.l).join(' · '),margin,y);y+=7;
-      }
-    } else if(c.tipo==='tabla_libre'||c.tipo==='tabla_menu'||c.tipo==='tabla_bebidas'||c.tipo==='tabla_checks'||c.tipo==='tabla_evaluacion'||c.tipo==='tabla_personal'){
-      const rows=ev.datos[c.key]||[];
-      if(!rows.length) return;
-      checkPage(14);
-      const colW=(W-margin*2)/c.cols.length;
-      doc.setFillColor(200,185,220);
-      doc.rect(margin,y-3,W-margin*2,7,'F');
-      doc.setTextColor(61,26,82);doc.setFont('helvetica','bold');doc.setFontSize(7);
-      c.cols.forEach((col,ci)=>doc.text(col,margin+ci*colW+2,y+1,{maxWidth:colW-4}));
-      y+=8;
-      rows.forEach((row,ri)=>{
-        checkPage(7);
-        if(ri%2===0){doc.setFillColor(250,247,255);}else{doc.setFillColor(255,255,255);}
-        doc.rect(margin,y-3,W-margin*2,6.5,'F');
-        doc.setTextColor(30,10,46);doc.setFont('helvetica','normal');doc.setFontSize(7);
-        c.cols.forEach((col,ci)=>{
-          const v=Array.isArray(row)?row[ci]:row[col]||'';
-          const vStr=typeof v==='boolean'?(v?'✓':'☐'):String(v||'');
-          doc.text(vStr,margin+ci*colW+2,y+1,{maxWidth:colW-4});
-        });
-        y+=7;
-      });
-      y+=4;
+  const sections=buildRenderableSections(sheet, ev);
+  sections.forEach((section, idx)=>{
+    if(section.title){
+      y=ensureSpace(doc, y, 9, H, margin, pageState);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(10.5);
+      doc.setTextColor(60,60,60);
+      doc.text(section.title, margin, y);
+      doc.setDrawColor(220,220,220);
+      doc.line(margin, y+1.5, W-margin, y+1.5);
+      y += 7;
     }
+    section.items.forEach(items=>{
+      if(!items || !items.length) return;
+      items.forEach(item=>{
+        if(Array.isArray(item)){
+          item.forEach(sub=>{
+            if((sub.type&&sub.type.indexOf('tabla_')===0)){ 
+              y=ensureSpace(doc, y, 14, H, margin, pageState);
+              y=renderTableBlock(doc, {cols:sub.cols, tipo:sub.type}, sub.value, margin, y, contentWidth, margin, pageState);
+            } else if(sub.label && sub.value){
+              y=ensureSpace(doc, y, 7, H, margin, pageState);
+              y=renderFieldBlock(doc, sub.label, sub.value, margin + 2, y, contentWidth - 4, margin);
+            }
+          });
+        } else if((item.type&&item.type.indexOf('tabla_')===0)){
+          y=ensureSpace(doc, y, 14, H, margin, pageState);
+          y=renderTableBlock(doc, {cols:item.cols, tipo:item.type}, item.value, margin, y, contentWidth, margin, pageState);
+        } else if(item.label && item.value){
+          y=ensureSpace(doc, y, 7, H, margin, pageState);
+          y=renderFieldBlock(doc, item.label, item.value, margin + 2, y, contentWidth - 4, margin);
+        }
+      });
+    });
   });
 
-  // Pie
-  const totalPages=doc.internal.getNumberOfPages();
-  for(let p=1;p<=totalPages;p++){
-    doc.setPage(p);
-    doc.setFillColor(61,26,82);
-    doc.rect(0,H-8,W,8,'F');
-    doc.setTextColor(180,160,200);
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(7);
-    doc.text('Mariana Pages Catering  ·  Uso interno',margin,H-3);
-    doc.text('Pág '+p+'/'+totalPages,W-margin,H-3,{align:'right'});
-  }
-
-  const fname='FichaTecnica_'+ev.nombre.replace(/[^a-zA-Z0-9]/g,'_').slice(0,25)+'_'+sheet.nombre.replace(/[^a-zA-Z0-9]/g,'_')+'.pdf';
+  const fname='FichaTecnica_'+(eventName||'evento').replace(/[^a-zA-Z0-9]/g,'_').slice(0,25)+'_'+sheet.nombre.replace(/[^a-zA-Z0-9]/g,'_')+'.pdf';
   doc.save(fname);
 }
 
@@ -4191,131 +4380,74 @@ function exportarEventoPDFById(periodoId, eventoId){
   const ev = DB.comanda.eventos[periodoId]?.find(e=>e.id===eventoId);
   if(!ev){alert('Evento no encontrado.');return;}
   const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
   const W=doc.internal.pageSize.getWidth();
   const H=doc.internal.pageSize.getHeight();
-  const margin=14;
-  let y=margin;
+  const margin=10;
+  const contentWidth=W-margin*2;
+  const eventName=limpiarValorPDF(ev.nombre || ev.datos?._nombre_evento || '') || 'Evento sin nombre';
+  const fecha = formatFechaPDF(ev.datos?.fecha || ev.datos?.fm_fecha || ev.datos?.com_fecha || ev.datos?.bar_fecha || ev.datos?.eva_fecha || ev.datos?.vco_fecha || ev.datos?.vsa_fecha);
+  const invitados = limpiarValorPDF(ev.datos?.com_inv_total || ev.datos?.fm_invitados || ev.datos?.vsa_invitados || ev.datos?.vco_invitados || ev.datos?.eva_invitados);
+  const pageState={pageNo:1,title:'FICHA TÉCNICA DE EVENTO',eventName, W, H, margin};
+  drawPageHeader(doc, 'FICHA TÉCNICA DE EVENTO', eventName, pageState.pageNo, W, H, margin);
+  let y=margin+19;
 
-  function checkPage(needed=10){
-    if(y+needed>H-14){doc.addPage();y=margin;addHeader();}
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(90,90,90);
+  const summaryParts=[];
+  if(eventName) summaryParts.push(eventName);
+  if(fecha) summaryParts.push(fecha);
+  if(invitados) summaryParts.push('Invitados: '+invitados);
+  if(summaryParts.length){
+    doc.text(summaryParts.join('     ·     '), margin, y);
+    y += 6;
   }
-  function addHeader(){
-    doc.setFillColor(61,26,82);
-    doc.rect(0,0,W,10,'F');
-    doc.setTextColor(200,169,81);
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(7);
-    doc.text('Mariana Pages Catering  ·  '+ev.nombre,W/2,6.5,{align:'center'});
-    doc.setTextColor(0,0,0);
-    y=14;
-  }
-
-  // Portada
-  doc.setFillColor(61,26,82);
-  doc.rect(0,0,W,40,'F');
-  doc.setTextColor(200,169,81);
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(18);
-  doc.text('FICHA TÉCNICA DE EVENTO',W/2,18,{align:'center'});
-  doc.setFontSize(13);
-  doc.setTextColor(240,230,255);
-  doc.text(ev.nombre,W/2,28,{align:'center'});
-  const p=DB.comanda.periodos.find(x=>x.id===periodoId);
-  if(p){doc.setFontSize(9);doc.setTextColor(180,160,200);doc.text(MESES[p.mes]+' '+p.anio,W/2,35,{align:'center'});}
-  y=50;
+  doc.setDrawColor(220,220,220);
+  doc.line(margin, y, W-margin, y);
+  y += 6;
 
   COMANDA_TEMPLATE.forEach(sheet=>{
-    checkPage(20);
-    // Sección header
-    doc.setFillColor(92,45,110);
-    doc.rect(margin,y-4,W-margin*2,10,'F');
-    doc.setTextColor(255,255,255);
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(10);
-    doc.text(sheet.nombre,margin+4,y+2);
-    y+=12;
+    if(sheet.nombre==='FICHA TÉCNICA' || sheet.nombre==='EVENTO' || sheet.nombre==='TIMING' || sheet.nombre==='BARRA' || sheet.nombre==='PRODUCCIÓN' || sheet.nombre==='CHECK LIST' || sheet.nombre==='VAJILLA COCINA' || sheet.nombre==='VAJILLA SALÓN' || sheet.nombre==='EVALUACIÓN' || sheet.nombre==='FICHA MANAGERS'){
+      y=ensureSpace(doc, y, 11, H, margin, pageState);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(12);
+      doc.setTextColor(60,60,60);
+      doc.text(sheet.nombre, margin, y);
+      doc.setDrawColor(220,220,220);
+      doc.line(margin, y+1.8, W-margin, y+1.8);
+      y += 8;
 
-    sheet.campos.forEach(c=>{
-      if(c.tipo==='titulo'||c.tipo==='info') return;
-      if(c.tipo==='seccion'){
-        checkPage(10);
-        doc.setFillColor(237,229,245);
-        doc.rect(margin,y-3,W-margin*2,8,'F');
-        doc.setTextColor(61,26,82);
-        doc.setFont('helvetica','bold');
-        doc.setFontSize(8);
-        doc.text(c.label,margin+3,y+1.5);
-        y+=10;
-      } else if(c.tipo==='campo'){
-        checkPage(8);
-        const val=String(ev.datos[c.key]||'');
-        doc.setTextColor(100,70,130);doc.setFont('helvetica','bold');doc.setFontSize(7.5);
-        doc.text(c.label+':',margin,y);
-        doc.setTextColor(30,10,46);doc.setFont('helvetica','normal');
-        const lines=doc.splitTextToSize(val||'—',W-margin-60);
-        doc.text(lines,margin+60,y);
-        y+=Math.max(6,lines.length*5);
-      } else if(c.tipo==='campos_multi'){
-        checkPage(8);
-        c.keys.forEach(k=>{
-          const val=String(ev.datos[k.k]||'');
-          doc.setTextColor(100,70,130);doc.setFont('helvetica','bold');doc.setFontSize(7.5);
-          doc.text(k.l+':',margin,y);
-          doc.setTextColor(30,10,46);doc.setFont('helvetica','normal');
-          doc.text(val||'—',margin+40,y);
-          y+=6;checkPage(6);
-        });
-      } else if(c.tipo==='opciones_bool'){
-        checkPage(8);
-        const active=c.opciones.filter(o=>ev.datos[o.k]);
-        if(active.length){
-          doc.setTextColor(30,10,46);doc.setFont('helvetica','normal');doc.setFontSize(7.5);
-          doc.text('✓ '+active.map(o=>o.l).join('  ·  '),margin,y);y+=7;
+      const sections=buildRenderableSections(sheet, ev);
+      sections.forEach(section=>{
+        if(section.title){
+          y=ensureSpace(doc, y, 9, H, margin, pageState);
+          doc.setFont('helvetica','bold');
+          doc.setFontSize(10.5);
+          doc.setTextColor(70,70,70);
+          doc.text(section.title, margin + 2, y);
+          doc.setDrawColor(220,220,220);
+          doc.line(margin + 2, y+1.5, W-margin-2, y+1.5);
+          y += 7;
         }
-      } else if(c.tipo==='tabla_libre'||c.tipo==='tabla_menu'||c.tipo==='tabla_checks'||c.tipo==='tabla_evaluacion'||c.tipo==='tabla_personal'){
-        const rows=ev.datos[c.key]||[];
-        if(!rows.length) return;
-        checkPage(14);
-        // Header
-        const colW=(W-margin*2)/c.cols.length;
-        doc.setFillColor(200,185,220);
-        doc.rect(margin,y-3,W-margin*2,7,'F');
-        doc.setTextColor(61,26,82);doc.setFont('helvetica','bold');doc.setFontSize(7);
-        c.cols.forEach((col,ci)=>doc.text(col,margin+ci*colW+2,y+1,{maxWidth:colW-4}));
-        y+=8;
-        rows.forEach((row,ri)=>{
-          checkPage(7);
-          if(ri%2===0){doc.setFillColor(250,247,255);}else{doc.setFillColor(255,255,255);}
-          doc.rect(margin,y-3,W-margin*2,6.5,'F');
-          doc.setTextColor(30,10,46);doc.setFont('helvetica','normal');doc.setFontSize(7);
-          c.cols.forEach((col,ci)=>{
-            const v=Array.isArray(row)?row[ci]:row[col]||'';
-            const vStr=typeof v==='boolean'?(v?'✓':'☐'):String(v||'');
-            doc.text(vStr,margin+ci*colW+2,y+1,{maxWidth:colW-4});
+        section.items.forEach(items=>{
+          items.forEach(item=>{
+            if((item.type&&item.type.indexOf('tabla_')===0)){
+              y=ensureSpace(doc, y, 14, H, margin, pageState);
+              y=renderTableBlock(doc, {cols:item.cols, tipo:item.type}, item.value, margin+2, y, contentWidth-4, margin, pageState);
+            } else if(item.label && item.value){
+              y=ensureSpace(doc, y, 7, H, margin, pageState);
+              y=renderFieldBlock(doc, item.label, item.value, margin + 4, y, contentWidth-8, margin);
+            }
           });
-          y+=7;
         });
-        y+=4;
-      }
-    });
-    y+=6;
+      });
+      y += 4;
+    }
   });
 
-  // Pie
-  const totalPages=doc.internal.getNumberOfPages();
-  for(let p=1;p<=totalPages;p++){
-    doc.setPage(p);
-    doc.setFillColor(61,26,82);
-    doc.rect(0,H-8,W,8,'F');
-    doc.setTextColor(180,160,200);
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(7);
-    doc.text('Mariana Pages Catering  ·  Uso interno',margin,H-3);
-    doc.text('Pág '+p+'/'+totalPages,W-margin,H-3,{align:'right'});
-  }
-
-  doc.save('FichaTecnica_'+ev.nombre.replace(/[^a-zA-Z0-9]/g,'_').slice(0,40)+'.pdf');
+  const fname='FichaTecnica_'+(eventName||'evento').replace(/[^a-zA-Z0-9]/g,'_').slice(0,40)+'.pdf';
+  doc.save(fname);
 }
 
 // ══════════════════════════════════════════════════════════════════
