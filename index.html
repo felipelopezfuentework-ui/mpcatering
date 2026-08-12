@@ -2906,7 +2906,7 @@ const COMANDA_TEMPLATE = [
         {label:'Detalle', key:'tipo_detalle', inputType:'text'}
       ]},
       {tipo:'seccion', label:'PERSONAL DEL EVENTO'},
-      {tipo:'grupo_personal_evento', campos:[
+      {tipo:'grupo_personal_evento', totalKey:'personal_total', campos:[
         {label:'Cocineros', key:'personal_cocineros', inputType:'number'},
         {label:'Managers', key:'personal_managers', inputType:'number'},
         {label:'Camareros', key:'personal_camareros', inputType:'number'},
@@ -2968,7 +2968,7 @@ const COMANDA_TEMPLATE = [
       {tipo:'info', label:'Completar únicamente casillas con recuadro'},
       {tipo:'campo_readonly', label:'Nombre del evento', key:'_nombre_evento'},
       {tipo:'campo', label:'Tipo de evento', key:'com_tipo_evento'},
-      {tipo:'grupo_personal_evento', readonly:true, campos:[
+      {tipo:'grupo_personal_evento', readonly:true, totalKey:'com_personal_total', campos:[
         {label:'Cocineros', key:'com_personal_cocineros', inputType:'number'},
         {label:'Managers', key:'com_personal_managers', inputType:'number'},
         {label:'Camareros', key:'com_personal_camareros', inputType:'number'},
@@ -3078,7 +3078,7 @@ const COMANDA_TEMPLATE = [
       {tipo:'campo', label:'Fecha', key:'fm_fecha', inputType:'date'},
       {tipo:'campo', label:'Descripción general del evento', key:'fm_descripcion', inputType:'textarea'},
       {tipo:'campo', label:'Tipo de evento', key:'fm_tipo'},
-      {tipo:'grupo_personal_evento', readonly:true, campos:[
+      {tipo:'grupo_personal_evento', readonly:true, totalKey:'fm_personal_total', campos:[
         {label:'Cocineros', key:'fm_personal_cocineros', inputType:'number'},
         {label:'Managers', key:'fm_personal_managers', inputType:'number'},
         {label:'Camareros', key:'fm_personal_camareros', inputType:'number'},
@@ -3351,6 +3351,8 @@ function renderEventoSheet(ev, sheetIdx){
 
   // Recalcular total de invitados (adultos + jóvenes + menores) antes de sincronizar
   datos.invitados_total = (parseInt(datos.cant_adultos)||0)+(parseInt(datos.cant_jovenes)||0)+(parseInt(datos.cant_menores)||0);
+  // Recalcular total de personal antes de sincronizar
+  datos.personal_total = (parseInt(datos.personal_cocineros)||0)+(parseInt(datos.personal_managers)||0)+(parseInt(datos.personal_camareros)||0)+(parseInt(datos.personal_asistentes)||0)+(parseInt(datos.personal_otros)||0);
 
   // Sincronizar campos compartidos desde EVENTO hacia todas las solapas
   Object.entries(CAMPOS_COMPARTIDOS).forEach(([origen, destinos])=>{
@@ -3437,6 +3439,7 @@ function renderEventoSheet(ev, sheetIdx){
     } else if(c.tipo==='grupo_personal_evento'){
       const fields = c.campos||[];
       const obsVal = datos[c.obsKey]||'';
+      const totalVal = c.totalKey ? (datos[c.totalKey]||0) : 0;
       html+=`<div style="margin-bottom:16px">`;
       html+=`<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">`;
       fields.forEach(f=>{
@@ -3453,11 +3456,19 @@ function renderEventoSheet(ev, sheetIdx){
             <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(f.label)}</label>
             <input type="${f.inputType||'text'}" min="0" value="${escH(val)}" data-key="${f.key}"
               style="width:100%;background:${emptyBg};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none"
-              oninput="updateEventoDato('${f.key}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'">
+              oninput="updateEventoDato('${f.key}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)';recalcPersonalTotal()">
           </div>`;
         }
       });
       html+=`</div>`;
+      if(c.totalKey){
+        html+=`<div class="form-field" style="margin-bottom:10px;max-width:220px">
+          <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">Total personal</label>
+          <input type="number" ${c.readonly?'':'id="personal-total-display"'} value="${escH(String(totalVal))}" readonly data-key="${c.totalKey}"
+            style="width:100%;background:${c.readonly?'rgba(150,150,150,.14)':'rgba(92,45,110,.14)'};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;cursor:${c.readonly?'not-allowed':'default'};font-weight:700">
+          ${c.readonly ? `<div style="font-size:10px;color:var(--text3);margin-top:3px;font-style:italic">Se edita desde la solapa Evento</div>` : ''}
+        </div>`;
+      }
       html+=`<div class="form-field">
         <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">Observaciones de personal</label>
         ${c.readonly
@@ -3673,6 +3684,7 @@ const CAMPOS_COMPARTIDOS = {
   'personal_camareros':['com_personal_camareros','fm_personal_camareros'],
   'personal_asistentes':['com_personal_asistentes','fm_personal_asistentes'],
   'personal_otros':['com_personal_otros','fm_personal_otros'],
+  'personal_total':['com_personal_total','fm_personal_total'],
   'personal_obs':['com_personal_obs','fm_personal_obs'],
   'locacion':       ['com_locacion','eva_locacion','fm_locacion'],
   'ubicacion':      ['com_direccion','fm_ubicacion'],
@@ -3724,6 +3736,21 @@ function updateEventoDato(key, val){
       if(inputEl) inputEl.value = val;
     });
   }
+}
+
+// ── Total de personal del evento (Cocineros/Managers/Camareros/Asistentes/Otros) ──
+function recalcPersonalTotal(){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const total = (parseInt(ev.datos.personal_cocineros)||0)+(parseInt(ev.datos.personal_managers)||0)+(parseInt(ev.datos.personal_camareros)||0)+(parseInt(ev.datos.personal_asistentes)||0)+(parseInt(ev.datos.personal_otros)||0);
+  ev.datos.personal_total = total;
+  const totalEl = document.getElementById('personal-total-display');
+  if(totalEl) totalEl.value = total;
+  (CAMPOS_COMPARTIDOS.personal_total||[]).forEach(destKey=>{
+    ev.datos[destKey] = total;
+    const inputEl = document.querySelector('[data-key="'+destKey+'"]');
+    if(inputEl) inputEl.value = total;
+  });
 }
 
 // ── Segmentación de invitados (Adultos/Jóvenes/Niños) ─────────────
@@ -4140,6 +4167,10 @@ function buildValueItems(ev, item){
       const val=getValorMultiPDF(ev, sub.key);
       if(val) items.push({label:sub.label, value:val});
     });
+    if(item.totalKey){
+      const totalVal=getValorMultiPDF(ev, item.totalKey);
+      if(totalVal) items.push({label:'Total personal', value:totalVal});
+    }
     const obsKey=item.obsKey;
     if(obsKey){
       const obs=getValorMultiPDF(ev, obsKey);
