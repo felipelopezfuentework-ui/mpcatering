@@ -3390,6 +3390,17 @@ function switchEventoSheet(idx){
   if(ev) renderEventoSheet(ev, idx);
 }
 
+// Rango de fechas (min/max en formato ISO) del período actual, según DB.comanda.periodos
+function getRangoFechaPeriodo(){
+  const p = DB.comanda?.periodos?.find(x=>x.id===comandaPeriodoActual);
+  if(!p) return null;
+  const mes = parseInt(p.mes), anio = parseInt(p.anio);
+  if(!mes||!anio) return null;
+  const mesStr = String(mes).padStart(2,'0');
+  const ultimoDia = new Date(anio, mes, 0).getDate();
+  return { min:`${anio}-${mesStr}-01`, max:`${anio}-${mesStr}-${String(ultimoDia).padStart(2,'0')}` };
+}
+
 function renderEventoSheet(ev, sheetIdx){
   const sheet = COMANDA_TEMPLATE[sheetIdx];
   const datos = ev.datos;
@@ -3543,9 +3554,12 @@ function renderEventoSheet(ev, sheetIdx){
             oninput="updateEventoDato('${c.key}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'">${escH(val)}</textarea>
         </div>`;
       } else {
+        const esFechaEvento = c.key==='fecha' && c.inputType==='date';
+        const rango = esFechaEvento ? getRangoFechaPeriodo() : null;
+        const minMaxAttrs = rango ? ` min="${rango.min}" max="${rango.max}"` : '';
         html+=`<div class="form-field" style="margin-bottom:14px">
           <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
-          <input type="${c.inputType||'text'}" value="${escH(val)}" data-key="${c.key}"
+          <input type="${c.inputType||'text'}" value="${escH(val)}" data-key="${c.key}"${minMaxAttrs}
             style="width:100%;max-width:500px;background:${emptyBg};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none"
             oninput="updateEventoDato('${c.key}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'">
         </div>`;
