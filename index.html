@@ -1910,8 +1910,8 @@ function renderProveedores(){
     <td><button class="btn btn-danger" onclick="delProv(${p._id})">🗑</button></td>
   </tr>`).join('');
 }
-function delProv(id){if(confirm('¿Eliminar proveedor?')){DB.proveedores=DB.proveedores.filter(x=>x._id!==id);renderProveedores();}}
-function addProveedor(){DB.proveedores.push({_id:Date.now(),rubro:'',proveedor:'NUEVO',razon_social:'',vendedor:'',mail:'',telefono:'',cuit:''});renderProveedores();showAlert('prov-alert','success','Proveedor agregado.');}
+function delProv(id){if(confirm('¿Eliminar proveedor?')){DB.proveedores=DB.proveedores.filter(x=>x._id!==id);renderProveedores();sbSave(true);}}
+function addProveedor(){DB.proveedores.push({_id:Date.now(),rubro:'',proveedor:'NUEVO',razon_social:'',vendedor:'',mail:'',telefono:'',cuit:''});renderProveedores();showAlert('prov-alert','success','Proveedor agregado.');sbSave(true);}
 
 // ══════════════════════════════════════════════════════════════════
 //  INSUMOS
@@ -1982,8 +1982,8 @@ function updInsKgFormato(id,val){
   const el=document.getElementById('ipk'+id);
   if(el)el.textContent=fmtN(x.costo,2);
 }
-function delIns(id){if(confirm('¿Eliminar insumo?')){DB.insumos=DB.insumos.filter(x=>x._id!==id);renderInsumos();}}
-function addInsumo(){DB.insumos.unshift({_id:Date.now(),key:'INSUMO - NUEVO INSUMO',nombre:'NUEVO INSUMO',costo:0,proveedor:'',formato:'',precio_formato:0,formato_kg:0});insPage=0;document.getElementById('ins-search').value='';renderInsumos();}
+function delIns(id){if(confirm('¿Eliminar insumo?')){DB.insumos=DB.insumos.filter(x=>x._id!==id);renderInsumos();sbSave(true);}}
+function addInsumo(){DB.insumos.unshift({_id:Date.now(),key:'INSUMO - NUEVO INSUMO',nombre:'NUEVO INSUMO',costo:0,proveedor:'',formato:'',precio_formato:0,formato_kg:0});insPage=0;document.getElementById('ins-search').value='';renderInsumos();sbSave(true);}
 function handleXLSX(e){
   const f=e.target.files[0];if(!f)return;
   e.target.value=''; // allow re-import same file
@@ -2172,6 +2172,7 @@ function guardarSub(){
   DB.procedimientos[nombre]=leerProcList('sub');
   ddClose();cerrarModal('modal-sub');renderSubproductos();renderMaestros();renderMaestros();
   showAlert('sub-alert','success','Subproducto "'+nombre.replace('SUB - ','')+'" guardado.');
+  sbSave(true);
 }
 
 function renderSubproductos(){
@@ -2206,7 +2207,7 @@ function renderSubproductos(){
   c.querySelectorAll('[data-edit-sub]').forEach(b=>b.addEventListener('click',()=>abrirModalSub(b.dataset.editSub)));
   c.querySelectorAll('[data-del-sub]').forEach(b=>b.addEventListener('click',()=>delSub(b.dataset.delSub)));
 }
-function delSub(sub){if(!confirm('¿Eliminar "'+sub.replace('SUB - ','')+'"?'))return;DB.subproductos=DB.subproductos.filter(x=>x.subproducto!==sub);renderSubproductos();}
+function delSub(sub){if(!confirm('¿Eliminar "'+sub.replace('SUB - ','')+'"?'))return;DB.subproductos=DB.subproductos.filter(x=>x.subproducto!==sub);renderSubproductos();sbSave(true);}
 
 // ══════════════════════════════════════════════════════════════════
 //  MODAL PLATOS
@@ -2399,6 +2400,7 @@ function guardarPlato(){
   DB.procedimientos[nombre]=leerProcList('plato');
   ddClose();cerrarModal('modal-plato');renderPlatos();renderMaestros();renderMaestros();
   showAlert('plato-alert','success','Plato "'+nombre.replace('PLATO - ','')+'" guardado.');
+  sbSave(true);
 }
 
 function renderPlatos(){
@@ -2434,7 +2436,7 @@ function renderPlatos(){
   c.querySelectorAll('[data-edit-plato]').forEach(b=>b.addEventListener('click',()=>abrirModalPlato(b.dataset.editPlato)));
   c.querySelectorAll('[data-del-plato]').forEach(b=>b.addEventListener('click',()=>delPlato(b.dataset.delPlato)));
 }
-function delPlato(plato){if(!confirm('¿Eliminar "'+plato.replace('PLATO - ','')+'"?'))return;DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==plato);renderPlatos();}
+function delPlato(plato){if(!confirm('¿Eliminar "'+plato.replace('PLATO - ','')+'"?'))return;DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==plato);renderPlatos();sbSave(true);}
 
 // ══════════════════════════════════════════════════════════════════
 //  COSTEO FINAL
@@ -2632,18 +2634,18 @@ function addMaestroPlato(){
   const el=document.getElementById('nuevo-plato');
   const v=el.value.trim().toUpperCase();if(!v)return;
   const f=v.startsWith('PLATO - ')?v:'PLATO - '+v;
-  if(!DB.maestro_platos.includes(f)){DB.maestro_platos.push(f);renderMaestros();el.value='';}
+  if(!DB.maestro_platos.includes(f)){DB.maestro_platos.push(f);renderMaestros();el.value='';sbSave(true);}
   else{el.focus();el.select();}
 }
 function addMaestroSub(){
   const el=document.getElementById('nuevo-sub');
   const v=el.value.trim().toUpperCase();if(!v)return;
   const f=v.startsWith('SUB - ')?v:'SUB - '+v;
-  if(!DB.maestro_subs.includes(f)){DB.maestro_subs.push(f);renderMaestros();el.value='';}
+  if(!DB.maestro_subs.includes(f)){DB.maestro_subs.push(f);renderMaestros();el.value='';sbSave(true);}
   else{el.focus();el.select();}
 }
-function delMaestroPlato(i){DB.maestro_platos.splice(i,1);renderMaestros();}
-function delMaestroSub(i){DB.maestro_subs.splice(i,1);renderMaestros();}
+function delMaestroPlato(i){DB.maestro_platos.splice(i,1);renderMaestros();sbSave(true);}
+function delMaestroSub(i){DB.maestro_subs.splice(i,1);renderMaestros();sbSave(true);}
 
 // ══════════════════════════════════════════════════════════════════
 //  UTILS
@@ -4031,6 +4033,7 @@ function toggleInvitadosEstado(){
   if(!ev) return;
   ev.datos.invitados_estado = ev.datos.invitados_estado==='confirmado' ? 'a_confirmar' : 'confirmado';
   renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
 }
 
 // ── Importar desde PDF ────────────────────────────────────────────
@@ -4293,6 +4296,7 @@ function addEventoTablaRow(key, numCols){
   if(!ev.datos[key]) ev.datos[key]=[];
   ev.datos[key].push(new Array(numCols).fill(''));
   renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
 }
 
 function insertEventoTablaRow(key, rowIndex, colCount){
@@ -4301,6 +4305,7 @@ function insertEventoTablaRow(key, rowIndex, colCount){
   if(!ev.datos[key]) ev.datos[key]=[];
   ev.datos[key].splice(rowIndex+1, 0, new Array(colCount).fill(''));
   renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
 }
 
 async function pegarMenuPortapapeles(key, numCols){
@@ -4325,6 +4330,7 @@ async function pegarMenuPortapapeles(key, numCols){
     Array.isArray(row) && row.some(v=>String(v||'').trim()!==''));
   ev.datos[key] = [...filasNuevas, ...filasExistentesConContenido];
   renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
 }
 
 // ── Drag & drop nativo para reordenar filas de tabla_menu ─────────
@@ -4363,6 +4369,7 @@ function addEventoTablaRowChecks(key, numCols){
   for(let i=2;i<=5;i++) row[i]=false;
   ev.datos[key].push(row);
   renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
 }
 
 function removeEventoTablaRow(key, rowIdx){
@@ -4370,6 +4377,7 @@ function removeEventoTablaRow(key, rowIdx){
   if(!ev) return;
   ev.datos[key].splice(rowIdx,1);
   renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
 }
 
 function registrarBebida(nombre){
