@@ -3007,7 +3007,7 @@ const COMANDA_TEMPLATE = [
     ]
   },
   {
-    nombre: 'FICHA TÉCNICA',
+    nombre: 'COMANDA',
     campos: [
       {tipo:'titulo', label:'FICHA TÉCNICA'},
       {tipo:'info', label:'Completar únicamente casillas con recuadro'},
@@ -4576,7 +4576,7 @@ function exportarEventoPDFById(periodoId, eventoId){
   y += 6;
 
   COMANDA_TEMPLATE.forEach(sheet=>{
-    if(sheet.nombre==='FICHA TÉCNICA' || sheet.nombre==='EVENTO' || sheet.nombre==='TIMING' || sheet.nombre==='BARRA' || sheet.nombre==='PRODUCCIÓN' || sheet.nombre==='CHECK LIST' || sheet.nombre==='VAJILLA COCINA' || sheet.nombre==='VAJILLA SALÓN' || sheet.nombre==='EVALUACIÓN' || sheet.nombre==='FICHA MANAGERS'){
+    if(sheet.nombre==='COMANDA' || sheet.nombre==='EVENTO' || sheet.nombre==='TIMING' || sheet.nombre==='BARRA' || sheet.nombre==='PRODUCCIÓN' || sheet.nombre==='CHECK LIST' || sheet.nombre==='VAJILLA COCINA' || sheet.nombre==='VAJILLA SALÓN' || sheet.nombre==='EVALUACIÓN' || sheet.nombre==='FICHA MANAGERS'){
       y=ensureSpace(doc, y, 11, H, margin, pageState);
       doc.setFont('helvetica','bold');
       doc.setFontSize(12);
