@@ -3366,7 +3366,7 @@ const COMANDA_TEMPLATE = [
       {tipo:'seccion', label:'MENÚ DEL PERSONAL'},
       {tipo:'campos_multi', label:'', keys:[{k:'com_cant_personal',l:'Cantidad de personal',t:'number'},{k:'com_menu_personal',l:'Menú'}]},
       {tipo:'seccion', label:'MENÚ DEL EVENTO'},
-      {tipo:'tabla_menu', key:'com_menu', cols:['Menú','Unidades','Peso (g)','Armado Vajilla','Cantidad','Armado Equipamiento','Reingresos'], addRow:true, defaultRows:15}
+      {tipo:'tabla_menu', key:'com_menu', cols:['Menú','Unidades','Peso (g)','Armado Vajilla','Cantidad','Armado Equipamiento','Reingresos'], addRow:true, defaultRows:15, secciones:true}
     ]
   },
   {
@@ -4179,6 +4179,8 @@ function renderEventoSheet(ev, sheetIdx){
         </label>`;
       });
       html+=`</div>`;
+    } else if(c.tipo==='tabla_menu' && c.secciones){
+      html+=htmlTablaMenuSecciones(c, datos);
     } else if(c.tipo==='tabla_libre'||c.tipo==='tabla_menu'){
       const rows = datos[c.key]||[];
       const numCols = ['Unidades','Peso (g)','Cantidad'];
@@ -4748,6 +4750,244 @@ function dropFilaTabla(event, key, targetIdx){
   sbSave(true);
 }
 
+// ── Subsecciones del menú (COMANDA · MENÚ DEL EVENTO) ──────────────
+// Estructura: ev.datos[key+'_secciones'] = [{nombre, filas:[[...]]}, ...]
+// Mientras esa clave no exista (o esté vacía), se sigue mostrando/editando
+// ev.datos[key] como tabla plana de siempre (100% compatible con eventos viejos).
+
+// Construye la tabla plana clásica de com_menu (sin secciones) — es exactamente
+// el mismo HTML/funciones que ya existían antes de esta feature, reutilizado
+// tal cual para no alterar el comportamiento de eventos que todavía no usan secciones.
+function htmlTablaMenuPlana(c, datos){
+  const key = c.key;
+  const rows = datos[key]||[];
+  const numCols = ['Unidades','Peso (g)','Cantidad'];
+  let h = `<div class="tw" style="overflow-x:auto"><table style="min-width:700px;table-layout:fixed;width:100%">
+    <colgroup><col style="width:20px">${c.cols.map(col=>`<col style="width:${col==='Menú'?'42%':numCols.includes(col)?'7%':'11%'}">`).join('')}<col style="width:30px"><col style="width:30px"></colgroup>
+    <thead><tr><th></th>${c.cols.map(col=>`<th style="font-size:11px;padding:4px 5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(col)}</th>`).join('')}<th></th><th></th></tr></thead>
+    <tbody id="tabla_${key}">`;
+  rows.forEach((row,ri)=>{
+    h += `<tr data-row-idx="${ri}" ondragover="dragOverFilaTabla(event)" ondrop="dropFilaTabla(event,'${key}',${ri})">`;
+    h += `<td style="padding:2px;text-align:center;cursor:grab;color:var(--text3);user-select:none" draggable="true" title="Arrastrá para reordenar"
+      ondragstart="dragStartFilaTabla(event,'${key}',${ri})">⠿</td>`;
+    c.cols.forEach((col,ci)=>{
+      const v = Array.isArray(row)?row[ci]:row[col]||'';
+      const empty = !v||String(v).trim()==='';
+      const bg = empty?'background:rgba(220,53,69,0.09);':'background:transparent;';
+      h += `<td style="padding:2px 2px"><input type="${numCols.includes(col)?'number':'text'}" value="${escH(String(v||''))}"
+        style="width:100%;${bg}border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
+        oninput="updateEventoTabla('${key}',${ri},${ci},this.value);this.style.background=this.value.trim()?'transparent':'rgba(220,53,69,0.09)'"></td>`;
+    });
+    h += `<td style="padding:2px"><button class="btn btn-outline" style="padding:2px 5px;font-size:10px" onclick="insertEventoTablaRow('${key}',${ri},${c.cols.length})" title="Insertar fila debajo">+</button></td>`;
+    h += `<td style="padding:2px"><button class="btn btn-danger" style="padding:2px 5px;font-size:10px" onclick="removeEventoTablaRow('${key}',${ri})">🗑</button></td>`;
+    h += `</tr>`;
+  });
+  h += `</tbody></table></div>`;
+  if(c.addRow) h += `<button class="btn btn-outline" style="margin-top:6px;font-size:11px" onclick="addEventoTablaRow('${key}',${c.cols.length})">+ Agregar fila</button>`;
+  return h;
+}
+
+// Construye la vista con subsecciones (cuando ya existe al menos una en
+// ev.datos[key+'_secciones']) o, si todavía no hay ninguna, la tabla plana
+// de siempre — en ambos casos con el botón "+ Agregar sección" arriba.
+function htmlTablaMenuSecciones(c, datos){
+  const key = c.key;
+  const numCols = ['Unidades','Peso (g)','Cantidad'];
+  const secciones = Array.isArray(datos[key+'_secciones']) ? datos[key+'_secciones'] : [];
+  let h = `<div style="margin-bottom:16px">`;
+  h += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">`;
+  if(!secciones.length) h += `<button class="btn btn-outline" style="font-size:11px" onclick="pegarMenuPortapapeles('${key}',${c.cols.length})">📋 Pegar menú</button>`;
+  h += `<button class="btn btn-primary" style="font-size:11px" onclick="agregarSeccionMenu('${key}')">＋ Agregar sección</button>`;
+  h += `</div>`;
+
+  if(!secciones.length){
+    h += htmlTablaMenuPlana(c, datos);
+    h += `</div>`;
+    return h;
+  }
+
+  secciones.forEach((sec,secIdx)=>{
+    h += `<div style="margin-bottom:18px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:rgba(200,169,81,.04)">`;
+    h += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <input type="text" value="${escH(sec.nombre||'')}" placeholder="Nombre de la sección (ej: Entrada, Principal, Postre)"
+        oninput="renombrarSeccionMenu('${key}',${secIdx},this.value)"
+        style="font-weight:700;font-size:13px;background:transparent;border:none;border-bottom:2px solid var(--mp-gold);color:var(--text);padding:4px 2px;flex:1;min-width:180px;max-width:340px;outline:none">
+      <button class="btn btn-danger" style="font-size:11px;white-space:nowrap" onclick="eliminarSeccionMenu('${key}',${secIdx})" title="Eliminar sección">🗑 Eliminar sección</button>
+    </div>`;
+    h += `<div class="tw" style="overflow-x:auto"><table style="min-width:700px;table-layout:fixed;width:100%">
+      <colgroup><col style="width:20px">${c.cols.map(col=>`<col style="width:${col==='Menú'?'42%':numCols.includes(col)?'7%':'11%'}">`).join('')}<col style="width:30px"><col style="width:30px"></colgroup>
+      <thead><tr><th></th>${c.cols.map(col=>`<th style="font-size:11px;padding:4px 5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(col)}</th>`).join('')}<th></th><th></th></tr></thead>
+      <tbody>`;
+    const filas = sec.filas||[];
+    if(!filas.length){
+      h += `<tr ondragover="dragOverFilaSeccion(event)" ondrop="dropFilaSeccionEnVacio(event,'${key}',${secIdx})">
+        <td colspan="${c.cols.length+3}" style="text-align:center;color:var(--text3);font-size:11px;font-style:italic;padding:10px">Sin filas — arrastrá una fila acá o usá "+ Agregar fila"</td>
+      </tr>`;
+    }
+    filas.forEach((row,ri)=>{
+      h += `<tr data-row-idx="${ri}" ondragover="dragOverFilaSeccion(event)" ondrop="dropFilaSeccion(event,'${key}',${secIdx},${ri})">`;
+      h += `<td style="padding:2px;text-align:center;cursor:grab;color:var(--text3);user-select:none" draggable="true" title="Arrastrá para reordenar (también entre secciones)"
+        ondragstart="dragStartFilaSeccion(event,'${key}',${secIdx},${ri})">⠿</td>`;
+      c.cols.forEach((col,ci)=>{
+        const v = Array.isArray(row)?row[ci]:'';
+        const empty = !v||String(v).trim()==='';
+        const bg = empty?'background:rgba(220,53,69,0.09);':'background:transparent;';
+        h += `<td style="padding:2px 2px"><input type="${numCols.includes(col)?'number':'text'}" value="${escH(String(v||''))}"
+          style="width:100%;${bg}border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
+          oninput="updateFilaSeccion('${key}',${secIdx},${ri},${ci},this.value);this.style.background=this.value.trim()?'transparent':'rgba(220,53,69,0.09)'"></td>`;
+      });
+      h += `<td style="padding:2px"><button class="btn btn-outline" style="padding:2px 5px;font-size:10px" onclick="insertFilaSeccion('${key}',${secIdx},${ri},${c.cols.length})" title="Insertar fila debajo">+</button></td>`;
+      h += `<td style="padding:2px"><button class="btn btn-danger" style="padding:2px 5px;font-size:10px" onclick="removeFilaSeccion('${key}',${secIdx},${ri})">🗑</button></td>`;
+      h += `</tr>`;
+    });
+    h += `</tbody></table></div>`;
+    h += `<button class="btn btn-outline" style="margin-top:6px;font-size:11px" onclick="addFilaSeccion('${key}',${secIdx},${c.cols.length})">+ Agregar fila</button>`;
+    h += `</div>`;
+  });
+  h += `</div>`;
+  return h;
+}
+
+function agregarSeccionMenu(key){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  if(!Array.isArray(ev.datos[key+'_secciones']) || !ev.datos[key+'_secciones'].length){
+    // Primera vez que se usan secciones en este evento: si ya había filas
+    // cargadas en la tabla plana, se migran a una sección inicial para no perderlas.
+    const filasPrevias = (Array.isArray(ev.datos[key]) ? ev.datos[key] : [])
+      .filter(row=>Array.isArray(row) && row.some(v=>String(v||'').trim()!==''));
+    ev.datos[key+'_secciones'] = filasPrevias.length ? [{nombre:'', filas:filasPrevias}] : [];
+  }
+  ev.datos[key+'_secciones'].push({nombre:'Nueva sección', filas:[]});
+  renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
+}
+
+function eliminarSeccionMenu(key, secIdx){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const secciones = ev.datos[key+'_secciones'];
+  const sec = secciones?.[secIdx];
+  if(!sec) return;
+  const nombre = (sec.nombre||'').trim() || `Sección ${secIdx+1}`;
+  if(!confirm(`¿Eliminar la sección "${nombre}" y sus ${(sec.filas||[]).length} fila(s)?`)) return;
+  secciones.splice(secIdx,1);
+  renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
+}
+
+// Se dispara con cada tecleo del nombre (oninput): no llama a sbSave porque, como
+// cualquier <input> de texto de la app, el guardado inmediato lo dispara solo el
+// listener global de blur/Enter (ver esCampoEditable) — evita guardar en cada tecla.
+function renombrarSeccionMenu(key, secIdx, nuevoNombre){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const sec = ev.datos[key+'_secciones']?.[secIdx];
+  if(!sec) return;
+  sec.nombre = nuevoNombre;
+}
+
+function addFilaSeccion(key, secIdx, numCols){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const sec = ev.datos[key+'_secciones']?.[secIdx];
+  if(!sec) return;
+  if(!sec.filas) sec.filas=[];
+  sec.filas.push(new Array(numCols).fill(''));
+  renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
+}
+
+function insertFilaSeccion(key, secIdx, rowIdx, colCount){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const sec = ev.datos[key+'_secciones']?.[secIdx];
+  if(!sec) return;
+  if(!sec.filas) sec.filas=[];
+  sec.filas.splice(rowIdx+1, 0, new Array(colCount).fill(''));
+  renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
+}
+
+function removeFilaSeccion(key, secIdx, rowIdx){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const sec = ev.datos[key+'_secciones']?.[secIdx];
+  if(!sec || !Array.isArray(sec.filas)) return;
+  sec.filas.splice(rowIdx,1);
+  renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
+}
+
+// Igual que updateEventoTabla pero para una fila dentro de una sección: se
+// dispara por oninput y no guarda directo (lo cubre el listener global de blur/Enter).
+function updateFilaSeccion(key, secIdx, rowIdx, colIdx, val){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const sec = ev.datos[key+'_secciones']?.[secIdx];
+  if(!sec) return;
+  if(!sec.filas) sec.filas=[];
+  if(!sec.filas[rowIdx]) sec.filas[rowIdx]=[];
+  sec.filas[rowIdx][colIdx]=val;
+}
+
+// Drag & drop entre filas de subsecciones — soporta reordenar dentro de la
+// misma sección y mover filas hacia otra sección (incluida una vacía).
+let dragFilaSeccionOrigen = null; // {key, secIdx, rowIdx}
+function dragStartFilaSeccion(event, key, secIdx, rowIdx){
+  dragFilaSeccionOrigen = {key, secIdx, rowIdx};
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', secIdx+':'+rowIdx);
+}
+function dragOverFilaSeccion(event){
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+}
+function dropFilaSeccion(event, key, targetSecIdx, targetRowIdx){
+  event.preventDefault();
+  const origen = dragFilaSeccionOrigen;
+  dragFilaSeccionOrigen = null;
+  if(!origen || origen.key!==key) return;
+  if(origen.secIdx===targetSecIdx && origen.rowIdx===targetRowIdx) return;
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const secciones = ev.datos[key+'_secciones'];
+  if(!Array.isArray(secciones)) return;
+  const secOrigen = secciones[origen.secIdx];
+  const secDestino = secciones[targetSecIdx];
+  if(!secOrigen || !secDestino || !Array.isArray(secOrigen.filas)) return;
+  const [fila] = secOrigen.filas.splice(origen.rowIdx,1);
+  if(!fila) return;
+  if(!secDestino.filas) secDestino.filas=[];
+  // Si se movió dentro de la misma sección hacia una posición posterior, el
+  // índice destino se corrió un lugar hacia atrás al sacar la fila de origen.
+  let destIdx = targetRowIdx;
+  if(origen.secIdx===targetSecIdx && origen.rowIdx<targetRowIdx) destIdx--;
+  secDestino.filas.splice(destIdx,0,fila);
+  renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
+}
+function dropFilaSeccionEnVacio(event, key, targetSecIdx){
+  event.preventDefault();
+  const origen = dragFilaSeccionOrigen;
+  dragFilaSeccionOrigen = null;
+  if(!origen || origen.key!==key) return;
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const secciones = ev.datos[key+'_secciones'];
+  if(!Array.isArray(secciones)) return;
+  const secOrigen = secciones[origen.secIdx];
+  const secDestino = secciones[targetSecIdx];
+  if(!secOrigen || !secDestino || !Array.isArray(secOrigen.filas)) return;
+  if(origen.secIdx===targetSecIdx) return; // ya está en esta sección
+  const [fila] = secOrigen.filas.splice(origen.rowIdx,1);
+  if(!fila) return;
+  if(!secDestino.filas) secDestino.filas=[];
+  secDestino.filas.push(fila);
+  renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
+}
+
 function addEventoTablaRowChecks(key, numCols){
   const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
   if(!ev) return;
@@ -4879,6 +5119,20 @@ function buildValueItems(ev, item){
       });
     }
     return list.length ? [{label:item.label, value:list.join(' · ')}] : [];
+  }
+  if(item.tipo==='tabla_menu' && item.secciones){
+    const secciones=Array.isArray(ev.datos?.[item.key+'_secciones']) ? ev.datos[item.key+'_secciones'] : [];
+    if(secciones.length){
+      const rows=[];
+      secciones.forEach(sec=>{
+        const filasVisibles=(sec.filas||[]).filter(row=>Array.isArray(row) && row.some(cell=>limpiarValorPDF(cell)));
+        if(!filasVisibles.length) return; // omitir subsecciones sin filas cargadas
+        rows.push({__seccion: sec.nombre || 'Sección'});
+        rows.push(...filasVisibles);
+      });
+      return rows.length ? [{label:item.label||'', value:rows, type:item.tipo, cols:item.cols || []}] : [];
+    }
+    // Sin secciones cargadas todavía: cae al modo plano de siempre (com_menu).
   }
   if(item.tipo==='tabla_libre'||item.tipo==='tabla_menu'||item.tipo==='tabla_bebidas'||item.tipo==='tabla_checks'||item.tipo==='tabla_evaluacion'||item.tipo==='tabla_personal'||item.tipo==='tabla_dietas'){
     const rows=Array.isArray(ev.datos?.[item.key]) ? ev.datos[item.key] : [];
@@ -5014,6 +5268,24 @@ function renderTableBlock(doc, c, rows, x, y, contentWidth, margin, pageState){
   let rowY=tableY + headerHeight;
 
   rows.forEach((row)=>{
+    // Separador de subsección de menú (ver buildValueItems): fila especial
+    // {__seccion:nombre} en vez de un array/objeto de celdas normal.
+    if(row && typeof row==='object' && !Array.isArray(row) && row.__seccion!==undefined){
+      const label=limpiarValorPDF(row.__seccion) || 'Sección';
+      const sepHeight=lineHeight + padY*2;
+      rowY = ensureSpace(doc, rowY, sepHeight+1.5, pageState.H, margin, pageState);
+      doc.setFillColor(245,238,215);
+      doc.rect(x, rowY, tableWidth, sepHeight, 'F');
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(10);
+      doc.setTextColor(90,70,20);
+      drawLinesCentered(doc, [label], x + 1.5, rowY, sepHeight, lineHeight);
+      doc.setDrawColor(200,180,140);
+      doc.setLineWidth(0.3);
+      doc.line(x, rowY+sepHeight, x+tableWidth, rowY+sepHeight);
+      rowY += sepHeight;
+      return;
+    }
     doc.setFont('helvetica','normal');
     doc.setFontSize(10);
     const cellLineSets=cols.map((col, idx)=>{
