@@ -2812,12 +2812,22 @@ function aplicarActualizacionRemota(p){
 // Suscribe el listener en tiempo real. Devuelve una promesa que se resuelve
 // con el primer snapshot (o al agotar el timeout), para mantener el mismo
 // comportamiento de arranque que tenía el sbLoad() original.
+//
+// IMPORTANTE: no filtramos por doc.metadata.hasPendingWrites. Ese flag indica si
+// ESTE cliente tiene una escritura propia todavía sin confirmar por el servidor —
+// no si el cambio recibido es "propio". Si se descartan los snapshots con
+// hasPendingWrites=true, un cliente que tenga cualquier guardado propio en vuelo
+// (por ejemplo el guardado automático al perder foco) ignora TODO cambio remoto
+// que llegue en ese instante, y como por defecto (includeMetadataChanges:false)
+// la confirmación posterior del servidor no vuelve a disparar el callback si los
+// datos no cambian de nuevo, ese cambio remoto se pierde para siempre. En cambio,
+// procesamos siempre el snapshot y dejamos que aplicarActualizacionRemota()
+// descarte por contenido (JSON.stringify) los ecos de nuestra propia escritura.
 function sbListen(){
   return new Promise((resolve)=>{
     let resuelto=false;
     const resolverUnaVez=(ok)=>{ if(!resuelto){ resuelto=true; resolve(ok); } };
     _dbListenerUnsub=FB_DOC.onSnapshot((doc)=>{
-      if(doc.metadata && doc.metadata.hasPendingWrites){ resolverUnaVez(true); return; }
       let ok=false;
       try{
         if(doc.exists && doc.data().payload){
