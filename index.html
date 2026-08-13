@@ -2714,9 +2714,17 @@ function marcarSincronizado(){
   const el=document.getElementById('autosave-indicator');
   if(!el)return;
   const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-  el.textContent='☁ Sincronizado '+now;el.style.opacity='1';
+  el.textContent='☁ Sincronizado '+now;el.style.opacity='1';el.style.color='';
   clearTimeout(marcarSincronizado._t);
   marcarSincronizado._t=setTimeout(()=>el.style.opacity='0.5',3000);
+}
+// Deja visible que el último guardado automático falló (antes esto era invisible
+// cuando silent=true, y una falla de red/Firestore se veía igual que "no guarda").
+function marcarErrorSincronizacion(e){
+  console.error('Error al guardar en Firestore:', e);
+  const el=document.getElementById('autosave-indicator');
+  if(!el)return;
+  el.textContent='⚠ Error al sincronizar';el.style.opacity='1';el.style.color='#c0392b';
 }
 
 async function sbSave(silent=false){
@@ -2728,6 +2736,7 @@ async function sbSave(silent=false){
     marcarSincronizado();
     if(!silent)alert('✓ Datos guardados y sincronizados en la nube.');
   }catch(e){
+    marcarErrorSincronizacion(e);
     if(!silent)alert('Error al guardar: '+e.message);
   }
 }
@@ -2859,13 +2868,26 @@ document.addEventListener('change', (e)=>{
   if(!esCampoEditable(e.target)) return;
   if(perfilActivo) programarGuardadoAutomatico();
 }, true);
-// Enter dentro de un campo también confirma el valor (además de blur/change).
-// No se hace preventDefault ni blur: solo se dispara el guardado; el resto del
-// comportamiento nativo (o cualquier onkeydown propio del campo) sigue intacto.
+// Mueve el foco al siguiente campo editable visible, en el orden del DOM.
+function moverFocoAlSiguienteCampo(actual){
+  const selector='input:not([type=button]):not([type=submit]):not([type=reset]):not([disabled]), select:not([disabled]), textarea:not([disabled])';
+  const focusables=Array.from(document.querySelectorAll(selector)).filter(el=>el.offsetParent!==null);
+  const idx=focusables.indexOf(actual);
+  if(idx>-1 && idx<focusables.length-1) focusables[idx+1].focus();
+}
+
+// Enter dentro de un <input>/<select> confirma el valor: guarda de inmediato y
+// mueve el foco al siguiente campo (evita el comportamiento por defecto del Enter).
+// En <textarea> el Enter debe seguir generando un salto de línea normal, así que
+// se deja pasar sin tocarlo (el guardado ocurrirá igual al salir del campo).
 document.addEventListener('keydown', (e)=>{
   if(e.key!=='Enter') return;
+  if(!perfilActivo) return; // no interferir con la pantalla de login (maneja su propio Enter)
   if(!esCampoEditable(e.target)) return;
-  if(perfilActivo) programarGuardadoAutomatico();
+  if(e.target.tagName==='TEXTAREA') return;
+  e.preventDefault();
+  sbSave(true);
+  moverFocoAlSiguienteCampo(e.target);
 }, true);
 document.addEventListener('focusin', (e)=>{
   if(esCampoEditable(e.target)) camposEditandoActivos++;
