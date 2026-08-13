@@ -2733,9 +2733,6 @@ async function sbSave(silent=false){
 }
 
 function saveData(){sbSave(false);}
-function saveDataSilent(){sbSave(true);}
-// Autoguardado periódico (red de seguridad además del guardado inmediato al salir de cada campo)
-setInterval(saveDataSilent,30*60*1000);
 function exportData(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}));a.download='foodcost_mp.json';a.click();}
 
 // ── Sincronización en tiempo real (Firestore onSnapshot) ─────────────
@@ -2847,21 +2844,28 @@ function sbListen(){
   });
 }
 
-// Guardado inmediato al terminar de editar un campo (blur), con un pequeño
-// debounce para agrupar varios campos editados en rápida sucesión.
-let _guardadoPorBlurTimer=null;
-function programarGuardadoPorBlur(){
-  clearTimeout(_guardadoPorBlurTimer);
-  _guardadoPorBlurTimer=setTimeout(()=>sbSave(true), 400);
+// Guardado inmediato al terminar de editar un campo (blur/change), con un
+// pequeño debounce para agrupar varios campos editados en rápida sucesión
+// (por ejemplo, Tab a través de varios inputs) en un solo guardado.
+let _guardadoAutoTimer=null;
+function programarGuardadoAutomatico(){
+  clearTimeout(_guardadoAutoTimer);
+  _guardadoAutoTimer=setTimeout(()=>sbSave(true), 400);
 }
 
+// 'change' cubre selects/checkboxes/radios, que a veces confirman el valor
+// sin perder el foco inmediatamente después.
+document.addEventListener('change', (e)=>{
+  if(!esCampoEditable(e.target)) return;
+  if(perfilActivo) programarGuardadoAutomatico();
+}, true);
 document.addEventListener('focusin', (e)=>{
   if(esCampoEditable(e.target)) camposEditandoActivos++;
 }, true);
 document.addEventListener('focusout', (e)=>{
   if(!esCampoEditable(e.target)) return;
   camposEditandoActivos=Math.max(0, camposEditandoActivos-1);
-  if(perfilActivo) programarGuardadoPorBlur();
+  if(perfilActivo) programarGuardadoAutomatico();
   // Se pospone al siguiente tick para no pisar el foco cuando el usuario
   // pasa de un campo a otro (Tab): el focusin del nuevo campo llega justo después.
   setTimeout(()=>{
