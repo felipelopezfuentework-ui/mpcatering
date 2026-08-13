@@ -3401,6 +3401,19 @@ function getRangoFechaPeriodo(){
   return { min:`${anio}-${mesStr}-01`, max:`${anio}-${mesStr}-${String(ultimoDia).padStart(2,'0')}` };
 }
 
+// El atributo min/max del <input type="date"> solo restringe el selector visual;
+// el usuario puede tipear una fecha fuera de rango con el teclado. Esta función
+// la valida al confirmar el cambio y la rechaza si cae fuera del período actual.
+function validarFechaEventoEnRango(inp, key){
+  const rango = getRangoFechaPeriodo();
+  if(rango && inp.value && (inp.value < rango.min || inp.value > rango.max)){
+    alert(`La fecha debe estar dentro del período actual (entre ${rango.min} y ${rango.max}).`);
+    inp.value = '';
+    inp.style.background = 'rgba(220,53,69,0.09)';
+  }
+  updateEventoDato(key, inp.value);
+}
+
 function renderEventoSheet(ev, sheetIdx){
   const sheet = COMANDA_TEMPLATE[sheetIdx];
   const datos = ev.datos;
@@ -3557,11 +3570,14 @@ function renderEventoSheet(ev, sheetIdx){
         const esFechaEvento = c.key==='fecha' && c.inputType==='date';
         const rango = esFechaEvento ? getRangoFechaPeriodo() : null;
         const minMaxAttrs = rango ? ` min="${rango.min}" max="${rango.max}"` : '';
+        const changeHandler = esFechaEvento
+          ? `onchange="validarFechaEventoEnRango(this,'${c.key}')"`
+          : '';
         html+=`<div class="form-field" style="margin-bottom:14px">
           <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
           <input type="${c.inputType||'text'}" value="${escH(val)}" data-key="${c.key}"${minMaxAttrs}
             style="width:100%;max-width:500px;background:${emptyBg};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none"
-            oninput="updateEventoDato('${c.key}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'">
+            oninput="updateEventoDato('${c.key}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)'" ${changeHandler}>
         </div>`;
       }
     } else if(c.tipo==='campos_multi'){
