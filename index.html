@@ -360,6 +360,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 <!-- Tabs Comanda -->
 <div class="tabs" id="tabs-comanda" style="display:none">
   <div class="tab active" onclick="switchTab('comanda_periodos')">📋 Períodos</div>
+  <div class="tab" onclick="switchTab('comanda_clientes')">🧑‍💼 Clientes</div>
 </div>
 
 <!-- ═══ 1. INSUMOS ══════════════════════════════════════════════ -->
@@ -559,6 +560,133 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <button class="btn btn-primary" style="margin-left:auto" onclick="abrirModalPeriodo()">+ Agregar período</button>
     </div>
     <div id="comanda-periodos-list"></div>
+  </div>
+</div>
+
+<!-- ═══ MAESTRO DE CLIENTES ══════════════════════════════════════ -->
+<div class="content" id="tab-comanda_clientes">
+  <div class="card">
+    <div class="card-title" style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px">
+      🧑‍💼 Maestro de Clientes <span class="badge badge-blue" id="clientes-count">0</span>
+      <button class="btn btn-primary" style="margin-left:auto" onclick="abrirModalCliente()">+ Agregar cliente</button>
+    </div>
+    <div class="toolbar">
+      <div class="sbox"><input type="text" id="clientes-search" placeholder="Buscar por nombre/razón social…" oninput="renderClientes()"></div>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>#</th><th>Razón Social</th><th>Tipo</th><th>Contacto</th><th>Tel / WhatsApp</th><th>Email</th><th>Condición IVA</th><th>Localidad</th><th></th></tr></thead>
+      <tbody id="clientes-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- Modal: nuevo/editar cliente -->
+<div class="modal-ov" id="modal-cliente">
+  <div class="modal" style="max-width:820px">
+    <div class="modal-hd">
+      <span class="modal-title" id="modal-cliente-title">Nuevo Cliente</span>
+      <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-cliente')">✕</button>
+    </div>
+    <input type="hidden" id="cli-edit-id" value="">
+    <div id="modal-cliente-alert" class="alert"></div>
+    <div class="form-row">
+      <div class="form-field" style="flex:1">
+        <label>Nombre / Razón Social</label>
+        <input type="text" id="cli-razon-social" placeholder="Ej: Empresa SA / Juan Pérez" style="width:100%">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:1">
+        <label>CUIT</label>
+        <input type="text" id="cli-cuit" style="width:100%">
+      </div>
+      <div class="form-field" style="flex:1">
+        <label>Tipo de cliente</label>
+        <select id="cli-tipo" style="width:100%">
+          <option value="">— Seleccionar —</option>
+          <option value="Empresa">Empresa</option>
+          <option value="Particular">Particular</option>
+        </select>
+      </div>
+      <div class="form-field" style="flex:1">
+        <label>Condición frente al IVA</label>
+        <select id="cli-condicion-iva" style="width:100%">
+          <option value="">— Seleccionar —</option>
+          <option value="Responsable inscripto">Responsable inscripto</option>
+          <option value="Consumidor final">Consumidor final</option>
+          <option value="Monotributista">Monotributista</option>
+          <option value="Exento">Exento</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:1">
+        <label>Nombre del contacto principal</label>
+        <input type="text" id="cli-contacto-nombre" style="width:100%">
+      </div>
+      <div class="form-field" style="flex:1">
+        <label>Localidad</label>
+        <input type="text" id="cli-localidad" style="width:100%">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:1">
+        <label>Teléfono / WhatsApp</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="cli-telefono" style="width:100%;flex:1">
+          <button type="button" class="btn btn-outline" style="padding:6px 10px" title="Abrir WhatsApp" onclick="abrirWhatsApp(document.getElementById('cli-telefono').value)">🟢</button>
+        </div>
+      </div>
+      <div class="form-field" style="flex:1">
+        <label>Email</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="cli-email" style="width:100%;flex:1">
+          <button type="button" class="btn btn-outline" style="padding:6px 10px" title="Enviar email" onclick="abrirEmail(document.getElementById('cli-email').value)">✉️</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:1">
+        <label>Dirección fiscal</label>
+        <input type="text" id="cli-direccion-fiscal" style="width:100%">
+      </div>
+      <div class="form-field" style="flex:1">
+        <label>Email para envío de facturas</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="cli-email-factura" style="width:100%;flex:1">
+          <button type="button" class="btn btn-outline" style="padding:6px 10px" title="Enviar email" onclick="abrirEmail(document.getElementById('cli-email-factura').value)">✉️</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:1">
+        <label>Dirección habitual del evento</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="cli-direccion-evento" style="width:100%;flex:1">
+          <button type="button" class="btn btn-outline" style="padding:6px 10px" title="Abrir en Google Maps" onclick="abrirMaps(document.getElementById('cli-direccion-evento').value)">🗺️</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:1">
+        <label>Observaciones de acceso</label>
+        <textarea id="cli-obs-acceso" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom:20px">
+      <div class="form-field" style="flex:1">
+        <label>Observaciones generales</label>
+        <textarea id="cli-obs-generales" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:18px">
+      <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:8px">📋 Historial de eventos vinculados</label>
+      <div id="cli-historial"></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="cerrarModal('modal-cliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCliente()">✓ Guardar cliente</button>
+    </div>
   </div>
 </div>
 
@@ -1692,7 +1820,8 @@ let DB={
   platos_config: {},
   procedimientos: {},
   subs_config: {},
-  maestro_bebidas: []
+  maestro_bebidas: [],
+  maestro_clientes: []
 };
 
 let insPage=0;
@@ -1716,7 +1845,7 @@ const escH=(s)=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 // ══════════════════════════════════════════════════════════════════
 const TABS_PROD=['insumos','subproductos','platos','proveedores'];
 const TABS_COT=['costeo','precio'];
-const TABS_COM=['comanda_periodos'];
+const TABS_COM=['comanda_periodos','comanda_clientes'];
 const TABS=[...TABS_PROD,...TABS_COT,...TABS_COM];
 
 function switchTab(name){
@@ -1735,7 +1864,7 @@ function switchTab(name){
   if(contentEl)contentEl.classList.add('active');
   ({insumos:renderInsumos,subproductos:renderSubproductos,platos:renderPlatos,
     costeo:renderCosteoTable,proveedores:renderProveedores,precio:renderPrecioFinal,
-    comanda_periodos:renderComandaPeriodos})[name]?.();
+    comanda_periodos:renderComandaPeriodos,comanda_clientes:renderClientes})[name]?.();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1851,6 +1980,33 @@ function attachDD(inputEl, getOpts, getCurrentVal, onPick){
       const cv   = inputEl.dataset.val || '';
       const opts = getOpts();
       inputEl.value = opts.find(o => o.val === cv)?.label || cv || '';
+    }, 150);
+  });
+}
+
+// Autocompletado del campo "Cliente" (key: contacto) en la solapa EVENTO: a
+// diferencia de attachDD, el valor tipeado queda tal cual (texto libre, no
+// forzado a coincidir con una opción) — el dropdown es solo una sugerencia
+// del maestro de clientes; al elegir una, aplicarClienteAEvento() completa
+// los demás campos vinculados.
+function attachClienteAutocomplete(inputEl){
+  function getOpts(){
+    const q=(inputEl.value||'').trim().toLowerCase();
+    if(!q) return [];
+    return (DB.maestro_clientes||[])
+      .filter(c=>(c.razon_social||'').toLowerCase().includes(q))
+      .slice(0,10)
+      .map(c=>({val:c.cliente_id, label:c.razon_social}));
+  }
+  inputEl.addEventListener('input', () => {
+    const opts=getOpts();
+    if(!opts.length){ if(_ddAnchor===inputEl) ddClose(); return; }
+    ddOpen(inputEl, opts, '', val => aplicarClienteAEvento(val));
+  });
+  inputEl.addEventListener('blur', () => {
+    setTimeout(() => {
+      if(_ddPicking) return;
+      if(_ddAnchor===inputEl) ddClose();
     }, 150);
   });
 }
@@ -2796,7 +2952,8 @@ function refrescarVistaActual(){
     const name=activeContent.id.replace(/^tab-/,'');
     if(name==='comanda_periodos'){ refrescarVistaComandaTrasSync(); return; }
     ({insumos:renderInsumos,subproductos:renderSubproductos,platos:renderPlatos,
-      costeo:renderCosteoTable,proveedores:renderProveedores,precio:renderPrecioFinal})[name]?.();
+      costeo:renderCosteoTable,proveedores:renderProveedores,precio:renderPrecioFinal,
+      comanda_clientes:renderClientes})[name]?.();
   }catch(err){
     console.error('Sync remoto: no se pudo refrescar la vista actual', err);
   }
@@ -2819,6 +2976,7 @@ function aplicarActualizacionRemota(p){
   if(!DB.maestro_platos)DB.maestro_platos=[];
   if(!DB.maestro_subs)DB.maestro_subs=[];
   if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
+  if(!DB.maestro_clientes)DB.maestro_clientes=[];
   if(!DB.comanda)DB.comanda={periodos:[],eventos:{}};
   try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
   marcarSincronizado();
@@ -2944,6 +3102,7 @@ function importarJSON(e){
       if(!DB.maestro_platos)DB.maestro_platos=[];
       if(!DB.maestro_subs)DB.maestro_subs=[];
       if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
+      if(!DB.maestro_clientes)DB.maestro_clientes=[];
       sbSave(true);
       renderInsumos();
       alert('✓ Datos importados correctamente.\n\n'+parsed.insumos.length+' insumos · '+nSubs+' subproductos · '+nPlatos+' platos · '+(parsed.proveedores?.length||0)+' proveedores');
@@ -3095,6 +3254,7 @@ function cerrarSesion(){
   }
   if(!DB.comanda) DB.comanda={periodos:[],eventos:{}};
   if(!DB.maestro_bebidas) DB.maestro_bebidas=[];
+  if(!DB.maestro_clientes) DB.maestro_clientes=[];
 })();
 
 // ══════════════════════════════════════════════════════════════════
@@ -3143,6 +3303,10 @@ const COMANDA_TEMPLATE = [
       {tipo:'campo', label:'Responsable de Administración', key:'resp_admin'},
       {tipo:'campo', label:'Razón Social del Cliente', key:'razon_social'},
       {tipo:'campo', label:'CUIT Cliente', key:'cuit_cliente'},
+      {tipo:'campo', label:'Nombre de contacto del cliente', key:'cliente_contacto_nombre'},
+      {tipo:'campo', label:'Teléfono / WhatsApp del cliente', key:'cliente_telefono'},
+      {tipo:'campo', label:'Email del cliente', key:'cliente_email'},
+      {tipo:'campo', label:'Dirección del cliente', key:'cliente_direccion'},
       {tipo:'campo', label:'Contacto de envío / Factura a', key:'contacto_factura'},
       {tipo:'seccion', label:'LOCACIÓN y LOGÍSTICA'},
       {tipo:'campo', label:'Locación', key:'locacion'},
@@ -3337,6 +3501,7 @@ const COMANDA_TEMPLATE = [
 
 // ── DB Comanda ────────────────────────────────────────────────────
 if(!DB.comanda) DB.comanda = {periodos:[], eventos:{}};
+if(!DB.maestro_clientes) DB.maestro_clientes = [];
 
 // ── Estado ────────────────────────────────────────────────────────
 let comandaPeriodoActual = null;
@@ -3393,6 +3558,217 @@ function eliminarPeriodo(id){
   delete DB.comanda.eventos[id];
   renderComandaPeriodos();
   sbSave(true);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  MAESTRO DE CLIENTES
+// ══════════════════════════════════════════════════════════════════
+
+function generarClienteId(){
+  return 'cli_'+Date.now()+Math.random().toString(36).slice(2,7);
+}
+
+// Íconos de contacto rápido — reutilizables desde la tabla del maestro,
+// desde el modal de edición y, si hiciera falta, desde cualquier otro lugar.
+function abrirWhatsApp(tel){
+  const limpio=String(tel||'').replace(/[^\d+]/g,'').replace(/^\+/,'');
+  if(!limpio){ alert('Ese cliente no tiene teléfono cargado.'); return; }
+  window.open('https://wa.me/'+limpio,'_blank');
+}
+function abrirEmail(mail){
+  const m=String(mail||'').trim();
+  if(!m){ alert('Ese cliente no tiene email cargado.'); return; }
+  window.location.href='mailto:'+m;
+}
+function abrirMaps(direccion){
+  const d=String(direccion||'').trim();
+  if(!d){ alert('Ese cliente no tiene dirección cargada.'); return; }
+  window.open('https://maps.google.com/?q='+encodeURIComponent(d),'_blank');
+}
+
+function renderClientes(){
+  if(!DB.maestro_clientes) DB.maestro_clientes=[];
+  const q=(document.getElementById('clientes-search')?.value||'').trim().toLowerCase();
+  const list=DB.maestro_clientes
+    .filter(c=>!q || (c.razon_social||'').toLowerCase().includes(q))
+    .sort((a,b)=>(a.razon_social||'').localeCompare(b.razon_social||''));
+  const countEl=document.getElementById('clientes-count');
+  if(countEl) countEl.textContent=DB.maestro_clientes.length;
+  const tbody=document.getElementById('clientes-tbody');
+  if(!tbody) return;
+  tbody.innerHTML = list.map((c,i)=>`<tr>
+    <td style="color:var(--text3)">${i+1}</td>
+    <td style="font-weight:600">${escH(c.razon_social)}</td>
+    <td>${escH(c.tipo_cliente||'—')}</td>
+    <td>${escH(c.contacto_nombre||'—')}</td>
+    <td>${c.telefono_wpp?`<span style="cursor:pointer;color:var(--mp-violet)" data-wa-cliente="${escH(c.telefono_wpp)}" title="Abrir WhatsApp">🟢 ${escH(c.telefono_wpp)}</span>`:'—'}</td>
+    <td>${c.email?`<span style="cursor:pointer;color:var(--mp-violet)" data-mail-cliente="${escH(c.email)}" title="Enviar email">✉️ ${escH(c.email)}</span>`:'—'}</td>
+    <td>${escH(c.condicion_iva||'—')}</td>
+    <td>${escH(c.localidad||'—')}</td>
+    <td style="white-space:nowrap">
+      <button class="btn btn-outline" style="padding:4px 9px;font-size:11px" data-edit-cliente="${escH(c.cliente_id)}">✏️</button>
+      <button class="btn btn-danger" data-del-cliente="${escH(c.cliente_id)}">🗑</button>
+    </td>
+  </tr>`).join('') || `<tr><td colspan="9" class="empty">${q?'Sin resultados.':'Sin clientes cargados todavía.'}</td></tr>`;
+  tbody.querySelectorAll('[data-edit-cliente]').forEach(b=>b.addEventListener('click',()=>abrirModalCliente(b.dataset.editCliente)));
+  tbody.querySelectorAll('[data-del-cliente]').forEach(b=>b.addEventListener('click',()=>delCliente(b.dataset.delCliente)));
+  tbody.querySelectorAll('[data-wa-cliente]').forEach(b=>b.addEventListener('click',()=>abrirWhatsApp(b.dataset.waCliente)));
+  tbody.querySelectorAll('[data-mail-cliente]').forEach(b=>b.addEventListener('click',()=>abrirEmail(b.dataset.mailCliente)));
+}
+
+function abrirModalCliente(id){
+  const cliente = id ? DB.maestro_clientes.find(c=>c.cliente_id===id) : null;
+  document.getElementById('cli-edit-id').value = id||'';
+  document.getElementById('modal-cliente-title').textContent = cliente ? 'Editar Cliente' : 'Nuevo Cliente';
+  document.getElementById('cli-razon-social').value      = cliente?.razon_social||'';
+  document.getElementById('cli-cuit').value               = cliente?.cuit||'';
+  document.getElementById('cli-tipo').value                = cliente?.tipo_cliente||'';
+  document.getElementById('cli-contacto-nombre').value     = cliente?.contacto_nombre||'';
+  document.getElementById('cli-telefono').value            = cliente?.telefono_wpp||'';
+  document.getElementById('cli-email').value                = cliente?.email||'';
+  document.getElementById('cli-condicion-iva').value       = cliente?.condicion_iva||'';
+  document.getElementById('cli-direccion-fiscal').value    = cliente?.direccion_fiscal||'';
+  document.getElementById('cli-email-factura').value       = cliente?.email_factura||'';
+  document.getElementById('cli-direccion-evento').value    = cliente?.direccion_evento||'';
+  document.getElementById('cli-localidad').value           = cliente?.localidad||'';
+  document.getElementById('cli-obs-acceso').value          = cliente?.obs_acceso||'';
+  document.getElementById('cli-obs-generales').value       = cliente?.obs_generales||'';
+  document.getElementById('modal-cliente-alert').className='alert';
+  renderHistorialCliente(cliente);
+  document.getElementById('modal-cliente').classList.add('open');
+  setTimeout(()=>document.getElementById('cli-razon-social').focus(),50);
+}
+
+function guardarCliente(){
+  const id = document.getElementById('cli-edit-id').value;
+  const razon_social = document.getElementById('cli-razon-social').value.trim();
+  if(!razon_social){ showAlert('modal-cliente-alert','error','Ingresá el nombre / razón social.'); return; }
+  const datos = {
+    razon_social,
+    cuit:             document.getElementById('cli-cuit').value.trim(),
+    tipo_cliente:     document.getElementById('cli-tipo').value,
+    contacto_nombre:  document.getElementById('cli-contacto-nombre').value.trim(),
+    telefono_wpp:     document.getElementById('cli-telefono').value.trim(),
+    email:            document.getElementById('cli-email').value.trim(),
+    condicion_iva:    document.getElementById('cli-condicion-iva').value,
+    direccion_fiscal: document.getElementById('cli-direccion-fiscal').value.trim(),
+    email_factura:    document.getElementById('cli-email-factura').value.trim(),
+    direccion_evento: document.getElementById('cli-direccion-evento').value.trim(),
+    localidad:        document.getElementById('cli-localidad').value.trim(),
+    obs_acceso:       document.getElementById('cli-obs-acceso').value.trim(),
+    obs_generales:    document.getElementById('cli-obs-generales').value.trim(),
+  };
+  if(id){
+    const cli = DB.maestro_clientes.find(c=>c.cliente_id===id);
+    if(cli) Object.assign(cli, datos);
+  } else {
+    DB.maestro_clientes.push({cliente_id: generarClienteId(), ...datos});
+  }
+  cerrarModal('modal-cliente');
+  renderClientes();
+  sbSave(true);
+}
+
+function delCliente(id){
+  if(!confirm('¿Eliminar este cliente del maestro? Los eventos ya vinculados no se eliminan.'))return;
+  DB.maestro_clientes = DB.maestro_clientes.filter(c=>c.cliente_id!==id);
+  renderClientes();
+  sbSave(true);
+}
+
+// Historial automático: eventos de Comanda vinculados a este cliente, ya sea
+// por cliente_id (vínculo explícito hecho desde el autocompletado) o, para
+// eventos creados antes de vincularse, por coincidencia de nombre en "contacto".
+function getHistorialCliente(cliente){
+  const out=[];
+  if(!cliente || !DB.comanda?.eventos) return out;
+  const nombreNorm = (cliente.razon_social||'').trim().toUpperCase();
+  Object.entries(DB.comanda.eventos).forEach(([periodoId, evs])=>{
+    (evs||[]).forEach(ev=>{
+      const d = ev.datos||{};
+      const vinculado = d.cliente_id === cliente.cliente_id ||
+        (!d.cliente_id && nombreNorm && String(d.contacto||'').trim().toUpperCase()===nombreNorm);
+      if(!vinculado) return;
+      const periodo = DB.comanda.periodos.find(p=>p.id===periodoId);
+      out.push({
+        periodoId, eventoId:ev.id, nombre:ev.nombre||'(sin nombre)',
+        fecha:d.fecha||'',
+        periodoLabel: periodo ? `${MESES[periodo.mes]} ${periodo.anio}` : periodoId
+      });
+    });
+  });
+  out.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+  return out;
+}
+
+function renderHistorialCliente(cliente){
+  const cont=document.getElementById('cli-historial');
+  if(!cont) return;
+  if(!cliente){
+    cont.innerHTML='<p style="font-size:11px;color:var(--text3);font-style:italic">El historial de eventos queda disponible después de guardar el cliente por primera vez.</p>';
+    return;
+  }
+  const hist=getHistorialCliente(cliente);
+  if(!hist.length){
+    cont.innerHTML='<p style="font-size:11px;color:var(--text3);font-style:italic">Sin eventos vinculados todavía.</p>';
+    return;
+  }
+  cont.innerHTML = hist.map(h=>`<div class="hist-cliente-item" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border-radius:6px;margin-bottom:6px;cursor:pointer"
+      data-hist-periodo="${escH(h.periodoId)}" data-hist-evento="${escH(h.eventoId)}">
+    <div>
+      <div style="font-weight:600;font-size:12px;color:var(--text)">${escH(h.nombre)}</div>
+      <div style="font-size:11px;color:var(--text3)">${escH(h.periodoLabel)}${h.fecha?' · '+escH(h.fecha):''}</div>
+    </div>
+    <span style="font-size:11px;color:var(--mp-violet)">Abrir →</span>
+  </div>`).join('');
+  cont.querySelectorAll('[data-hist-periodo]').forEach(el=>el.addEventListener('click',()=>{
+    cerrarModal('modal-cliente');
+    abrirEvento(el.dataset.histPeriodo, el.dataset.histEvento);
+  }));
+}
+
+// Aplica un cliente elegido desde el autocompletado del campo "Cliente" (key:
+// contacto) de la ficha del evento: guarda el vínculo (cliente_id) y completa
+// nombre de contacto, teléfono, email y dirección en los campos del evento.
+function aplicarClienteAEvento(clienteId){
+  const cliente = (DB.maestro_clientes||[]).find(c=>c.cliente_id===clienteId);
+  if(!cliente) return;
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  ev.datos.cliente_id = cliente.cliente_id;
+  ev.datos.contacto = cliente.razon_social||'';
+  ev.datos.razon_social = cliente.razon_social||'';
+  ev.datos.cuit_cliente = cliente.cuit||'';
+  ev.datos.cliente_contacto_nombre = cliente.contacto_nombre||'';
+  ev.datos.cliente_telefono = cliente.telefono_wpp||'';
+  ev.datos.cliente_email = cliente.email||'';
+  ev.datos.cliente_direccion = cliente.direccion_evento||'';
+  renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
+}
+
+// Al abrir un evento ya vinculado a un cliente, refresca los campos autocompletados
+// con los datos actuales del maestro (por si cambiaron desde la última apertura).
+// Devuelve true si aplicó algún cambio, para que el llamador decida si guardar.
+function sincronizarClienteConMaestro(ev){
+  const clienteId = ev.datos?.cliente_id;
+  if(!clienteId) return false;
+  const cliente = (DB.maestro_clientes||[]).find(c=>c.cliente_id===clienteId);
+  if(!cliente) return false;
+  const campos = {
+    contacto: cliente.razon_social||'',
+    razon_social: cliente.razon_social||'',
+    cuit_cliente: cliente.cuit||'',
+    cliente_contacto_nombre: cliente.contacto_nombre||'',
+    cliente_telefono: cliente.telefono_wpp||'',
+    cliente_email: cliente.email||'',
+    cliente_direccion: cliente.direccion_evento||''
+  };
+  let cambio=false;
+  Object.entries(campos).forEach(([k,v])=>{
+    if((ev.datos[k]||'')!==v){ ev.datos[k]=v; cambio=true; }
+  });
+  return cambio;
 }
 
 // Formatea una fecha ISO (YYYY-MM-DD) en formato legible en español
@@ -3541,6 +3917,9 @@ function abrirEvento(periodoId, eventoId){
   comandaEventoActual  = eventoId;
   const ev = DB.comanda.eventos[periodoId].find(e=>e.id===eventoId);
   if(!ev) return;
+  // Si el evento está vinculado a un cliente del maestro (cliente_id), refrescar
+  // los campos autocompletados por si sus datos cambiaron desde la última vez.
+  if(sincronizarClienteConMaestro(ev)) sbSave(true);
   document.getElementById('modal-evento-titulo').textContent='📋 '+ev.nombre;
   // Construir tabs
   const tabsEl = document.getElementById('evento-sheet-tabs');
@@ -3933,6 +4312,10 @@ function renderEventoSheet(ev, sheetIdx){
 
   html+=`</div>`;
   document.getElementById('evento-sheet-content').innerHTML = html;
+  // Autocompletado del Maestro de Clientes sobre el campo "Cliente" (key: contacto,
+  // solo presente en la solapa EVENTO — en las demás no hace nada porque no lo encuentra).
+  const inpCliente = document.querySelector('#evento-sheet-content [data-key="contacto"]');
+  if(inpCliente) attachClienteAutocomplete(inpCliente);
 }
 
 // ── Mapa de campos compartidos entre solapas ─────────────────────
