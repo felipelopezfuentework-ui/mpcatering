@@ -3238,6 +3238,8 @@ function abrirPeriodo(periodoId){
   const p = DB.comanda.periodos.find(x=>x.id===periodoId);
   const evs = [...(DB.comanda.eventos[periodoId]||[])].sort((a,b)=>
     (a.datos?.fecha||'9999-99-99').localeCompare(b.datos?.fecha||'9999-99-99'));
+  const rangoFecha = getRangoFechaPeriodo(periodoId);
+  const fechaMinMaxAttrs = rangoFecha ? ` min="${rangoFecha.min}" max="${rangoFecha.max}"` : '';
   const c = document.getElementById('comanda-periodos-list');
   c.innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
@@ -3262,7 +3264,7 @@ function abrirPeriodo(periodoId){
                 <span style="font-size:10px;color:var(--text3)">✏️</span>
               </div>
               <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-                <input type="date" id="ev-fecha-${ev.id}" value="${escH(ev.datos?.fecha||'')}"
+                <input type="date" id="ev-fecha-${ev.id}" value="${escH(ev.datos?.fecha||'')}"${fechaMinMaxAttrs}
                   style="font-size:11px;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-family:inherit;outline:none;cursor:pointer"
                   onchange="cambiarFechaEvento('${periodoId}','${ev.id}',this.value)"
                   title="Editá la fecha del evento">
@@ -3341,6 +3343,14 @@ function renombrarEvento(periodoId, eventoId, nuevoNombre){
 function cambiarFechaEvento(periodoId, eventoId, nuevaFecha){
   const ev = DB.comanda.eventos[periodoId]?.find(e=>e.id===eventoId);
   if(!ev) return;
+  // El min/max del input solo restringe el selector visual; el usuario puede
+  // tipear una fecha fuera de rango con el teclado, así que se valida acá también.
+  const rango = getRangoFechaPeriodo(periodoId);
+  if(rango && nuevaFecha && (nuevaFecha < rango.min || nuevaFecha > rango.max)){
+    alert(`La fecha debe estar dentro del período actual (entre ${rango.min} y ${rango.max}).`);
+    abrirPeriodo(periodoId);
+    return;
+  }
   if(!ev.datos) ev.datos={};
   ev.datos.fecha = nuevaFecha||'';
   abrirPeriodo(periodoId);
@@ -3390,9 +3400,9 @@ function switchEventoSheet(idx){
   if(ev) renderEventoSheet(ev, idx);
 }
 
-// Rango de fechas (min/max en formato ISO) del período actual, según DB.comanda.periodos
-function getRangoFechaPeriodo(){
-  const p = DB.comanda?.periodos?.find(x=>x.id===comandaPeriodoActual);
+// Rango de fechas (min/max en formato ISO) de un período, según DB.comanda.periodos
+function getRangoFechaPeriodo(periodoId){
+  const p = DB.comanda?.periodos?.find(x=>x.id===(periodoId||comandaPeriodoActual));
   if(!p) return null;
   const mes = parseInt(p.mes), anio = parseInt(p.anio);
   if(!mes||!anio) return null;
