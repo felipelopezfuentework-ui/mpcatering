@@ -3626,15 +3626,22 @@ function renderEventoSheet(ev, sheetIdx){
     } else if(c.tipo==='tabla_libre'||c.tipo==='tabla_menu'){
       const rows = datos[c.key]||[];
       const numCols = ['Unidades','Peso (g)','Cantidad'];
+      const dragDrop = c.tipo==='tabla_menu';
       html+=`<div style="margin-bottom:16px">`;
       if(c.seccion) html+=`<div style="font-weight:600;color:var(--text3);font-size:11px;margin-bottom:6px;letter-spacing:.5px">${escH(c.seccion)}</div>`;
       if(c.tipo==='tabla_menu') html+=`<button class="btn btn-outline" style="margin-bottom:8px;font-size:11px" onclick="pegarMenuPortapapeles('${c.key}',${c.cols.length})">📋 Pegar menú</button>`;
       html+=`<div class="tw" style="overflow-x:auto"><table style="min-width:700px;table-layout:fixed;width:100%">
-        <colgroup>${c.cols.map(col=>`<col style="width:${col==='Menú'?'42%':numCols.includes(col)?'7%':'11%'}">`).join('')}<col style="width:30px"><col style="width:30px"></colgroup>
-        <thead><tr>${c.cols.map(col=>`<th style="font-size:11px;padding:4px 5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(col)}</th>`).join('')}<th></th><th></th></tr></thead>
+        <colgroup>${dragDrop?'<col style="width:20px">':''}${c.cols.map(col=>`<col style="width:${col==='Menú'?'42%':numCols.includes(col)?'7%':'11%'}">`).join('')}<col style="width:30px"><col style="width:30px"></colgroup>
+        <thead><tr>${dragDrop?'<th></th>':''}${c.cols.map(col=>`<th style="font-size:11px;padding:4px 5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(col)}</th>`).join('')}<th></th><th></th></tr></thead>
         <tbody id="tabla_${c.key}">`;
       rows.forEach((row,ri)=>{
-        html+=`<tr>`;
+        html+=dragDrop
+          ? `<tr data-row-idx="${ri}" ondragover="dragOverFilaTabla(event)" ondrop="dropFilaTabla(event,'${c.key}',${ri})">`
+          : `<tr>`;
+        if(dragDrop){
+          html+=`<td style="padding:2px;text-align:center;cursor:grab;color:var(--text3);user-select:none" draggable="true" title="Arrastrá para reordenar"
+            ondragstart="dragStartFilaTabla(event,'${c.key}',${ri})">⠿</td>`;
+        }
         c.cols.forEach((col,ci)=>{
           const v = Array.isArray(row)?row[ci]:row[col]||'';
           const empty = !v||String(v).trim()==='';
@@ -4139,12 +4146,42 @@ async function pegarMenuPortapapeles(key, numCols){
   const lineas = texto.split(/\r?\n/).map(l=>l.trim()).filter(l=>l!=='');
   if(!lineas.length){ alert('El portapapeles no contiene texto.'); return; }
   if(!ev.datos[key]) ev.datos[key]=[];
-  lineas.forEach(linea=>{
+  const filasNuevas = lineas.map(linea=>{
     const row = new Array(numCols).fill('');
     row[0] = linea;
-    ev.datos[key].push(row);
+    return row;
   });
+  const filasExistentesConContenido = ev.datos[key].filter(row=>
+    Array.isArray(row) && row.some(v=>String(v||'').trim()!==''));
+  ev.datos[key] = [...filasNuevas, ...filasExistentesConContenido];
   renderEventoSheet(ev, comandaSheetActual);
+}
+
+// ── Drag & drop nativo para reordenar filas de tabla_menu ─────────
+let dragFilaTablaOrigen = null;
+function dragStartFilaTabla(event, key, idx){
+  dragFilaTablaOrigen = idx;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', String(idx));
+}
+function dragOverFilaTabla(event){
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+}
+function dropFilaTabla(event, key, targetIdx){
+  event.preventDefault();
+  let srcIdx = parseInt(event.dataTransfer.getData('text/plain'));
+  if(isNaN(srcIdx)) srcIdx = dragFilaTablaOrigen;
+  dragFilaTablaOrigen = null;
+  if(srcIdx===null||isNaN(srcIdx)||srcIdx===targetIdx) return;
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev || !Array.isArray(ev.datos[key])) return;
+  const arr = ev.datos[key];
+  if(srcIdx<0||srcIdx>=arr.length||targetIdx<0||targetIdx>=arr.length) return;
+  const [movida] = arr.splice(srcIdx,1);
+  arr.splice(targetIdx,0,movida);
+  renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
 }
 
 function addEventoTablaRowChecks(key, numCols){
