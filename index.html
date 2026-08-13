@@ -2759,6 +2759,9 @@ const TIPOS_INPUT_EDITABLES=['text','number','date','email','tel','url','search'
 function esCampoEditable(el){
   if(!el||!el.tagName) return false;
   if(el.disabled) return false;
+  // Celdas contenteditable (ej: Nombre en maestro de insumos/proveedores) son
+  // campos editables de una sola línea tanto como un <input>.
+  if(el.isContentEditable) return true;
   const tag=el.tagName;
   if(tag==='TEXTAREA'||tag==='SELECT') return true;
   if(tag==='INPUT'){
@@ -2875,21 +2878,26 @@ document.addEventListener('change', (e)=>{
 }, true);
 // Mueve el foco al siguiente campo editable visible, en el orden del DOM.
 function moverFocoAlSiguienteCampo(actual){
-  const selector='input:not([type=button]):not([type=submit]):not([type=reset]):not([disabled]), select:not([disabled]), textarea:not([disabled])';
+  const selector='input:not([type=button]):not([type=submit]):not([type=reset]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable]:not([contenteditable=false])';
   const focusables=Array.from(document.querySelectorAll(selector)).filter(el=>el.offsetParent!==null);
   const idx=focusables.indexOf(actual);
   if(idx>-1 && idx<focusables.length-1) focusables[idx+1].focus();
 }
 
-// Enter dentro de cualquier campo editable (inputs, selects y también textareas)
-// confirma el valor: guarda de inmediato y mueve el foco al siguiente campo, sin
-// insertar saltos de línea en ningún caso (preventDefault evita el salto nativo
-// que <textarea> haría por defecto). Shift+Enter se deja pasar sin tocar: es el
-// atajo ya existente (ver procTAKeydown) para insertar un salto de línea literal
-// dentro de un paso de procedimiento.
+// Enter dentro de cualquier campo editable de una sola línea (inputs, selects
+// y celdas contenteditable como "Nombre" en maestro de insumos/proveedores)
+// confirma el valor: guarda de inmediato y mueve el foco al siguiente campo.
+// Delegado en 'document' con capture:true para que funcione también en
+// campos que se renderizan dinámicamente después de este registro (event
+// delegation: no hace falta re-adjuntar el listener a cada input nuevo).
+// <textarea> queda EXCLUIDO a propósito: ahí Enter debe seguir insertando un
+// salto de línea nativo (son campos multilínea, ej. observaciones de eventos
+// o pasos de procedimiento, este último con su propio manejo en procTAKeydown).
+// Shift+Enter se deja pasar sin tocar en cualquier caso.
 document.addEventListener('keydown', (e)=>{
   if(e.key!=='Enter'||e.shiftKey) return;
   if(!perfilActivo) return; // no interferir con la pantalla de login (maneja su propio Enter)
+  if(e.target && e.target.tagName==='TEXTAREA') return; // dejar que inserte salto de línea nativo
   if(!esCampoEditable(e.target)) return;
   e.preventDefault();
   sbSave(true);
