@@ -2709,54 +2709,159 @@ function reconvertirArraysAnidados(value){
   return value;
 }
 
+// Actualiza el indicador "☁ Sincronizado" (usado tanto al guardar localmente como al recibir cambios remotos)
+function marcarSincronizado(){
+  const el=document.getElementById('autosave-indicator');
+  if(!el)return;
+  const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  el.textContent='☁ Sincronizado '+now;el.style.opacity='1';
+  clearTimeout(marcarSincronizado._t);
+  marcarSincronizado._t=setTimeout(()=>el.style.opacity='0.5',3000);
+}
+
 async function sbSave(silent=false){
   try{
     const payload=convertirArraysAnidados(DB);
     await FB_DOC.set({payload,updated_at:new Date().toISOString()});
     // Backup local
     try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
-    const el=document.getElementById('autosave-indicator');
-    if(el){
-      const now=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-      el.textContent='☁ Sincronizado '+now;el.style.opacity='1';
-      setTimeout(()=>el.style.opacity='0.5',3000);
-    }
+    marcarSincronizado();
     if(!silent)alert('✓ Datos guardados y sincronizados en la nube.');
   }catch(e){
     if(!silent)alert('Error al guardar: '+e.message);
   }
 }
 
-async function sbLoad(){
-  try{
-    const doc=await FB_DOC.get();
-    if(doc.exists&&doc.data().payload){
-      const p=reconvertirArraysAnidados(doc.data().payload);
-      if(p.insumos&&p.insumos.length>=100){
-        DB=p;
-        if(!DB.platos_config)DB.platos_config={};
-        if(!DB.subs_config)DB.subs_config={};
-        if(!DB.procedimientos)DB.procedimientos={};
-        if(!DB.maestro_platos)DB.maestro_platos=[];
-        if(!DB.maestro_subs)DB.maestro_subs=[];
-        if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
-        return true;
-      }
-    }
-  }catch(e){}
-  // Fallback a localStorage
-  try{
-    const s=localStorage.getItem('foodcost_mp_v3');
-    if(s){const p=JSON.parse(s);if(p.insumos&&p.insumos.length>=100){DB=p;return true;}}
-  }catch(e){}
+function saveData(){sbSave(false);}
+function saveDataSilent(){sbSave(true);}
+// Autoguardado periódico (red de seguridad además del guardado inmediato al salir de cada campo)
+setInterval(saveDataSilent,30*60*1000);
+function exportData(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}));a.download='foodcost_mp.json';a.click();}
+
+// ── Sincronización en tiempo real (Firestore onSnapshot) ─────────────
+// Reemplaza la carga única (sbLoad) por un listener que recibe cada cambio
+// del documento — propio o de otro usuario/dispositivo — automáticamente.
+let camposEditandoActivos = 0;      // cuántos inputs/textarea/select tienen foco ahora mismo
+let snapshotRemotoPendiente = null; // último snapshot remoto recibido mientras el usuario editaba
+let _dbListenerUnsub = null;
+
+function esCampoEditable(el){
+  if(!el||!el.tagName) return false;
+  if(el.disabled) return false;
+  const tag=el.tagName;
+  if(tag==='TEXTAREA'||tag==='SELECT') return true;
+  if(tag==='INPUT'){
+    const t=(el.type||'text').toLowerCase();
+    return !['button','submit','reset'].includes(t);
+  }
   return false;
 }
 
-function saveData(){sbSave(false);}
-function saveDataSilent(){sbSave(true);}
-// Autoguardado cada 30 minutos
-setInterval(saveDataSilent,30*60*1000);
-function exportData(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}));a.download='foodcost_mp.json';a.click();}
+// Refresca la vista actualmente visible con los datos ya actualizados en DB,
+// usando las funciones de render existentes de cada solapa (sin recargar la página).
+function refrescarVistaComandaTrasSync(){
+  const modalEvento=document.getElementById('modal-evento-detalle');
+  if(modalEvento && modalEvento.classList.contains('open') && comandaEventoActual){
+    const ev=DB.comanda?.eventos?.[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+    if(ev){ renderEventoSheet(ev, comandaSheetActual); return true; }
+  }
+  if(document.getElementById('eventos-list') && comandaPeriodoActual){
+    abrirPeriodo(comandaPeriodoActual); return true;
+  }
+  if(document.getElementById('comanda-periodos-list')){
+    renderComandaPeriodos(); return true;
+  }
+  return false;
+}
+function refrescarVistaActual(){
+  try{
+    const activeContent=document.querySelector('.content.active');
+    if(!activeContent) return;
+    const name=activeContent.id.replace(/^tab-/,'');
+    if(name==='comanda_periodos'){ refrescarVistaComandaTrasSync(); return; }
+    ({insumos:renderInsumos,subproductos:renderSubproductos,platos:renderPlatos,
+      costeo:renderCosteoTable,proveedores:renderProveedores,precio:renderPrecioFinal})[name]?.();
+  }catch(err){
+    console.error('Sync remoto: no se pudo refrescar la vista actual', err);
+  }
+}
+
+function aplicarActualizacionRemota(p){
+  // Si el usuario está escribiendo en algún campo, no lo interrumpimos: se aplica
+  // apenas termine de editar (ver listener de 'focusout' más abajo).
+  if(camposEditandoActivos>0){
+    snapshotRemotoPendiente=p;
+    return;
+  }
+  try{
+    if(JSON.stringify(p)===JSON.stringify(DB)) return; // sin cambios reales, evita re-render innecesario
+  }catch(e){}
+  DB=p;
+  if(!DB.platos_config)DB.platos_config={};
+  if(!DB.subs_config)DB.subs_config={};
+  if(!DB.procedimientos)DB.procedimientos={};
+  if(!DB.maestro_platos)DB.maestro_platos=[];
+  if(!DB.maestro_subs)DB.maestro_subs=[];
+  if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
+  if(!DB.comanda)DB.comanda={periodos:[],eventos:{}};
+  try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
+  marcarSincronizado();
+  if(perfilActivo) refrescarVistaActual();
+}
+
+// Suscribe el listener en tiempo real. Devuelve una promesa que se resuelve
+// con el primer snapshot (o al agotar el timeout), para mantener el mismo
+// comportamiento de arranque que tenía el sbLoad() original.
+function sbListen(){
+  return new Promise((resolve)=>{
+    let resuelto=false;
+    const resolverUnaVez=(ok)=>{ if(!resuelto){ resuelto=true; resolve(ok); } };
+    _dbListenerUnsub=FB_DOC.onSnapshot((doc)=>{
+      if(doc.metadata && doc.metadata.hasPendingWrites){ resolverUnaVez(true); return; }
+      let ok=false;
+      try{
+        if(doc.exists && doc.data().payload){
+          const p=reconvertirArraysAnidados(doc.data().payload);
+          if(p.insumos && p.insumos.length>=100){
+            aplicarActualizacionRemota(p);
+            ok=true;
+          }
+        }
+      }catch(e){}
+      resolverUnaVez(ok);
+    }, (err)=>{
+      console.error('Error de sincronización con Firestore:', err);
+      resolverUnaVez(false);
+    });
+    setTimeout(()=>resolverUnaVez(false), 6000);
+  });
+}
+
+// Guardado inmediato al terminar de editar un campo (blur), con un pequeño
+// debounce para agrupar varios campos editados en rápida sucesión.
+let _guardadoPorBlurTimer=null;
+function programarGuardadoPorBlur(){
+  clearTimeout(_guardadoPorBlurTimer);
+  _guardadoPorBlurTimer=setTimeout(()=>sbSave(true), 400);
+}
+
+document.addEventListener('focusin', (e)=>{
+  if(esCampoEditable(e.target)) camposEditandoActivos++;
+}, true);
+document.addEventListener('focusout', (e)=>{
+  if(!esCampoEditable(e.target)) return;
+  camposEditandoActivos=Math.max(0, camposEditandoActivos-1);
+  if(perfilActivo) programarGuardadoPorBlur();
+  // Se pospone al siguiente tick para no pisar el foco cuando el usuario
+  // pasa de un campo a otro (Tab): el focusin del nuevo campo llega justo después.
+  setTimeout(()=>{
+    if(camposEditandoActivos===0 && snapshotRemotoPendiente){
+      const pendiente=snapshotRemotoPendiente;
+      snapshotRemotoPendiente=null;
+      aplicarActualizacionRemota(pendiente);
+    }
+  }, 0);
+}, true);
 
 function importarJSON(e){
   const file=e.target.files[0];
@@ -2920,7 +3025,14 @@ function cerrarSesion(){
 // ══════════════════════════════════════════════════════════════════
 (async function(){
   document.getElementById('login-screen').style.display='flex';
-  await sbLoad();
+  const ok=await sbListen();
+  if(!ok){
+    // Fallback a localStorage si no llegó ningún dato de Firestore a tiempo
+    try{
+      const s=localStorage.getItem('foodcost_mp_v3');
+      if(s){const p=JSON.parse(s);if(p.insumos&&p.insumos.length>=100)DB=p;}
+    }catch(e){}
+  }
   if(!DB.comanda) DB.comanda={periodos:[],eventos:{}};
   if(!DB.maestro_bebidas) DB.maestro_bebidas=[];
 })();
