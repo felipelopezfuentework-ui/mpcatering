@@ -2859,6 +2859,14 @@ document.addEventListener('change', (e)=>{
   if(!esCampoEditable(e.target)) return;
   if(perfilActivo) programarGuardadoAutomatico();
 }, true);
+// Enter dentro de un campo también confirma el valor (además de blur/change).
+// No se hace preventDefault ni blur: solo se dispara el guardado; el resto del
+// comportamiento nativo (o cualquier onkeydown propio del campo) sigue intacto.
+document.addEventListener('keydown', (e)=>{
+  if(e.key!=='Enter') return;
+  if(!esCampoEditable(e.target)) return;
+  if(perfilActivo) programarGuardadoAutomatico();
+}, true);
 document.addEventListener('focusin', (e)=>{
   if(esCampoEditable(e.target)) camposEditandoActivos++;
 }, true);
