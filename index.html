@@ -2751,14 +2751,19 @@ let camposEditandoActivos = 0;      // cuántos inputs/textarea/select tienen fo
 let snapshotRemotoPendiente = null; // último snapshot remoto recibido mientras el usuario editaba
 let _dbListenerUnsub = null;
 
+// Lista explícita (allowlist) en vez de excluir solo button/submit/reset: así
+// no hay ambigüedad de que type="text"/"number"/"date" y selects quedan cubiertos
+// exactamente igual, sin depender de qué tipos NO se nombran en un blocklist.
+const TIPOS_INPUT_EDITABLES=['text','number','date','email','tel','url','search',
+  'password','time','datetime-local','month','week','color','range','checkbox','radio'];
 function esCampoEditable(el){
   if(!el||!el.tagName) return false;
   if(el.disabled) return false;
   const tag=el.tagName;
   if(tag==='TEXTAREA'||tag==='SELECT') return true;
   if(tag==='INPUT'){
-    const t=(el.type||'text').toLowerCase();
-    return !['button','submit','reset'].includes(t);
+    const t=(el.getAttribute('type')||'text').toLowerCase();
+    return TIPOS_INPUT_EDITABLES.includes(t);
   }
   return false;
 }
@@ -2876,15 +2881,16 @@ function moverFocoAlSiguienteCampo(actual){
   if(idx>-1 && idx<focusables.length-1) focusables[idx+1].focus();
 }
 
-// Enter dentro de un <input>/<select> confirma el valor: guarda de inmediato y
-// mueve el foco al siguiente campo (evita el comportamiento por defecto del Enter).
-// En <textarea> el Enter debe seguir generando un salto de línea normal, así que
-// se deja pasar sin tocarlo (el guardado ocurrirá igual al salir del campo).
+// Enter dentro de cualquier campo editable (inputs, selects y también textareas)
+// confirma el valor: guarda de inmediato y mueve el foco al siguiente campo, sin
+// insertar saltos de línea en ningún caso (preventDefault evita el salto nativo
+// que <textarea> haría por defecto). Shift+Enter se deja pasar sin tocar: es el
+// atajo ya existente (ver procTAKeydown) para insertar un salto de línea literal
+// dentro de un paso de procedimiento.
 document.addEventListener('keydown', (e)=>{
-  if(e.key!=='Enter') return;
+  if(e.key!=='Enter'||e.shiftKey) return;
   if(!perfilActivo) return; // no interferir con la pantalla de login (maneja su propio Enter)
   if(!esCampoEditable(e.target)) return;
-  if(e.target.tagName==='TEXTAREA') return;
   e.preventDefault();
   sbSave(true);
   moverFocoAlSiguienteCampo(e.target);
