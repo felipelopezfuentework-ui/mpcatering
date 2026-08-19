@@ -2025,33 +2025,6 @@ function attachDD(inputEl, getOpts, getCurrentVal, onPick){
   });
 }
 
-// Autocompletado del campo "Cliente" (key: contacto) en la solapa EVENTO: a
-// diferencia de attachDD, el valor tipeado queda tal cual (texto libre, no
-// forzado a coincidir con una opción) — el dropdown es solo una sugerencia
-// del maestro de clientes; al elegir una, aplicarClienteAEvento() completa
-// los demás campos vinculados.
-function attachClienteAutocomplete(inputEl){
-  function getOpts(){
-    const q=(inputEl.value||'').trim().toLowerCase();
-    if(!q) return [];
-    return (DB.maestro_clientes||[])
-      .filter(c=>(c.nombre_cliente||'').toLowerCase().includes(q) || (c.razon_social||'').toLowerCase().includes(q))
-      .slice(0,10)
-      .map(c=>({val:c.cliente_id, label:c.nombre_cliente||c.razon_social}));
-  }
-  inputEl.addEventListener('input', () => {
-    const opts=getOpts();
-    if(!opts.length){ if(_ddAnchor===inputEl) ddClose(); return; }
-    ddOpen(inputEl, opts, '', val => aplicarClienteAEvento(val));
-  });
-  inputEl.addEventListener('blur', () => {
-    setTimeout(() => {
-      if(_ddPicking) return;
-      if(_ddAnchor===inputEl) ddClose();
-    }, 150);
-  });
-}
-
 // ── Global close triggers ──────────────────────────────────────────
 // Close on click outside (but never while picking)
 document.addEventListener('mousedown', e => {
@@ -3334,8 +3307,10 @@ const COMANDA_TEMPLATE = [
         {label:'Otros', key:'personal_otros', inputType:'number'}
       ], obsKey:'personal_obs'},
       {tipo:'campo_check', label:'Servicios incluidos', key:'servicios', opciones:['Comida','Personal','Barra','Vajilla','Equipamiento']},
-      {tipo:'campo', label:'Contacto', key:'contacto'},
-      {tipo:'campo', label:'Contacto durante el evento', key:'contacto_evento'},
+      {tipo:'campo', label:'Contacto', key:'contacto', readonlyClienteMaestro:true},
+      {tipo:'campo', label:'Contacto durante el evento', key:'contacto_evento', readonlyClienteMaestro:true},
+      {tipo:'campo', label:'Teléfono / WhatsApp', key:'telefono', readonlyClienteMaestro:true},
+      {tipo:'campo', label:'Email', key:'email_cliente', readonlyClienteMaestro:true},
       {tipo:'seccion', label:'INVITADOS'},
       {tipo:'campo', label:'Perfil de invitados', key:'perfil_invitados', inputType:'textarea'},
       {tipo:'campo', label:'Dietas especiales — Detalle', key:'dietas_especiales', inputType:'textarea'},
@@ -4185,6 +4160,14 @@ function renderEventoSheet(ev, sheetIdx){
         ${c.readonly ? `<div style="font-size:10px;color:var(--text3);margin-top:3px;font-style:italic">Se edita desde la solapa Evento</div>` : ''}
       </div>`;
       html+=`</div>`;
+    } else if(c.tipo==='campo' && c.readonlyClienteMaestro){
+      const val = datos[c.key]||'';
+      html+=`<div class="form-field" style="margin-bottom:14px">
+        <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
+        <input type="text" value="${escH(val)}" readonly data-key="${c.key}"
+          style="width:100%;max-width:500px;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;font-style:italic">Se edita desde el Maestro de Clientes</div>
+      </div>`;
     } else if(c.tipo==='campo' && CAMPOS_DESTINO_A_ORIGEN[c.key]){
       const val = getValorCampoCompartido(c.key, datos);
       html+=`<div class="form-field" style="margin-bottom:14px">
@@ -4392,11 +4375,10 @@ function renderEventoSheet(ev, sheetIdx){
 
   html+=`</div>`;
   document.getElementById('evento-sheet-content').innerHTML = html;
-  // Autocompletado del Maestro de Clientes sobre el campo "Contacto" (key: contacto,
-  // solo presente en la solapa EVENTO — en las demás no hace nada porque no lo encuentra).
-  const inpCliente = document.querySelector('#evento-sheet-content [data-key="contacto"]');
-  if(inpCliente) attachClienteAutocomplete(inpCliente);
-  // Lista desplegable con buscador del campo "Cliente" (key: cliente_id) en Generalidades.
+  // Lista desplegable con buscador del campo "Cliente" (key: cliente_id) en Generalidades:
+  // único punto de entrada para vincular un cliente del maestro al evento — los campos
+  // contacto/contacto_evento/telefono/email_cliente quedan de solo lectura (ver
+  // c.readonlyClienteMaestro en COMANDA_TEMPLATE) y se completan desde acá.
   const inpClienteId = document.querySelector('#evento-sheet-content [data-key="cliente_id"]');
   if(inpClienteId){
     const clienteOpts = ()=>(DB.maestro_clientes||[]).map(cl=>({val:cl.cliente_id, label:cl.nombre_cliente||cl.razon_social||'(sin nombre)'}));
