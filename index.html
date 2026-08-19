@@ -574,7 +574,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <div class="sbox"><input type="text" id="clientes-search" placeholder="Buscar por nombre/razón social…" oninput="renderClientes()"></div>
     </div>
     <div class="tw"><table>
-      <thead><tr><th>#</th><th>Razón Social</th><th>Tipo</th><th>Contacto</th><th>Tel / WhatsApp</th><th>Email</th><th>Condición IVA</th><th>Localidad</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>Nombre</th><th>Razón Social</th><th>Tipo</th><th>Contacto 1</th><th>Contacto 2</th><th>Condición IVA</th><th>Localidad</th><th></th></tr></thead>
       <tbody id="clientes-tbody"></tbody>
     </table></div>
   </div>
@@ -591,8 +591,12 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div id="modal-cliente-alert" class="alert"></div>
     <div class="form-row">
       <div class="form-field" style="flex:1">
-        <label>Nombre / Razón Social</label>
-        <input type="text" id="cli-razon-social" placeholder="Ej: Empresa SA / Juan Pérez" style="width:100%">
+        <label>Nombre comercial</label>
+        <input type="text" id="cli-nombre-cliente" placeholder="Ej: Empresa / Juan Pérez" style="width:100%">
+      </div>
+      <div class="form-field" style="flex:1">
+        <label>Razón social</label>
+        <input type="text" id="cli-razon-social" placeholder="Ej: Empresa S.A." style="width:100%">
       </div>
     </div>
     <div class="form-row">
@@ -621,34 +625,71 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     </div>
     <div class="form-row">
       <div class="form-field" style="flex:1">
-        <label>Nombre del contacto principal</label>
-        <input type="text" id="cli-contacto-nombre" style="width:100%">
-      </div>
-      <div class="form-field" style="flex:1">
         <label>Localidad</label>
         <input type="text" id="cli-localidad" style="width:100%">
       </div>
+      <div class="form-field" style="flex:1">
+        <label>Referente</label>
+        <input type="text" id="cli-referente" placeholder="De dónde vino el cliente" style="width:100%">
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+      <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:8px">👤 Contacto 1</label>
+      <div class="form-row">
+        <div class="form-field" style="flex:1">
+          <label>Nombre</label>
+          <input type="text" id="cli-contacto1-nombre" style="width:100%">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1">
+          <label>Teléfono / WhatsApp</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="cli-contacto1-telefono" style="width:100%;flex:1">
+            <button type="button" class="btn btn-outline" style="padding:5px 8px;display:inline-flex;align-items:center" title="Abrir WhatsApp" onclick="abrirWhatsApp(document.getElementById('cli-contacto1-telefono').value)"><svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:block"><circle cx="12" cy="12" r="12" fill="#25D366"/><path fill="#FFF" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path fill="#FFF" d="M12.001 3.5c-4.694 0-8.5 3.806-8.5 8.5 0 1.492.393 2.94 1.138 4.216L3.5 20.5l4.42-1.16A8.463 8.463 0 0 0 12.001 20.5c4.694 0 8.5-3.806 8.5-8.5s-3.806-8.5-8.5-8.5zm4.95 12.45a6.938 6.938 0 0 1-4.95 2.05 6.96 6.96 0 0 1-3.53-.964l-.253-.15-2.62.688.7-2.553-.165-.262A6.93 6.93 0 0 1 5.05 12c0-3.83 3.12-6.95 6.951-6.95 1.857 0 3.6.724 4.912 2.037A6.902 6.902 0 0 1 18.95 12a6.938 6.938 0 0 1-1.999 3.95z"/></svg></button>
+          </div>
+        </div>
+        <div class="form-field" style="flex:1">
+          <label>Email</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="cli-contacto1-email" style="width:100%;flex:1">
+            <button type="button" class="btn btn-outline" style="padding:5px 8px;display:inline-flex;align-items:center" title="Enviar email" onclick="abrirEmail(document.getElementById('cli-contacto1-email').value)"><svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style="display:block"><path fill="#4caf50" d="M45,16.2l-5,2.75l-5,4.75L35,40h7c1.657,0,3-1.343,3-3V16.2z"/><path fill="#1e88e5" d="M3,16.2l3.614,1.71L13,23.7V40H6c-1.657,0-3-1.343-3-3V16.2z"/><polygon fill="#e53935" points="35,11.2 24,19.45 13,11.2 12,17 13,23.7 24,31.95 35,23.7 36,17"/><path fill="#c62828" d="M3,12.298V16.2l10,7.5V11.2L9.876,8.859C9.132,8.301,8.228,8,7.298,8h0C4.924,8,3,9.924,3,12.298z"/><path fill="#fbc02d" d="M45,12.298V16.2l-10,7.5V11.2l3.124-2.341C38.868,8.301,39.772,8,40.702,8h0 C43.076,8,45,9.924,45,12.298z"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+      <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:8px">👤 Contacto 2</label>
+      <div class="form-row">
+        <div class="form-field" style="flex:1">
+          <label>Nombre</label>
+          <input type="text" id="cli-contacto2-nombre" style="width:100%">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1">
+          <label>Teléfono / WhatsApp</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="cli-contacto2-telefono" style="width:100%;flex:1">
+            <button type="button" class="btn btn-outline" style="padding:5px 8px;display:inline-flex;align-items:center" title="Abrir WhatsApp" onclick="abrirWhatsApp(document.getElementById('cli-contacto2-telefono').value)"><svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:block"><circle cx="12" cy="12" r="12" fill="#25D366"/><path fill="#FFF" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path fill="#FFF" d="M12.001 3.5c-4.694 0-8.5 3.806-8.5 8.5 0 1.492.393 2.94 1.138 4.216L3.5 20.5l4.42-1.16A8.463 8.463 0 0 0 12.001 20.5c4.694 0 8.5-3.806 8.5-8.5s-3.806-8.5-8.5-8.5zm4.95 12.45a6.938 6.938 0 0 1-4.95 2.05 6.96 6.96 0 0 1-3.53-.964l-.253-.15-2.62.688.7-2.553-.165-.262A6.93 6.93 0 0 1 5.05 12c0-3.83 3.12-6.95 6.951-6.95 1.857 0 3.6.724 4.912 2.037A6.902 6.902 0 0 1 18.95 12a6.938 6.938 0 0 1-1.999 3.95z"/></svg></button>
+          </div>
+        </div>
+        <div class="form-field" style="flex:1">
+          <label>Email</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="cli-contacto2-email" style="width:100%;flex:1">
+            <button type="button" class="btn btn-outline" style="padding:5px 8px;display:inline-flex;align-items:center" title="Enviar email" onclick="abrirEmail(document.getElementById('cli-contacto2-email').value)"><svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style="display:block"><path fill="#4caf50" d="M45,16.2l-5,2.75l-5,4.75L35,40h7c1.657,0,3-1.343,3-3V16.2z"/><path fill="#1e88e5" d="M3,16.2l3.614,1.71L13,23.7V40H6c-1.657,0-3-1.343-3-3V16.2z"/><polygon fill="#e53935" points="35,11.2 24,19.45 13,11.2 12,17 13,23.7 24,31.95 35,23.7 36,17"/><path fill="#c62828" d="M3,12.298V16.2l10,7.5V11.2L9.876,8.859C9.132,8.301,8.228,8,7.298,8h0C4.924,8,3,9.924,3,12.298z"/><path fill="#fbc02d" d="M45,12.298V16.2l-10,7.5V11.2l3.124-2.341C38.868,8.301,39.772,8,40.702,8h0 C43.076,8,45,9.924,45,12.298z"/></svg></button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="form-row">
       <div class="form-field" style="flex:1">
-        <label>Teléfono / WhatsApp</label>
+        <label>Mail de envío de seguros</label>
         <div style="display:flex;gap:6px">
-          <input type="text" id="cli-telefono" style="width:100%;flex:1">
-          <button type="button" class="btn btn-outline" style="padding:5px 8px;display:inline-flex;align-items:center" title="Abrir WhatsApp" onclick="abrirWhatsApp(document.getElementById('cli-telefono').value)"><svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:block"><circle cx="12" cy="12" r="12" fill="#25D366"/><path fill="#FFF" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path fill="#FFF" d="M12.001 3.5c-4.694 0-8.5 3.806-8.5 8.5 0 1.492.393 2.94 1.138 4.216L3.5 20.5l4.42-1.16A8.463 8.463 0 0 0 12.001 20.5c4.694 0 8.5-3.806 8.5-8.5s-3.806-8.5-8.5-8.5zm4.95 12.45a6.938 6.938 0 0 1-4.95 2.05 6.96 6.96 0 0 1-3.53-.964l-.253-.15-2.62.688.7-2.553-.165-.262A6.93 6.93 0 0 1 5.05 12c0-3.83 3.12-6.95 6.951-6.95 1.857 0 3.6.724 4.912 2.037A6.902 6.902 0 0 1 18.95 12a6.938 6.938 0 0 1-1.999 3.95z"/></svg></button>
+          <input type="text" id="cli-email-seguros" style="width:100%;flex:1">
+          <button type="button" class="btn btn-outline" style="padding:5px 8px;display:inline-flex;align-items:center" title="Enviar email" onclick="abrirEmail(document.getElementById('cli-email-seguros').value)"><svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style="display:block"><path fill="#4caf50" d="M45,16.2l-5,2.75l-5,4.75L35,40h7c1.657,0,3-1.343,3-3V16.2z"/><path fill="#1e88e5" d="M3,16.2l3.614,1.71L13,23.7V40H6c-1.657,0-3-1.343-3-3V16.2z"/><polygon fill="#e53935" points="35,11.2 24,19.45 13,11.2 12,17 13,23.7 24,31.95 35,23.7 36,17"/><path fill="#c62828" d="M3,12.298V16.2l10,7.5V11.2L9.876,8.859C9.132,8.301,8.228,8,7.298,8h0C4.924,8,3,9.924,3,12.298z"/><path fill="#fbc02d" d="M45,12.298V16.2l-10,7.5V11.2l3.124-2.341C38.868,8.301,39.772,8,40.702,8h0 C43.076,8,45,9.924,45,12.298z"/></svg></button>
         </div>
-      </div>
-      <div class="form-field" style="flex:1">
-        <label>Email</label>
-        <div style="display:flex;gap:6px">
-          <input type="text" id="cli-email" style="width:100%;flex:1">
-          <button type="button" class="btn btn-outline" style="padding:5px 8px;display:inline-flex;align-items:center" title="Enviar email" onclick="abrirEmail(document.getElementById('cli-email').value)"><svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style="display:block"><path fill="#4caf50" d="M45,16.2l-5,2.75l-5,4.75L35,40h7c1.657,0,3-1.343,3-3V16.2z"/><path fill="#1e88e5" d="M3,16.2l3.614,1.71L13,23.7V40H6c-1.657,0-3-1.343-3-3V16.2z"/><polygon fill="#e53935" points="35,11.2 24,19.45 13,11.2 12,17 13,23.7 24,31.95 35,23.7 36,17"/><path fill="#c62828" d="M3,12.298V16.2l10,7.5V11.2L9.876,8.859C9.132,8.301,8.228,8,7.298,8h0C4.924,8,3,9.924,3,12.298z"/><path fill="#fbc02d" d="M45,12.298V16.2l-10,7.5V11.2l3.124-2.341C38.868,8.301,39.772,8,40.702,8h0 C43.076,8,45,9.924,45,12.298z"/></svg></button>
-        </div>
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-field" style="flex:1">
-        <label>Dirección fiscal</label>
-        <input type="text" id="cli-direccion-fiscal" style="width:100%">
       </div>
       <div class="form-field" style="flex:1">
         <label>Email para envío de facturas</label>
@@ -1994,9 +2035,9 @@ function attachClienteAutocomplete(inputEl){
     const q=(inputEl.value||'').trim().toLowerCase();
     if(!q) return [];
     return (DB.maestro_clientes||[])
-      .filter(c=>(c.razon_social||'').toLowerCase().includes(q))
+      .filter(c=>(c.nombre_cliente||'').toLowerCase().includes(q) || (c.razon_social||'').toLowerCase().includes(q))
       .slice(0,10)
-      .map(c=>({val:c.cliente_id, label:c.razon_social}));
+      .map(c=>({val:c.cliente_id, label:c.nombre_cliente||c.razon_social}));
   }
   inputEl.addEventListener('input', () => {
     const opts=getOpts();
@@ -3595,19 +3636,20 @@ function renderClientes(){
   if(!DB.maestro_clientes) DB.maestro_clientes=[];
   const q=(document.getElementById('clientes-search')?.value||'').trim().toLowerCase();
   const list=DB.maestro_clientes
-    .filter(c=>!q || (c.razon_social||'').toLowerCase().includes(q))
-    .sort((a,b)=>(a.razon_social||'').localeCompare(b.razon_social||''));
+    .filter(c=>!q || (c.nombre_cliente||'').toLowerCase().includes(q) || (c.razon_social||'').toLowerCase().includes(q))
+    .sort((a,b)=>(a.nombre_cliente||a.razon_social||'').localeCompare(b.nombre_cliente||b.razon_social||''));
   const countEl=document.getElementById('clientes-count');
   if(countEl) countEl.textContent=DB.maestro_clientes.length;
   const tbody=document.getElementById('clientes-tbody');
   if(!tbody) return;
+  const contactoCell=(nombre,tel,mail)=>`${nombre?`<div style="font-weight:600">${escH(nombre)}</div>`:''}${tel?`<span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px" data-wa-cliente="${escH(tel)}" title="Abrir WhatsApp">${ICON_WHATSAPP_SVG}<span>${escH(tel)}</span></span>`:''}${mail?`<div style="cursor:pointer;display:inline-flex;align-items:center;gap:6px" data-mail-cliente="${escH(mail)}" title="Enviar email">${ICON_GMAIL_SVG}<span>${escH(mail)}</span></div>`:''}${!nombre&&!tel&&!mail?'—':''}`;
   tbody.innerHTML = list.map((c,i)=>`<tr>
     <td style="color:var(--text3)">${i+1}</td>
-    <td style="font-weight:600">${escH(c.razon_social)}</td>
+    <td style="font-weight:600">${escH(c.nombre_cliente||'—')}</td>
+    <td>${escH(c.razon_social||'—')}</td>
     <td>${escH(c.tipo_cliente||'—')}</td>
-    <td>${escH(c.contacto_nombre||'—')}</td>
-    <td>${c.telefono_wpp?`<span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px" data-wa-cliente="${escH(c.telefono_wpp)}" title="Abrir WhatsApp">${ICON_WHATSAPP_SVG}<span>${escH(c.telefono_wpp)}</span></span>`:'—'}</td>
-    <td>${c.email?`<span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px" data-mail-cliente="${escH(c.email)}" title="Enviar email">${ICON_GMAIL_SVG}<span>${escH(c.email)}</span></span>`:'—'}</td>
+    <td>${contactoCell(c.contacto1_nombre,c.contacto1_telefono,c.contacto1_email)}</td>
+    <td>${contactoCell(c.contacto2_nombre,c.contacto2_telefono,c.contacto2_email)}</td>
     <td>${escH(c.condicion_iva||'—')}</td>
     <td>${escH(c.localidad||'—')}</td>
     <td style="white-space:nowrap">
@@ -3625,43 +3667,53 @@ function abrirModalCliente(id){
   const cliente = id ? DB.maestro_clientes.find(c=>c.cliente_id===id) : null;
   document.getElementById('cli-edit-id').value = id||'';
   document.getElementById('modal-cliente-title').textContent = cliente ? 'Editar Cliente' : 'Nuevo Cliente';
+  document.getElementById('cli-nombre-cliente').value     = cliente?.nombre_cliente||'';
   document.getElementById('cli-razon-social').value      = cliente?.razon_social||'';
   document.getElementById('cli-cuit').value               = cliente?.cuit||'';
   document.getElementById('cli-tipo').value                = cliente?.tipo_cliente||'';
-  document.getElementById('cli-contacto-nombre').value     = cliente?.contacto_nombre||'';
-  document.getElementById('cli-telefono').value            = cliente?.telefono_wpp||'';
-  document.getElementById('cli-email').value                = cliente?.email||'';
+  document.getElementById('cli-contacto1-nombre').value    = cliente?.contacto1_nombre||cliente?.contacto_nombre||'';
+  document.getElementById('cli-contacto1-telefono').value  = cliente?.contacto1_telefono||cliente?.telefono_wpp||'';
+  document.getElementById('cli-contacto1-email').value     = cliente?.contacto1_email||cliente?.email||'';
+  document.getElementById('cli-contacto2-nombre').value    = cliente?.contacto2_nombre||'';
+  document.getElementById('cli-contacto2-telefono').value  = cliente?.contacto2_telefono||'';
+  document.getElementById('cli-contacto2-email').value     = cliente?.contacto2_email||'';
   document.getElementById('cli-condicion-iva').value       = cliente?.condicion_iva||'';
-  document.getElementById('cli-direccion-fiscal').value    = cliente?.direccion_fiscal||'';
+  document.getElementById('cli-email-seguros').value       = cliente?.email_seguros||'';
   document.getElementById('cli-email-factura').value       = cliente?.email_factura||'';
   document.getElementById('cli-direccion-evento').value    = cliente?.direccion_evento||'';
   document.getElementById('cli-localidad').value           = cliente?.localidad||'';
+  document.getElementById('cli-referente').value           = cliente?.referente||'';
   document.getElementById('cli-obs-acceso').value          = cliente?.obs_acceso||'';
   document.getElementById('cli-obs-generales').value       = cliente?.obs_generales||'';
   document.getElementById('modal-cliente-alert').className='alert';
   renderHistorialCliente(cliente);
   document.getElementById('modal-cliente').classList.add('open');
-  setTimeout(()=>document.getElementById('cli-razon-social').focus(),50);
+  setTimeout(()=>document.getElementById('cli-nombre-cliente').focus(),50);
 }
 
 function guardarCliente(){
   const id = document.getElementById('cli-edit-id').value;
-  const razon_social = document.getElementById('cli-razon-social').value.trim();
-  if(!razon_social){ showAlert('modal-cliente-alert','error','Ingresá el nombre / razón social.'); return; }
+  const nombre_cliente = document.getElementById('cli-nombre-cliente').value.trim();
+  if(!nombre_cliente){ showAlert('modal-cliente-alert','error','Ingresá el nombre comercial del cliente.'); return; }
   const datos = {
-    razon_social,
-    cuit:             document.getElementById('cli-cuit').value.trim(),
-    tipo_cliente:     document.getElementById('cli-tipo').value,
-    contacto_nombre:  document.getElementById('cli-contacto-nombre').value.trim(),
-    telefono_wpp:     document.getElementById('cli-telefono').value.trim(),
-    email:            document.getElementById('cli-email').value.trim(),
-    condicion_iva:    document.getElementById('cli-condicion-iva').value,
-    direccion_fiscal: document.getElementById('cli-direccion-fiscal').value.trim(),
-    email_factura:    document.getElementById('cli-email-factura').value.trim(),
-    direccion_evento: document.getElementById('cli-direccion-evento').value.trim(),
-    localidad:        document.getElementById('cli-localidad').value.trim(),
-    obs_acceso:       document.getElementById('cli-obs-acceso').value.trim(),
-    obs_generales:    document.getElementById('cli-obs-generales').value.trim(),
+    nombre_cliente,
+    razon_social:      document.getElementById('cli-razon-social').value.trim(),
+    cuit:              document.getElementById('cli-cuit').value.trim(),
+    tipo_cliente:      document.getElementById('cli-tipo').value,
+    contacto1_nombre:  document.getElementById('cli-contacto1-nombre').value.trim(),
+    contacto1_telefono:document.getElementById('cli-contacto1-telefono').value.trim(),
+    contacto1_email:   document.getElementById('cli-contacto1-email').value.trim(),
+    contacto2_nombre:  document.getElementById('cli-contacto2-nombre').value.trim(),
+    contacto2_telefono:document.getElementById('cli-contacto2-telefono').value.trim(),
+    contacto2_email:   document.getElementById('cli-contacto2-email').value.trim(),
+    condicion_iva:     document.getElementById('cli-condicion-iva').value,
+    email_seguros:     document.getElementById('cli-email-seguros').value.trim(),
+    email_factura:     document.getElementById('cli-email-factura').value.trim(),
+    direccion_evento:  document.getElementById('cli-direccion-evento').value.trim(),
+    localidad:         document.getElementById('cli-localidad').value.trim(),
+    referente:         document.getElementById('cli-referente').value.trim(),
+    obs_acceso:        document.getElementById('cli-obs-acceso').value.trim(),
+    obs_generales:     document.getElementById('cli-obs-generales').value.trim(),
   };
   if(id){
     const cli = DB.maestro_clientes.find(c=>c.cliente_id===id);
@@ -3687,12 +3739,14 @@ function delCliente(id){
 function getHistorialCliente(cliente){
   const out=[];
   if(!cliente || !DB.comanda?.eventos) return out;
-  const nombreNorm = (cliente.razon_social||'').trim().toUpperCase();
+  const nombreNorm = (cliente.nombre_cliente||'').trim().toUpperCase();
+  const razonNorm = (cliente.razon_social||'').trim().toUpperCase();
   Object.entries(DB.comanda.eventos).forEach(([periodoId, evs])=>{
     (evs||[]).forEach(ev=>{
       const d = ev.datos||{};
+      const contactoNorm = String(d.contacto||'').trim().toUpperCase();
       const vinculado = d.cliente_id === cliente.cliente_id ||
-        (!d.cliente_id && nombreNorm && String(d.contacto||'').trim().toUpperCase()===nombreNorm);
+        (!d.cliente_id && contactoNorm && (contactoNorm===nombreNorm || contactoNorm===razonNorm));
       if(!vinculado) return;
       const periodo = DB.comanda.periodos.find(p=>p.id===periodoId);
       out.push({
@@ -3741,12 +3795,12 @@ function aplicarClienteAEvento(clienteId){
   const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
   if(!ev) return;
   ev.datos.cliente_id = cliente.cliente_id;
-  ev.datos.contacto = cliente.razon_social||'';
+  ev.datos.contacto = cliente.nombre_cliente||cliente.razon_social||'';
   ev.datos.razon_social = cliente.razon_social||'';
   ev.datos.cuit_cliente = cliente.cuit||'';
-  ev.datos.cliente_contacto_nombre = cliente.contacto_nombre||'';
-  ev.datos.cliente_telefono = cliente.telefono_wpp||'';
-  ev.datos.cliente_email = cliente.email||'';
+  ev.datos.cliente_contacto_nombre = cliente.contacto1_nombre||'';
+  ev.datos.cliente_telefono = cliente.contacto1_telefono||'';
+  ev.datos.cliente_email = cliente.contacto1_email||'';
   ev.datos.cliente_direccion = cliente.direccion_evento||'';
   renderEventoSheet(ev, comandaSheetActual);
   sbSave(true);
@@ -3761,12 +3815,12 @@ function sincronizarClienteConMaestro(ev){
   const cliente = (DB.maestro_clientes||[]).find(c=>c.cliente_id===clienteId);
   if(!cliente) return false;
   const campos = {
-    contacto: cliente.razon_social||'',
+    contacto: cliente.nombre_cliente||cliente.razon_social||'',
     razon_social: cliente.razon_social||'',
     cuit_cliente: cliente.cuit||'',
-    cliente_contacto_nombre: cliente.contacto_nombre||'',
-    cliente_telefono: cliente.telefono_wpp||'',
-    cliente_email: cliente.email||'',
+    cliente_contacto_nombre: cliente.contacto1_nombre||'',
+    cliente_telefono: cliente.contacto1_telefono||'',
+    cliente_email: cliente.contacto1_email||'',
     cliente_direccion: cliente.direccion_evento||''
   };
   let cambio=false;
