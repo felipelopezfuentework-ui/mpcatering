@@ -4193,8 +4193,8 @@ function renderEventoSheet(ev, sheetIdx){
                 style="width:100%;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">
             </td>
             <td style="padding:4px 6px">
-              ${f.detalleKey ? `<input type="text" value="${escH(detalleVal)}" readonly data-key="${f.detalleKey}"
-                style="width:100%;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">` : ''}
+              ${f.detalleKey ? `<textarea rows="1" readonly data-key="${f.detalleKey}" class="personal-detalle-ta"
+                style="width:100%;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed;resize:vertical">${escH(detalleVal)}</textarea>` : ''}
             </td>
           </tr>`;
         } else {
@@ -4207,9 +4207,9 @@ function renderEventoSheet(ev, sheetIdx){
                 oninput="updateEventoDato('${f.key}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)';recalcPersonalTotal()">
             </td>
             <td style="padding:4px 6px">
-              ${f.detalleKey ? `<input type="text" value="${escH(detalleVal)}" data-key="${f.detalleKey}" placeholder="Nombres del personal"
-                style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:12px;font-family:inherit;outline:none"
-                oninput="updateEventoDato('${f.detalleKey}',this.value)">` : ''}
+              ${f.detalleKey ? `<textarea rows="1" data-key="${f.detalleKey}" placeholder="Nombres del personal" class="personal-detalle-ta"
+                style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:12px;font-family:inherit;outline:none;resize:vertical"
+                oninput="updateEventoDato('${f.detalleKey}',this.value);autoResizeProc(this)">${escH(detalleVal)}</textarea>` : ''}
             </td>
           </tr>`;
         }
@@ -4447,6 +4447,8 @@ function renderEventoSheet(ev, sheetIdx){
 
   html+=`</div>`;
   document.getElementById('evento-sheet-content').innerHTML = html;
+  // Ajustar altura inicial de los textarea de "Detalle" de personal al contenido cargado.
+  document.querySelectorAll('#evento-sheet-content .personal-detalle-ta').forEach(ta=>autoResizeProc(ta));
   // Lista desplegable con buscador del campo "Cliente" (key: cliente_id) en Generalidades:
   // único punto de entrada para vincular un cliente del maestro al evento — los campos
   // contacto/contacto_evento/telefono/email_cliente quedan de solo lectura (ver
