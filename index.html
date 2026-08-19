@@ -4034,6 +4034,19 @@ function renderEventoSheet(ev, sheetIdx){
 
   let html = `<div style="padding:0 4px">`;
 
+  // Franja resumen fija arriba de cada solapa operativa (no en EVENTO ni TIMING,
+  // que ya muestran/editan estos datos directamente).
+  if(['COMANDA','BARRA','PRODUCCIÓN','CHECK LIST','VAJILLA COCINA','VAJILLA SALÓN','EVALUACIÓN','FICHA MANAGERS'].includes(sheet.nombre)){
+    const nombreEvento = ev.nombre || '(sin nombre)';
+    const fechaLegible = formatFechaLarga(datos.fecha) || '(sin fecha)';
+    const pax = datos.invitados_total||0;
+    html += `<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 12px;margin-bottom:14px;font-size:11px;color:var(--text3);line-height:1.4">
+      <span style="color:var(--text);font-weight:600">${escH(nombreEvento)}</span>
+      <span>📅 ${escH(fechaLegible)}</span>
+      <span>👥 ${pax} pax</span>
+    </div>`;
+  }
+
   sheet.campos.forEach(c=>{
     if(c.tipo==='titulo'){
       html+=`<h2 style="font-family:'Playfair Display',serif;font-size:18px;color:var(--text);margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid var(--mp-gold)">${escH(c.label)}</h2>`;
