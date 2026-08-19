@@ -3418,14 +3418,6 @@ const COMANDA_TEMPLATE = [
     ]
   },
   {
-    nombre: 'PRODUCCIÓN',
-    campos: [
-      {tipo:'titulo', label:'PLANILLA DE PRODUCCIÓN'},
-      {tipo:'info', label:'Solo completar celdas en blanco. En caso de querer modificar el menú hacerlo en la Ficha Técnica.'},
-      {tipo:'tabla_libre', key:'prod_menu', cols:['Menú','Unidades','Peso (Kg)','Compras','Producción','Responsable','Día'], addRow:true}
-    ]
-  },
-  {
     nombre: 'CHECK LIST',
     campos: [
       {tipo:'titulo', label:'CHECK LIST'},
@@ -4063,7 +4055,7 @@ function renderEventoSheet(ev, sheetIdx){
 
   // Franja resumen fija arriba de cada solapa operativa (no en EVENTO,
   // que ya muestra/edita estos datos directamente).
-  if(['TIMING','FICHA TÉCNICA','BARRA','PRODUCCIÓN','CHECK LIST','VAJILLA COCINA','VAJILLA SALÓN','EVALUACIÓN','FICHA MANAGERS'].includes(sheet.nombre)){
+  if(['TIMING','FICHA TÉCNICA','BARRA','CHECK LIST','VAJILLA COCINA','VAJILLA SALÓN','EVALUACIÓN','FICHA MANAGERS'].includes(sheet.nombre)){
     const nombreEvento = ev.nombre || '(sin nombre)';
     const fechaLegible = formatFechaLarga(datos.fecha) || '(sin fecha)';
     const pax = datos.invitados_total||0;
@@ -5666,7 +5658,7 @@ function exportarEventoPDFById(periodoId, eventoId){
   y += 6;
 
   COMANDA_TEMPLATE.forEach(sheet=>{
-    if(sheet.nombre==='FICHA TÉCNICA' || sheet.nombre==='EVENTO' || sheet.nombre==='TIMING' || sheet.nombre==='BARRA' || sheet.nombre==='PRODUCCIÓN' || sheet.nombre==='CHECK LIST' || sheet.nombre==='VAJILLA COCINA' || sheet.nombre==='VAJILLA SALÓN' || sheet.nombre==='EVALUACIÓN' || sheet.nombre==='FICHA MANAGERS'){
+    if(sheet.nombre==='FICHA TÉCNICA' || sheet.nombre==='EVENTO' || sheet.nombre==='TIMING' || sheet.nombre==='BARRA' || sheet.nombre==='CHECK LIST' || sheet.nombre==='VAJILLA COCINA' || sheet.nombre==='VAJILLA SALÓN' || sheet.nombre==='EVALUACIÓN' || sheet.nombre==='FICHA MANAGERS'){
       const sections=buildRenderableSections(sheet, ev);
       if(!sections.length) return; // sin datos cargados: omitir la solapa completa, sin título huérfano
 
