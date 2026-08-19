@@ -3450,10 +3450,9 @@ const COMANDA_TEMPLATE = [
     campos: [
       {tipo:'titulo', label:'EVALUACIÓN'},
       {tipo:'campos_multi', label:'', keys:[{k:'eva_tipo',l:'Tipo de evento'},{k:'eva_fecha',l:'Fecha',t:'date'}]},
-      {tipo:'campos_multi', label:'', keys:[{k:'eva_hora_ini',l:'Hora Comienzo'},{k:'eva_hora_fin',l:'Hora Finalización'},{k:'eva_locacion',l:'Locación'},{k:'eva_invitados',l:'Invitados',t:'number'}]},
-      {tipo:'campo', label:'Encargado', key:'eva_encargado'},
       {tipo:'seccion', label:'EVALUACIÓN GENERAL'},
       {tipo:'campo', label:'Comentarios / Percepción del cliente', key:'eva_general', inputType:'textarea'},
+      {tipo:'campo', label:'Percepción general', key:'eva_percepcion_general', inputType:'textarea'},
       {tipo:'seccion', label:'EVALUACIÓN POR RUBRO'},
       {tipo:'tabla_evaluacion', key:'eva_rubros', cols:['Rubro','Ítem','Valoración (1-10)','Observaciones'],
         rows:[
@@ -3478,54 +3477,6 @@ const COMANDA_TEMPLATE = [
           ['','Variedad','','']
         ]
       }
-    ]
-  },
-  {
-    nombre: 'FICHA MANAGERS',
-    campos: [
-      {tipo:'titulo', label:'FICHA MANAGERS'},
-      {tipo:'campo', label:'Confirmación final de invitados', key:'fm_invitados', inputType:'number'},
-      {tipo:'seccion', label:'GENERALIDADES'},
-      {tipo:'campo_readonly', label:'Nombre del evento', key:'_nombre_evento'},
-      {tipo:'campo', label:'Fecha', key:'fm_fecha', inputType:'date'},
-      {tipo:'campo', label:'Descripción general del evento', key:'fm_descripcion', inputType:'textarea'},
-      {tipo:'campo', label:'Tipo de evento', key:'fm_tipo'},
-      {tipo:'grupo_personal_evento', readonly:true, totalKey:'fm_personal_total', campos:[
-        {label:'Cocineros', key:'fm_personal_cocineros_cant', detalleKey:'fm_personal_cocineros_detalle', inputType:'number'},
-        {label:'Managers', key:'fm_personal_managers_cant', detalleKey:'fm_personal_managers_detalle', inputType:'number'},
-        {label:'Camareros', key:'fm_personal_camareros_cant', detalleKey:'fm_personal_camareros_detalle', inputType:'number'},
-        {label:'Asistentes', key:'fm_personal_asistentes_cant', detalleKey:'fm_personal_asistentes_detalle', inputType:'number'},
-        {label:'Otros', key:'fm_personal_otros_cant', detalleKey:'fm_personal_otros_detalle', inputType:'number'}
-      ], obsKey:'fm_personal_obs'},
-      {tipo:'campo', label:'Horario inicio', key:'fm_hora_ini'},
-      {tipo:'campo', label:'Horario finalización', key:'fm_hora_fin'},
-      {tipo:'campo', label:'Horario ingreso proveedores/personal', key:'fm_hora_personal'},
-      {tipo:'campo_check', label:'Servicios incluidos', key:'fm_servicios', opciones:['Comida','Personal','Barra','Otro']},
-      {tipo:'campo', label:'Contacto', key:'fm_contacto'},
-      {tipo:'campo', label:'Contacto durante el evento', key:'fm_contacto_evento'},
-      {tipo:'campo', label:'Timing del cliente', key:'fm_timing'},
-      {tipo:'seccion', label:'INVITADOS'},
-      {tipo:'campos_multi', label:'Cantidad', keys:[{k:'fm_adultos',l:'Adultos',t:'number'},{k:'fm_jovenes',l:'Jóvenes',t:'number'},{k:'fm_menores',l:'Menores',t:'number'}]},
-      {tipo:'campo', label:'Dietas especiales', key:'fm_dietas', inputType:'textarea'},
-      {tipo:'campo', label:'Observaciones', key:'fm_obs', inputType:'textarea'},
-      {tipo:'seccion', label:'ADMINISTRACIÓN'},
-      {tipo:'campo', label:'Cobro de saldo al cliente', key:'fm_cobro'},
-      {tipo:'seccion', label:'LOCACIÓN'},
-      {tipo:'campo', label:'Locación', key:'fm_locacion'},
-      {tipo:'campo', label:'Ubicación', key:'fm_ubicacion'},
-      {tipo:'seccion', label:'SERVICIOS A PROVEER'},
-      {tipo:'opciones_bool', opciones:[
-        {k:'fm_svc_cocina',l:'Equipamiento de cocina'},
-        {k:'fm_svc_bebidas',l:'Bebidas'},
-        {k:'fm_svc_manteles',l:'Mantelería'},
-        {k:'fm_svc_vajilla',l:'Vajilla'},
-        {k:'fm_svc_barra',l:'Barra (Mobiliario)'},
-        {k:'fm_svc_hielo',l:'Hielo/Enfriamiento'},
-        {k:'fm_svc_vianda',l:'Vianda personal'}
-      ]},
-      {tipo:'seccion', label:'PERSONAL'},
-      {tipo:'tabla_personal', key:'fm_personal', cols:['Categoría','Cocina','Manager','Camareros','Barra','Armado','Logística']},
-      {tipo:'campo', label:'Uniformes', key:'fm_uniforme', inputType:'textarea'}
     ]
   }
 ];
@@ -4055,7 +4006,7 @@ function renderEventoSheet(ev, sheetIdx){
 
   // Franja resumen fija arriba de cada solapa operativa (no en EVENTO,
   // que ya muestra/edita estos datos directamente).
-  if(['TIMING','FICHA TÉCNICA','BARRA','CHECK LIST','VAJILLA COCINA','VAJILLA SALÓN','EVALUACIÓN','FICHA MANAGERS'].includes(sheet.nombre)){
+  if(['TIMING','FICHA TÉCNICA','BARRA','CHECK LIST','VAJILLA COCINA','VAJILLA SALÓN','EVALUACIÓN'].includes(sheet.nombre)){
     const nombreEvento = ev.nombre || '(sin nombre)';
     const fechaLegible = formatFechaLarga(datos.fecha) || '(sin fecha)';
     const pax = datos.invitados_total||0;
@@ -5658,7 +5609,7 @@ function exportarEventoPDFById(periodoId, eventoId){
   y += 6;
 
   COMANDA_TEMPLATE.forEach(sheet=>{
-    if(sheet.nombre==='FICHA TÉCNICA' || sheet.nombre==='EVENTO' || sheet.nombre==='TIMING' || sheet.nombre==='BARRA' || sheet.nombre==='CHECK LIST' || sheet.nombre==='VAJILLA COCINA' || sheet.nombre==='VAJILLA SALÓN' || sheet.nombre==='EVALUACIÓN' || sheet.nombre==='FICHA MANAGERS'){
+    if(sheet.nombre==='FICHA TÉCNICA' || sheet.nombre==='EVENTO' || sheet.nombre==='TIMING' || sheet.nombre==='BARRA' || sheet.nombre==='CHECK LIST' || sheet.nombre==='VAJILLA COCINA' || sheet.nombre==='VAJILLA SALÓN' || sheet.nombre==='EVALUACIÓN'){
       const sections=buildRenderableSections(sheet, ev);
       if(!sections.length) return; // sin datos cargados: omitir la solapa completa, sin título huérfano
 
