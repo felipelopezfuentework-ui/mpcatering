@@ -3299,6 +3299,8 @@ const COMANDA_TEMPLATE = [
         {label:'Detalle', key:'tipo_detalle', inputType:'text'}
       ]},
       {tipo:'campo', label:'Descripción', key:'descripcion', inputType:'textarea'},
+      {tipo:'campo', label:'Contacto', key:'contacto', readonlyClienteMaestro:true},
+      {tipo:'campo', label:'Contacto durante el evento', key:'contacto_evento', readonlyClienteMaestro:true},
       {tipo:'seccion', label:'PERSONAL DEL EVENTO'},
       {tipo:'grupo_personal_evento', totalKey:'personal_total', campos:[
         {label:'Cocineros', key:'personal_cocineros', inputType:'number'},
@@ -3308,8 +3310,6 @@ const COMANDA_TEMPLATE = [
         {label:'Otros', key:'personal_otros', inputType:'number'}
       ], obsKey:'personal_obs'},
       {tipo:'campo_check', label:'Servicios incluidos', key:'servicios', opciones:['Comida','Personal','Barra','Vajilla','Equipamiento']},
-      {tipo:'campo', label:'Contacto', key:'contacto', readonlyClienteMaestro:true},
-      {tipo:'campo', label:'Contacto durante el evento', key:'contacto_evento', readonlyClienteMaestro:true},
       {tipo:'campo', label:'Teléfono / WhatsApp', key:'telefono', readonlyClienteMaestro:true},
       {tipo:'campo', label:'Email', key:'email_cliente', readonlyClienteMaestro:true},
       {tipo:'seccion', label:'INVITADOS'},
