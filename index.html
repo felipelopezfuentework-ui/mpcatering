@@ -3421,7 +3421,23 @@ const COMANDA_TEMPLATE = [
     nombre: 'CHECK LIST',
     campos: [
       {tipo:'titulo', label:'CHECK LIST'},
-      {tipo:'tabla_libre', key:'chk_menu', cols:['Menú','Unidades','Peso (Kg)','Observaciones'], addRow:true}
+      {tipo:'seccion', label:'CHECKLIST DE COMIDA'},
+      {tipo:'checklist_comida', key:'checklist_comida'},
+      {tipo:'seccion', label:'CHECKLIST DE VAJILLA Y EQUIPAMIENTO COCINA'},
+      {tipo:'checklist_vajilla', key:'checklist_vajilla_cocina', defaultSecciones:[
+        {nombre:'COCINA', items:['Bowls enlozado negro','Cuchara grande','Jarras vidrio','Botellón con base','Bandeja melamina larga','Bowls melamina blanco','Tabla de madera con manija grande','Pote de madera chico','Alturas grandes','Alturas medianas','Alturas chicas','Bowl madera gigante','Deck','Madera rodaja redonda','Madera grande','Tabla de madera chico','Tabla de 2mts ovalada','Tabla de 1mt ovalada','Papel falso diario']},
+        {nombre:'PAPELERÍA', items:['Cajas de pizzas','Cinta scotch','Bolsa residuo','Bolsa arranque']},
+        {nombre:'EQUIPAMIENTO ELÉCTRICO', items:['Tolvas','Pava eléctrica','Termos','Arrocera para sopa','Horno con 3 placas','Anafe','Olla','Sartén','Alargues y zapatillas']},
+        {nombre:'INSUMOS', items:['Café','Leche','Caja de té completa','Sobrecitos azúcar','Sobrecitos edulcorante']},
+        {nombre:'UTENSILLOS', items:['Tablas de cortar','Cucharón','Embudo','Bachas']},
+        {nombre:'KIT DE LIMPIEZA', items:['Detergente','Trapo rejilla','Trapo repasador','Alcohol','Rollo de papel']}
+      ]},
+      {tipo:'seccion', label:'CHECKLIST DE VAJILLA Y EQUIPAMIENTO SALÓN'},
+      {tipo:'checklist_vajilla', key:'checklist_vajilla_salon', defaultSecciones:[
+        {nombre:'VAJILLA', items:['Taza de té','Plato de té','Vaso copetín','Copín sin tallo','Shot acrílico','Pinza','Platos postre','Cuchillos postre','Tenedores postre','Cucharas postre','Cucharas grandes','Cucharitas negras descartables','Revolvedores de café descartables','Cuchara de hielo','Frapera','Espátula torta','Bowl porta edulcorante','Bowl porta azúcar','Bandeja mozos negra','Platos budines','Platos muffins','Platos cuadrados cookies','Bandeja rectangular','Plato rectangular','Plato foa','Tenedor principal','Cazuelas blancas','Bandejas ovaladas blancas','Fuentes ovaladas','Fuente redondas ensaladas','Botellón vidrio + bases','Jarras','Bowl frutas secas','Tarritos para yogurt','Plato + base para conos','Alturas grandes','Alturas medianas','Alturas chicas','Tabla de madera con asa','Tabla de madera chipacitos','Platitos chinos','Tacitas vidrio sopa']},
+        {nombre:'AMBIENTACIÓN / MANTELERÍA', items:['Floreros varios','Flores']},
+        {nombre:'KIT BÁSICO', items:['Rollo de papel','Alcohol pulverizador','Botiquín','Detergente + esponja','Guantes','Faldones','Corbatas','Delantales cocina','Repasadores','Trapo rejilla']}
+      ]}
     ]
   },
   {
@@ -3867,6 +3883,16 @@ function guardarNuevoEvento(){
     // Evaluación
     sheet.campos.filter(c=>c.tipo==='tabla_evaluacion').forEach(c=>{
       datos[c.key]=JSON.parse(JSON.stringify(c.rows));
+    });
+    // Checklists (Comida / Vajilla Cocina / Vajilla Salón)
+    sheet.campos.filter(c=>c.tipo==='checklist_comida').forEach(c=>{
+      datos[c.key]={};
+    });
+    sheet.campos.filter(c=>c.tipo==='checklist_vajilla').forEach(c=>{
+      datos[c.key]=(c.defaultSecciones||[]).map(sec=>({
+        nombre: sec.nombre,
+        items: (sec.items||[]).map(nombre=>({nombre, cantidad:'', armado:false, ingreso:false, egreso:false, reingreso:false, obs:''}))
+      }));
     });
   });
   datos['fecha'] = fechaEventoAlta || '';
@@ -4371,6 +4397,121 @@ function renderEventoSheet(ev, sheetIdx){
         html+=`</tr>`;
       });
       html+=`</tbody></table></div>`;
+    } else if(c.tipo==='checklist_comida'){
+      // Lista derivada del menú del evento (com_menu / com_menu_secciones, Ficha
+      // Técnica): no se edita acá, solo se tilda. El estado de tildado se guarda
+      // aparte en datos[c.key], indexado por "sección::nombre del plato" para que
+      // sobreviva a un re-render aunque cambie el orden de las filas del menú.
+      const key = c.key;
+      if(!datos[key] || typeof datos[key]!=='object' || Array.isArray(datos[key])) datos[key]={};
+      const estado = datos[key];
+      const seccionesMenu = (Array.isArray(datos.com_menu_secciones) && datos.com_menu_secciones.length)
+        ? datos.com_menu_secciones
+        : [{nombre:'', filas:(datos.com_menu||[])}];
+      const wrapId = 'wrap_'+key;
+      const seccionesConItems = seccionesMenu
+        .map((sec,secIdx)=>({
+          sec, secIdx,
+          filas:(sec.filas||[]).map((f,filaIdx)=>({f,filaIdx})).filter(x=>Array.isArray(x.f) && String(x.f[0]||'').trim())
+        }))
+        .filter(s=>s.filas.length);
+      html+=`<div style="margin-bottom:16px">`;
+      if(!seccionesConItems.length){
+        html+=`<p style="font-size:11px;color:var(--text3);font-style:italic;margin:0">Todavía no hay platos cargados en el menú del evento (solapa Ficha Técnica).</p>`;
+      } else {
+        html+=`<div style="margin-bottom:10px">
+          <label style="font-size:11px;color:var(--text3);font-weight:600;margin-right:8px">Ver sección:</label>
+          <select onchange="filtrarChecklistSeccion(this,'${wrapId}')" style="font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+            <option value="__todas__">Todas las secciones</option>
+            ${seccionesConItems.map(s=>{const n=s.sec.nombre||'Sin sección';return `<option value="${escH(n)}">${escH(n)}</option>`;}).join('')}
+          </select>
+        </div>`;
+        html+=`<div id="${wrapId}">`;
+        seccionesConItems.forEach(({sec,secIdx,filas})=>{
+          const nombreSec = sec.nombre||'Sin sección';
+          html+=`<div data-sec-block="${escH(nombreSec)}" style="margin-bottom:14px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:rgba(200,169,81,.04)">
+            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px">${escH(nombreSec)}</div>`;
+          filas.forEach(({f,filaIdx})=>{
+            const nombrePlato = String(f[0]||'').trim();
+            const itemKey = nombreSec+'::'+nombrePlato;
+            const checked = !!estado[itemKey];
+            html+=`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;color:var(--text);cursor:pointer">
+              <input type="checkbox" ${checked?'checked':''} onchange="toggleChecklistComidaItem('${key}',${secIdx},${filaIdx},this.checked)"
+                style="accent-color:var(--mp-violet);width:15px;height:15px"> ${escH(nombrePlato)}
+            </label>`;
+          });
+          html+=`</div>`;
+        });
+        html+=`</div>`;
+      }
+      html+=`</div>`;
+    } else if(c.tipo==='checklist_vajilla'){
+      const key = c.key;
+      if(!Array.isArray(datos[key])){
+        datos[key] = (c.defaultSecciones||[]).map(sec=>({
+          nombre: sec.nombre,
+          items: (sec.items||[]).map(nombre=>({nombre, cantidad:'', armado:false, ingreso:false, egreso:false, reingreso:false, obs:''}))
+        }));
+      }
+      const secciones = datos[key];
+      const wrapId = 'wrap_'+key;
+      html+=`<div style="margin-bottom:16px">`;
+      html+=`<div style="margin-bottom:10px">
+        <label style="font-size:11px;color:var(--text3);font-weight:600;margin-right:8px">Ver sección:</label>
+        <select onchange="filtrarChecklistSeccion(this,'${wrapId}')" style="font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+          <option value="__todas__">Todas las secciones</option>
+          ${secciones.map(s=>`<option value="${escH(s.nombre)}">${escH(s.nombre)}</option>`).join('')}
+        </select>
+      </div>`;
+      html+=`<div id="${wrapId}">`;
+      secciones.forEach((sec,secIdx)=>{
+        html+=`<div data-sec-block="${escH(sec.nombre)}" style="margin-bottom:16px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:rgba(200,169,81,.04)">
+          <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px">${escH(sec.nombre)}</div>
+          <div class="tw" style="overflow-x:auto"><table style="min-width:820px;width:100%;table-layout:fixed">
+            <colgroup><col style="width:24%"><col style="width:8%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col><col style="width:30px"></colgroup>
+            <thead><tr>
+              <th style="font-size:11px;padding:4px 5px;text-align:left">Ítem</th>
+              <th style="font-size:11px;padding:4px 5px;text-align:center">Cantidad</th>
+              <th style="font-size:11px;padding:4px 5px;text-align:center">Armado local ✓</th>
+              <th style="font-size:11px;padding:4px 5px;text-align:center">Control Ingreso ✓</th>
+              <th style="font-size:11px;padding:4px 5px;text-align:center">Control Egreso ✓</th>
+              <th style="font-size:11px;padding:4px 5px;text-align:center">Reingreso ✓</th>
+              <th style="font-size:11px;padding:4px 5px;text-align:left">Observaciones</th>
+              <th></th>
+            </tr></thead>
+            <tbody>`;
+        (sec.items||[]).forEach((item,itemIdx)=>{
+          html+=`<tr>
+            <td style="padding:2px 2px"><input type="text" value="${escH(item.nombre||'')}"
+              style="width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
+              oninput="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'nombre',this.value)"></td>
+            <td style="padding:2px 2px"><input type="text" value="${escH(item.cantidad||'')}"
+              style="width:100%;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
+              oninput="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'cantidad',this.value)"></td>
+            <td style="text-align:center;padding:2px"><input type="checkbox" ${item.armado?'checked':''}
+              onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'armado',this.checked);sbSave(true)"
+              style="accent-color:var(--mp-violet);width:15px;height:15px"></td>
+            <td style="text-align:center;padding:2px"><input type="checkbox" ${item.ingreso?'checked':''}
+              onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'ingreso',this.checked);sbSave(true)"
+              style="accent-color:var(--mp-violet);width:15px;height:15px"></td>
+            <td style="text-align:center;padding:2px"><input type="checkbox" ${item.egreso?'checked':''}
+              onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'egreso',this.checked);sbSave(true)"
+              style="accent-color:var(--mp-violet);width:15px;height:15px"></td>
+            <td style="text-align:center;padding:2px"><input type="checkbox" ${item.reingreso?'checked':''}
+              onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'reingreso',this.checked);sbSave(true)"
+              style="accent-color:var(--mp-violet);width:15px;height:15px"></td>
+            <td style="padding:2px 2px"><input type="text" value="${escH(item.obs||'')}"
+              style="width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
+              oninput="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'obs',this.value)"></td>
+            <td style="padding:2px"><button class="btn btn-danger" style="padding:2px 5px;font-size:10px" onclick="removeChecklistVajillaItem('${key}',${secIdx},${itemIdx})">🗑</button></td>
+          </tr>`;
+        });
+        html+=`</tbody></table></div>
+          <button class="btn btn-outline" style="margin-top:6px;font-size:11px" onclick="addChecklistVajillaItem('${key}',${secIdx})">+ Agregar ítem</button>
+        </div>`;
+      });
+      html+=`</div>`;
+      html+=`</div>`;
     } else if(c.tipo==='tabla_bebidas'){
       const rows = datos[c.key]||[];
       const maestroBeb=(DB.maestro_bebidas||[]).join(',');
@@ -5082,6 +5223,73 @@ function updateFilaSeccion(key, secIdx, rowIdx, colIdx, val){
   if(!sec.filas) sec.filas=[];
   if(!sec.filas[rowIdx]) sec.filas[rowIdx]=[];
   sec.filas[rowIdx][colIdx]=val;
+}
+
+// ── Checklists de la solapa CHECK LIST (Comida / Vajilla Cocina / Salón) ──
+
+// Muestra/oculta los bloques de sección de un checklist según el <select>
+// "Ver sección" — filtro puramente visual, no toca ev.datos.
+function filtrarChecklistSeccion(selectEl, wrapperId){
+  const val = selectEl.value;
+  const wrapper = document.getElementById(wrapperId);
+  if(!wrapper) return;
+  wrapper.querySelectorAll('[data-sec-block]').forEach(el=>{
+    el.style.display = (val==='__todas__' || el.dataset.secBlock===val) ? '' : 'none';
+  });
+}
+
+// Tilda/destilda un plato del Checklist de Comida. Identifica el ítem por
+// posición (secIdx/filaIdx dentro de com_menu_secciones, o com_menu si el
+// evento todavía no usa subsecciones) y guarda el estado bajo una key
+// "sección::nombre del plato" para que sobreviva a un re-render.
+function toggleChecklistComidaItem(key, secIdx, filaIdx, checked){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const seccionesMenu = (Array.isArray(ev.datos.com_menu_secciones) && ev.datos.com_menu_secciones.length)
+    ? ev.datos.com_menu_secciones
+    : [{nombre:'', filas:(ev.datos.com_menu||[])}];
+  const sec = seccionesMenu[secIdx];
+  const fila = sec?.filas?.[filaIdx];
+  if(!fila) return;
+  const nombrePlato = String(fila[0]||'').trim();
+  if(!nombrePlato) return;
+  const itemKey = (sec.nombre||'Sin sección')+'::'+nombrePlato;
+  if(!ev.datos[key] || typeof ev.datos[key]!=='object' || Array.isArray(ev.datos[key])) ev.datos[key]={};
+  ev.datos[key][itemKey] = checked;
+  sbSave(true);
+}
+
+// Actualiza un campo (nombre/cantidad/checkboxes/obs) de un ítem del
+// Checklist de Vajilla (Cocina o Salón, mismo key genérico). Los checkboxes
+// guardan al toque (ver el onchange en renderEventoSheet); nombre/cantidad/
+// observaciones quedan cubiertos por el guardado automático global.
+function updateChecklistVajillaCampo(key, secIdx, itemIdx, campo, valor){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const item = ev.datos[key]?.[secIdx]?.items?.[itemIdx];
+  if(!item) return;
+  item[campo] = valor;
+}
+
+function addChecklistVajillaItem(key, secIdx){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const sec = ev.datos[key]?.[secIdx];
+  if(!sec) return;
+  if(!sec.items) sec.items=[];
+  sec.items.push({nombre:'', cantidad:'', armado:false, ingreso:false, egreso:false, reingreso:false, obs:''});
+  renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
+}
+
+function removeChecklistVajillaItem(key, secIdx, itemIdx){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const sec = ev.datos[key]?.[secIdx];
+  if(!sec || !Array.isArray(sec.items)) return;
+  sec.items.splice(itemIdx,1);
+  renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
 }
 
 // Drag & drop entre filas de subsecciones — soporta reordenar dentro de la
