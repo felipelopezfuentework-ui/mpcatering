@@ -4034,9 +4034,9 @@ function renderEventoSheet(ev, sheetIdx){
 
   let html = `<div style="padding:0 4px">`;
 
-  // Franja resumen fija arriba de cada solapa operativa (no en EVENTO ni TIMING,
-  // que ya muestran/editan estos datos directamente).
-  if(['COMANDA','BARRA','PRODUCCIÓN','CHECK LIST','VAJILLA COCINA','VAJILLA SALÓN','EVALUACIÓN','FICHA MANAGERS'].includes(sheet.nombre)){
+  // Franja resumen fija arriba de cada solapa operativa (no en EVENTO,
+  // que ya muestra/edita estos datos directamente).
+  if(['TIMING','COMANDA','BARRA','PRODUCCIÓN','CHECK LIST','VAJILLA COCINA','VAJILLA SALÓN','EVALUACIÓN','FICHA MANAGERS'].includes(sheet.nombre)){
     const nombreEvento = ev.nombre || '(sin nombre)';
     const fechaLegible = formatFechaLarga(datos.fecha) || '(sin fecha)';
     const pax = datos.invitados_total||0;
