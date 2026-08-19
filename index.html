@@ -3379,7 +3379,7 @@ const COMANDA_TEMPLATE = [
     nombre: 'TIMING',
     campos: [
       {tipo:'titulo', label:'TIMING DEL EVENTO'},
-      {tipo:'tabla_libre', key:'timing_rows', cols:['Hora','Detalle'], addRow:true}
+      {tipo:'tabla_timing', key:'timing_rows', cols:['Hora','Detalle'], addRow:true}
     ]
   },
   {
@@ -3915,7 +3915,7 @@ function guardarNuevoEvento(){
       if(c.opciones) c.opciones && (datos[c.key||c.label]=[]);
     });
     // Inicializar tablas
-    sheet.campos.filter(c=>c.tipo==='tabla_libre'||c.tipo==='tabla_menu'||c.tipo==='tabla_checks'||c.tipo==='tabla_personal').forEach(c=>{
+    sheet.campos.filter(c=>c.tipo==='tabla_libre'||c.tipo==='tabla_menu'||c.tipo==='tabla_timing'||c.tipo==='tabla_checks'||c.tipo==='tabla_personal').forEach(c=>{
       if(c.tipo==='tabla_menu' && c.defaultRows){
         datos[c.key] = Array.from({length:c.defaultRows}, ()=>c.cols.map(()=>''));
       } else {
@@ -4343,6 +4343,30 @@ function renderEventoSheet(ev, sheetIdx){
       html+=`</tbody></table></div>`;
       if(c.addRow) html+=`<button class="btn btn-outline" style="margin-top:6px;font-size:11px" onclick="addEventoTablaRow('${c.key}',${c.cols.length})">+ Agregar fila</button>`;
       html+=`</div>`;
+    } else if(c.tipo==='tabla_timing'){
+      const rows = datos[c.key]||[];
+      html+=`<div style="margin-bottom:16px">`;
+      html+=`<div class="tw" style="overflow-x:auto"><table style="width:100%;table-layout:fixed">
+        <colgroup><col style="width:14%"><col><col style="width:30px"><col style="width:30px"></colgroup>
+        <thead><tr>${c.cols.map(col=>`<th style="font-size:11px;padding:4px 5px;text-align:left">${escH(col)}</th>`).join('')}<th></th><th></th></tr></thead>
+        <tbody id="tabla_${c.key}">`;
+      rows.forEach((row,ri)=>{
+        html+=`<tr>`;
+        c.cols.forEach((col,ci)=>{
+          const v = Array.isArray(row)?row[ci]:row[col]||'';
+          const empty = !v||String(v).trim()==='';
+          const bg = empty?'background:rgba(220,53,69,0.09);':'background:transparent;';
+          html+=`<td style="padding:3px 2px"><textarea rows="1" class="timing-ta"
+            style="width:100%;${bg}border:none;border-bottom:1px solid var(--border);color:var(--text);padding:4px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box;resize:vertical"
+            oninput="updateEventoTabla('${c.key}',${ri},${ci},this.value);this.style.background=this.value.trim()?'transparent':'rgba(220,53,69,0.09)';autoResizeProc(this)">${escH(String(v||''))}</textarea></td>`;
+        });
+        html+=`<td style="padding:2px"><button class="btn btn-outline" style="padding:2px 5px;font-size:10px" onclick="insertEventoTablaRow('${c.key}',${ri},${c.cols.length})" title="Insertar fila debajo">+</button></td>`;
+        html+=`<td style="padding:2px"><button class="btn btn-danger" style="padding:2px 5px;font-size:10px" onclick="removeEventoTablaRow('${c.key}',${ri})">🗑</button></td>`;
+        html+=`</tr>`;
+      });
+      html+=`</tbody></table></div>`;
+      if(c.addRow) html+=`<button class="btn btn-outline" style="margin-top:6px;font-size:11px" onclick="addEventoTablaRow('${c.key}',${c.cols.length})">+ Agregar fila</button>`;
+      html+=`</div>`;
     } else if(c.tipo==='tabla_checks'){
       const rows = datos[c.key]||[];
       html+=`<div style="margin-bottom:16px">`;
@@ -4449,6 +4473,8 @@ function renderEventoSheet(ev, sheetIdx){
   document.getElementById('evento-sheet-content').innerHTML = html;
   // Ajustar altura inicial de los textarea de "Detalle" de personal al contenido cargado.
   document.querySelectorAll('#evento-sheet-content .personal-detalle-ta').forEach(ta=>autoResizeProc(ta));
+  // Ídem para la tabla de TIMING (columnas Hora/Detalle).
+  document.querySelectorAll('#evento-sheet-content .timing-ta').forEach(ta=>autoResizeProc(ta));
   // Lista desplegable con buscador del campo "Cliente" (key: cliente_id) en Generalidades:
   // único punto de entrada para vincular un cliente del maestro al evento — los campos
   // contacto/contacto_evento/telefono/email_cliente quedan de solo lectura (ver
@@ -5277,7 +5303,7 @@ function buildValueItems(ev, item){
     }
     // Sin secciones cargadas todavía: cae al modo plano de siempre (com_menu).
   }
-  if(item.tipo==='tabla_libre'||item.tipo==='tabla_menu'||item.tipo==='tabla_bebidas'||item.tipo==='tabla_checks'||item.tipo==='tabla_evaluacion'||item.tipo==='tabla_personal'||item.tipo==='tabla_dietas'){
+  if(item.tipo==='tabla_libre'||item.tipo==='tabla_menu'||item.tipo==='tabla_timing'||item.tipo==='tabla_bebidas'||item.tipo==='tabla_checks'||item.tipo==='tabla_evaluacion'||item.tipo==='tabla_personal'||item.tipo==='tabla_dietas'){
     const rows=Array.isArray(ev.datos?.[item.key]) ? ev.datos[item.key] : [];
     const visibleRows=rows.filter(row=>{
       if(Array.isArray(row)) return row.some(cell=>limpiarValorPDF(cell));
