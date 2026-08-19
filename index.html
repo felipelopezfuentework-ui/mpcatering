@@ -3314,6 +3314,7 @@ const COMANDA_TEMPLATE = [
       {tipo:'info', label:'Completar únicamente las celdas editables'},
       {tipo:'invitados_confirmacion', label:'CONFIRMACIÓN DE INVITADOS'},
       {tipo:'seccion', label:'GENERALIDADES DEL EVENTO'},
+      {tipo:'campo_cliente_select', label:'Cliente', key:'cliente_id'},
       {tipo:'campo_readonly', label:'Nombre del evento', key:'_nombre_evento'},
       {tipo:'campo', label:'Fecha', key:'fecha', inputType:'date'},
       {tipo:'campo', label:'Horario de Inicio del evento', key:'horario_inicio'},
@@ -3796,6 +3797,9 @@ function aplicarClienteAEvento(clienteId){
   if(!ev) return;
   ev.datos.cliente_id = cliente.cliente_id;
   ev.datos.contacto = cliente.nombre_cliente||cliente.razon_social||'';
+  ev.datos.contacto_evento = cliente.contacto1_nombre||'';
+  ev.datos.telefono = cliente.contacto1_telefono||'';
+  ev.datos.email_cliente = cliente.contacto1_email||'';
   ev.datos.razon_social = cliente.razon_social||'';
   ev.datos.cuit_cliente = cliente.cuit||'';
   ev.datos.cliente_contacto_nombre = cliente.contacto1_nombre||'';
@@ -3816,6 +3820,9 @@ function sincronizarClienteConMaestro(ev){
   if(!cliente) return false;
   const campos = {
     contacto: cliente.nombre_cliente||cliente.razon_social||'',
+    contacto_evento: cliente.contacto1_nombre||'',
+    telefono: cliente.contacto1_telefono||'',
+    email_cliente: cliente.contacto1_email||'',
     razon_social: cliente.razon_social||'',
     cuit_cliente: cliente.cuit||'',
     cliente_contacto_nombre: cliente.contacto1_nombre||'',
@@ -4058,6 +4065,18 @@ function renderEventoSheet(ev, sheetIdx){
       html+=`<p style="font-size:11px;color:var(--text3);margin-bottom:16px;font-style:italic">${escH(c.label)}</p>`;
     } else if(c.tipo==='seccion'){
       html+=`<div style="background:linear-gradient(90deg,rgba(92,45,110,.15),transparent);border-left:3px solid var(--mp-violet);padding:6px 12px;font-weight:700;color:var(--text);font-size:12px;margin:20px 0 12px">${escH(c.label)}</div>`;
+    } else if(c.tipo==='campo_cliente_select'){
+      const clientes = DB.maestro_clientes||[];
+      html+=`<div class="form-field" style="margin-bottom:14px">
+        <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>`;
+      if(!clientes.length){
+        html+=`<p style="font-size:11px;color:var(--text3);font-style:italic;margin:0">No hay clientes cargados. Agregá uno en el Maestro de Clientes.</p>`;
+      } else {
+        const val = datos[c.key]||'';
+        html+=`<input type="text" class="dd-input" autocomplete="off" placeholder="Buscar cliente…" data-key="${c.key}"
+          style="width:100%;max-width:500px;background:${val?'var(--surface2)':'rgba(220,53,69,0.09)'};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none">`;
+      }
+      html+=`</div>`;
     } else if(c.tipo==='campo_readonly'){
       const val = ev.nombre||'';
       html+=`<div class="form-field" style="margin-bottom:14px">
@@ -4373,10 +4392,19 @@ function renderEventoSheet(ev, sheetIdx){
 
   html+=`</div>`;
   document.getElementById('evento-sheet-content').innerHTML = html;
-  // Autocompletado del Maestro de Clientes sobre el campo "Cliente" (key: contacto,
+  // Autocompletado del Maestro de Clientes sobre el campo "Contacto" (key: contacto,
   // solo presente en la solapa EVENTO — en las demás no hace nada porque no lo encuentra).
   const inpCliente = document.querySelector('#evento-sheet-content [data-key="contacto"]');
   if(inpCliente) attachClienteAutocomplete(inpCliente);
+  // Lista desplegable con buscador del campo "Cliente" (key: cliente_id) en Generalidades.
+  const inpClienteId = document.querySelector('#evento-sheet-content [data-key="cliente_id"]');
+  if(inpClienteId){
+    const clienteOpts = ()=>(DB.maestro_clientes||[]).map(cl=>({val:cl.cliente_id, label:cl.nombre_cliente||cl.razon_social||'(sin nombre)'}));
+    const cv = datos.cliente_id||'';
+    inpClienteId.dataset.val = cv;
+    inpClienteId.value = clienteOpts().find(o=>o.val===cv)?.label || '';
+    attachDD(inpClienteId, clienteOpts, ()=>inpClienteId.dataset.val||'', val=>aplicarClienteAEvento(val));
+  }
 }
 
 // ── Mapa de campos compartidos entre solapas ─────────────────────
