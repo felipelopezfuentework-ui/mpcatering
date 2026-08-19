@@ -5356,14 +5356,31 @@ function drawLinesCentered(doc, lines, x, boxTop, boxHeight, lineHeight){
   });
 }
 
+// Mide de antemano cuánto va a ocupar un campo (label + valor, que puede
+// envolver en varias líneas) SIN dibujar nada. Se usa para reservar el
+// espacio real con ensureSpace() antes de dibujar — evita que un campo largo
+// (ej. Observaciones, Acuerdo de pago) se corte contra el borde inferior de
+// la página o quede pegado al siguiente título/campo.
+const PDF_FIELD_LINE_HEIGHT=4.8;
+const PDF_FIELD_PAD_Y=1.2;
+function medirCampoPDF(doc, value, contentWidth){
+  const textValue=limpiarValorPDF(value);
+  if(!textValue) return {lines:[], blockHeight:0};
+  // Fijar la misma fuente/tamaño con la que se va a dibujar el valor (ver
+  // renderFieldBlock) para que el ancho de envoltura medido acá coincida
+  // exactamente con el que se usa al dibujar.
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  const lines=doc.splitTextToSize(textValue, contentWidth - 60);
+  return {lines, blockHeight: lines.length*PDF_FIELD_LINE_HEIGHT + PDF_FIELD_PAD_Y*2};
+}
+
 function renderFieldBlock(doc, label, value, x, y, contentWidth, margin){
   const textValue=limpiarValorPDF(value);
   if(!textValue) return y;
   const labelText=limpiarValorPDF(label);
-  const lines=doc.splitTextToSize(textValue, contentWidth - 60);
-  const lineHeight=4.8;
-  const padY=0.7;
-  const blockHeight=lines.length*lineHeight + padY*2;
+  const {lines, blockHeight}=medirCampoPDF(doc, value, contentWidth);
+  const lineHeight=PDF_FIELD_LINE_HEIGHT;
   doc.setFont('helvetica','bold');
   doc.setFontSize(10);
   doc.setTextColor(70,70,70);
@@ -5373,6 +5390,19 @@ function renderFieldBlock(doc, label, value, x, y, contentWidth, margin){
   doc.setTextColor(30,10,46);
   drawLinesCentered(doc, lines, x + 60, y, blockHeight, lineHeight);
   return y + blockHeight;
+}
+
+// Altura aproximada del primer ítem visible de una sección (campo o tabla).
+// Se usa junto con la altura del título para que ensureSpace() decida el
+// salto de página ANTES de dibujar el título — así el título nunca queda
+// solo al pie de una página con su contenido recién en la página siguiente.
+function alturaPrimerItemSeccion(doc, section, contentWidth){
+  const primerGrupo=(section.items||[]).find(items=>items && items.length);
+  const primero=primerGrupo ? primerGrupo[0] : null;
+  if(!primero) return 0;
+  if(primero.type && primero.type.indexOf('tabla_')===0) return 16;
+  if(primero.label && primero.value) return medirCampoPDF(doc, primero.value, contentWidth).blockHeight;
+  return 0;
 }
 
 function renderTableBlock(doc, c, rows, x, y, contentWidth, margin, pageState){
@@ -5488,34 +5518,44 @@ function exportarPestañaPDFById(periodoId, eventoId, sheetIdx){
   const sections=buildRenderableSections(sheet, ev);
   sections.forEach((section, idx)=>{
     if(section.title){
-      y=ensureSpace(doc, y, 9, H, margin, pageState);
+      // Reservar título + altura real del primer ítem para que el título
+      // nunca quede huérfano al pie de una página.
+      const alturaPrimero=alturaPrimerItemSeccion(doc, section, contentWidth - 4);
+      y=ensureSpace(doc, y, 9 + alturaPrimero, H, margin, pageState);
+      if(idx>0) y += 2; // separación uniforme respecto de la sección anterior
       doc.setFont('helvetica','bold');
       doc.setFontSize(10.5);
       doc.setTextColor(60,60,60);
       doc.text(section.title, margin, y);
       doc.setDrawColor(220,220,220);
       doc.line(margin, y+1.5, W-margin, y+1.5);
-      y += 7;
+      y += 8;
     }
     section.items.forEach(items=>{
       if(!items || !items.length) return;
       items.forEach(item=>{
         if(Array.isArray(item)){
           item.forEach(sub=>{
-            if((sub.type&&sub.type.indexOf('tabla_')===0)){ 
-              y=ensureSpace(doc, y, 14, H, margin, pageState);
+            if((sub.type&&sub.type.indexOf('tabla_')===0)){
+              y=ensureSpace(doc, y, 16, H, margin, pageState);
               y=renderTableBlock(doc, {cols:sub.cols, tipo:sub.type}, sub.value, margin, y, contentWidth, margin, pageState);
+              y += 2;
             } else if(sub.label && sub.value){
-              y=ensureSpace(doc, y, 7, H, margin, pageState);
+              const {blockHeight}=medirCampoPDF(doc, sub.value, contentWidth - 4);
+              y=ensureSpace(doc, y, blockHeight, H, margin, pageState);
               y=renderFieldBlock(doc, sub.label, sub.value, margin + 2, y, contentWidth - 4, margin);
+              y += 1.5;
             }
           });
         } else if((item.type&&item.type.indexOf('tabla_')===0)){
-          y=ensureSpace(doc, y, 14, H, margin, pageState);
+          y=ensureSpace(doc, y, 16, H, margin, pageState);
           y=renderTableBlock(doc, {cols:item.cols, tipo:item.type}, item.value, margin, y, contentWidth, margin, pageState);
+          y += 2;
         } else if(item.label && item.value){
-          y=ensureSpace(doc, y, 7, H, margin, pageState);
+          const {blockHeight}=medirCampoPDF(doc, item.value, contentWidth - 4);
+          y=ensureSpace(doc, y, blockHeight, H, margin, pageState);
           y=renderFieldBlock(doc, item.label, item.value, margin + 2, y, contentWidth - 4, margin);
+          y += 1.5;
         }
       });
     });
@@ -5558,35 +5598,46 @@ function exportarEventoPDFById(periodoId, eventoId){
 
   COMANDA_TEMPLATE.forEach(sheet=>{
     if(sheet.nombre==='COMANDA' || sheet.nombre==='EVENTO' || sheet.nombre==='TIMING' || sheet.nombre==='BARRA' || sheet.nombre==='PRODUCCIÓN' || sheet.nombre==='CHECK LIST' || sheet.nombre==='VAJILLA COCINA' || sheet.nombre==='VAJILLA SALÓN' || sheet.nombre==='EVALUACIÓN' || sheet.nombre==='FICHA MANAGERS'){
-      y=ensureSpace(doc, y, 11, H, margin, pageState);
+      const sections=buildRenderableSections(sheet, ev);
+      if(!sections.length) return; // sin datos cargados: omitir la solapa completa, sin título huérfano
+
+      // Reservar el título de la solapa + título y primer ítem de su primera
+      // sección, para que nunca quede un encabezado solo al pie de página.
+      const primeraSeccion=sections[0];
+      const alturaPrimeraSeccion=(primeraSeccion.title?9:0) + alturaPrimerItemSeccion(doc, primeraSeccion, contentWidth-8);
+      y=ensureSpace(doc, y, 11 + alturaPrimeraSeccion, H, margin, pageState);
       doc.setFont('helvetica','bold');
       doc.setFontSize(12);
       doc.setTextColor(60,60,60);
       doc.text(sheet.nombre, margin, y);
       doc.setDrawColor(220,220,220);
       doc.line(margin, y+1.8, W-margin, y+1.8);
-      y += 8;
+      y += 9;
 
-      const sections=buildRenderableSections(sheet, ev);
-      sections.forEach(section=>{
+      sections.forEach((section, idx)=>{
         if(section.title){
-          y=ensureSpace(doc, y, 9, H, margin, pageState);
+          const alturaPrimero=alturaPrimerItemSeccion(doc, section, contentWidth-8);
+          y=ensureSpace(doc, y, 9 + alturaPrimero, H, margin, pageState);
+          if(idx>0) y += 2; // separación uniforme respecto de la sección anterior
           doc.setFont('helvetica','bold');
           doc.setFontSize(10.5);
           doc.setTextColor(70,70,70);
           doc.text(section.title, margin + 2, y);
           doc.setDrawColor(220,220,220);
           doc.line(margin + 2, y+1.5, W-margin-2, y+1.5);
-          y += 7;
+          y += 8;
         }
         section.items.forEach(items=>{
           items.forEach(item=>{
             if((item.type&&item.type.indexOf('tabla_')===0)){
-              y=ensureSpace(doc, y, 14, H, margin, pageState);
+              y=ensureSpace(doc, y, 16, H, margin, pageState);
               y=renderTableBlock(doc, {cols:item.cols, tipo:item.type}, item.value, margin+2, y, contentWidth-4, margin, pageState);
+              y += 2;
             } else if(item.label && item.value){
-              y=ensureSpace(doc, y, 7, H, margin, pageState);
+              const {blockHeight}=medirCampoPDF(doc, item.value, contentWidth-8);
+              y=ensureSpace(doc, y, blockHeight, H, margin, pageState);
               y=renderFieldBlock(doc, item.label, item.value, margin + 4, y, contentWidth-8, margin);
+              y += 1.5;
             }
           });
         });
