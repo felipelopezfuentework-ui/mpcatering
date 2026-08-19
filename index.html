@@ -73,6 +73,14 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .form-row{display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap}
 .form-field{display:flex;flex-direction:column;gap:4px}
 .form-field label{font-size:11px;color:var(--text3);font-weight:600}
+/* Layout horizontal/compacto de las solapas del evento (Ficha Técnica):
+   el contenedor de cada solapa es un flex-wrap; por defecto cada bloque
+   directo ocupa toda la fila (tablas, secciones, textareas, grupos), y los
+   campos cortos marcados como .form-field-compacto se acomodan 2-3 por
+   fila aprovechando el ancho disponible. */
+.evento-sheet-flexwrap{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+.evento-sheet-flexwrap > *{flex:1 1 100%;min-width:0}
+.evento-sheet-flexwrap > .form-field-compacto{flex:1 1 240px;max-width:380px}
 .divider{height:1px;background:var(--border);flex:1}
 .sh{display:flex;align-items:center;gap:12px;margin-bottom:16px}
 .sub-gh{background:linear-gradient(90deg,rgba(92,45,110,.15),transparent);border-left:3px solid var(--accent);padding:8px 12px;font-weight:700;color:var(--text);font-size:12px}
@@ -3383,30 +3391,21 @@ const COMANDA_TEMPLATE = [
     ]
   },
   {
-    nombre: 'COMANDA',
+    nombre: 'FICHA TÉCNICA',
     campos: [
       {tipo:'titulo', label:'FICHA TÉCNICA'},
       {tipo:'info', label:'Completar únicamente casillas con recuadro'},
       {tipo:'campo_readonly', label:'Nombre del evento', key:'_nombre_evento'},
       {tipo:'campo', label:'Tipo de evento', key:'com_tipo_evento'},
-      {tipo:'grupo_personal_evento', readonly:true, totalKey:'com_personal_total', campos:[
-        {label:'Cocineros', key:'com_personal_cocineros_cant', detalleKey:'com_personal_cocineros_detalle', inputType:'number'},
-        {label:'Managers', key:'com_personal_managers_cant', detalleKey:'com_personal_managers_detalle', inputType:'number'},
-        {label:'Camareros', key:'com_personal_camareros_cant', detalleKey:'com_personal_camareros_detalle', inputType:'number'},
-        {label:'Asistentes', key:'com_personal_asistentes_cant', detalleKey:'com_personal_asistentes_detalle', inputType:'number'},
-        {label:'Otros', key:'com_personal_otros_cant', detalleKey:'com_personal_otros_detalle', inputType:'number'}
-      ], obsKey:'com_personal_obs'},
-      {tipo:'campo', label:'Encargado', key:'com_encargado'},
-      {tipo:'seccion', label:'JORNADA DE TRABAJO Y CANTIDADES DE PERSONAS'},
+      {tipo:'campo', label:'Total personal', key:'com_personal_total'},
       {tipo:'campos_multi', label:'', keys:[{k:'com_fecha',l:'Fecha',t:'date'},{k:'com_hora_ini',l:'Hora Comienzo'},{k:'com_hora_fin',l:'Hora Finalización'}]},
       {tipo:'campos_multi', label:'', keys:[{k:'com_locacion',l:'Locación'},{k:'com_direccion',l:'Dirección'}]},
       {tipo:'campos_multi', label:'Invitados', keys:[{k:'com_inv_total',l:'Total',t:'number'},{k:'com_inv_adultos',l:'Adultos',t:'number'},{k:'com_inv_jovenes',l:'Jóvenes',t:'number'},{k:'com_inv_menores',l:'Menores',t:'number'}]},
+      {tipo:'campo', label:'Dietas especiales', key:'dietas_especiales', readonlyDesdeEvento:true, inputType:'textarea'},
       {tipo:'seccion', label:'DIETAS ESPECIALES'},
       {tipo:'tabla_dietas', key:'com_dietas', cols:['Especiales','Vegetariano','Vegano','Celíaco','Hipertenso','Diabético','Cant']},
-      {tipo:'seccion', label:'MENÚ DEL PERSONAL'},
-      {tipo:'campos_multi', label:'', keys:[{k:'com_cant_personal',l:'Cantidad de personal',t:'number'},{k:'com_menu_personal',l:'Menú'}]},
       {tipo:'seccion', label:'MENÚ DEL EVENTO'},
-      {tipo:'tabla_menu', key:'com_menu', cols:['Menú','Unidades','Peso (g)','Armado Vajilla','Cantidad','Armado Equipamiento','Reingresos'], addRow:true, defaultRows:15, secciones:true}
+      {tipo:'tabla_menu', key:'com_menu', cols:['Menú','Unidades','Peso (g)'], addRow:true, defaultRows:15, secciones:true}
     ]
   },
   {
@@ -4060,11 +4059,11 @@ function renderEventoSheet(ev, sheetIdx){
     destinos.forEach(dest=>{ datos[dest] = val; });
   });
 
-  let html = `<div style="padding:0 4px">`;
+  let html = `<div class="evento-sheet-flexwrap" style="padding:0 4px">`;
 
   // Franja resumen fija arriba de cada solapa operativa (no en EVENTO,
   // que ya muestra/edita estos datos directamente).
-  if(['TIMING','COMANDA','BARRA','PRODUCCIÓN','CHECK LIST','VAJILLA COCINA','VAJILLA SALÓN','EVALUACIÓN','FICHA MANAGERS'].includes(sheet.nombre)){
+  if(['TIMING','FICHA TÉCNICA','BARRA','PRODUCCIÓN','CHECK LIST','VAJILLA COCINA','VAJILLA SALÓN','EVALUACIÓN','FICHA MANAGERS'].includes(sheet.nombre)){
     const nombreEvento = ev.nombre || '(sin nombre)';
     const fechaLegible = formatFechaLarga(datos.fecha) || '(sin fecha)';
     const pax = datos.invitados_total||0;
@@ -4084,7 +4083,7 @@ function renderEventoSheet(ev, sheetIdx){
       html+=`<div style="background:linear-gradient(90deg,rgba(92,45,110,.15),transparent);border-left:3px solid var(--mp-violet);padding:6px 12px;font-weight:700;color:var(--text);font-size:12px;margin:20px 0 12px">${escH(c.label)}</div>`;
     } else if(c.tipo==='campo_cliente_select'){
       const clientes = DB.maestro_clientes||[];
-      html+=`<div class="form-field" style="margin-bottom:14px">
+      html+=`<div class="form-field form-field-compacto" style="margin-bottom:14px">
         <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>`;
       if(!clientes.length){
         html+=`<p style="font-size:11px;color:var(--text3);font-style:italic;margin:0">No hay clientes cargados. Agregá uno en el Maestro de Clientes.</p>`;
@@ -4097,14 +4096,14 @@ function renderEventoSheet(ev, sheetIdx){
     } else if(c.tipo==='link_cliente_ficha'){
       const clienteId = datos.cliente_id||'';
       const clienteExiste = clienteId && (DB.maestro_clientes||[]).some(cl=>cl.cliente_id===clienteId);
-      html+=`<div class="form-field" style="margin-bottom:14px">
+      html+=`<div class="form-field form-field-compacto" style="margin-bottom:14px;justify-content:flex-end">
         ${clienteExiste
           ? `<a href="#" onclick="event.preventDefault();verFichaClienteDesdeEvento('${escH(clienteId)}')" style="font-size:12px;color:var(--mp-mid);text-decoration:underline;cursor:pointer">🔗 ${escH(c.label)}</a>`
           : `<span style="font-size:12px;color:var(--text3);font-style:italic">Seleccioná un cliente en Generalidades para ver su ficha.</span>`}
       </div>`;
     } else if(c.tipo==='campo_readonly'){
       const val = ev.nombre||'';
-      html+=`<div class="form-field" style="margin-bottom:14px">
+      html+=`<div class="form-field form-field-compacto" style="margin-bottom:14px">
         <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
         <input type="text" value="${escH(val)}" readonly
           style="width:100%;max-width:500px;background:rgba(92,45,110,.07);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;cursor:default;font-weight:600">
@@ -4233,15 +4232,29 @@ function renderEventoSheet(ev, sheetIdx){
       html+=`</div>`;
     } else if(c.tipo==='campo' && c.readonlyClienteMaestro){
       const val = datos[c.key]||'';
-      html+=`<div class="form-field" style="margin-bottom:14px">
+      html+=`<div class="form-field form-field-compacto" style="margin-bottom:14px">
         <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
         <input type="text" value="${escH(val)}" readonly data-key="${c.key}"
           style="width:100%;max-width:500px;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">
         <div style="font-size:10px;color:var(--text3);margin-top:3px;font-style:italic">Se edita desde el Maestro de Clientes</div>
       </div>`;
+    } else if(c.tipo==='campo' && c.readonlyDesdeEvento){
+      // Igual key que el campo original de la solapa EVENTO (ej. dietas_especiales):
+      // no hace falta sincronizar nada, ya comparten el mismo valor en ev.datos.
+      const val = datos[c.key]||'';
+      const compactoClass = c.inputType==='textarea' ? '' : ' form-field-compacto';
+      html+=`<div class="form-field${compactoClass}" style="margin-bottom:14px">
+        <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
+        ${c.inputType==='textarea'
+          ? `<textarea rows="3" readonly data-key="${c.key}" style="width:100%;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical;outline:none;cursor:not-allowed">${escH(val)}</textarea>`
+          : `<input type="text" value="${escH(val)}" readonly data-key="${c.key}"
+              style="width:100%;max-width:500px;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">`}
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;font-style:italic">Se edita desde la solapa Evento</div>
+      </div>`;
     } else if(c.tipo==='campo' && CAMPOS_DESTINO_A_ORIGEN[c.key]){
       const val = getValorCampoCompartido(c.key, datos);
-      html+=`<div class="form-field" style="margin-bottom:14px">
+      const compactoClass = c.inputType==='textarea' ? '' : ' form-field-compacto';
+      html+=`<div class="form-field${compactoClass}" style="margin-bottom:14px">
         <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
         ${c.inputType==='textarea'
           ? `<textarea rows="3" readonly data-key="${c.key}" style="width:100%;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical;outline:none;cursor:not-allowed">${escH(val)}</textarea>`
@@ -4267,7 +4280,7 @@ function renderEventoSheet(ev, sheetIdx){
           ? `onchange="validarFechaEventoEnRango(this,'${c.key}')"`
           : '';
         const sugerenciasClass = c.sugerencias ? ' dd-input' : '';
-        html+=`<div class="form-field" style="margin-bottom:14px">
+        html+=`<div class="form-field form-field-compacto" style="margin-bottom:14px">
           <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
           <input type="${c.inputType||'text'}" autocomplete="off" value="${escH(val)}" data-key="${c.key}"${minMaxAttrs} class="${sugerenciasClass.trim()}"
             style="width:100%;max-width:500px;background:${emptyBg};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none"
@@ -4890,6 +4903,35 @@ async function pegarMenuPortapapeles(key, numCols){
   sbSave(true);
 }
 
+// Igual que pegarMenuPortapapeles pero pega solo dentro de una subsección
+// puntual del menú (botón "📋 Pegar" de cada subsección).
+async function pegarMenuPortapapelesSeccion(key, secIdx, numCols){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const sec = ev.datos[key+'_secciones']?.[secIdx];
+  if(!sec) return;
+  let texto = '';
+  try{
+    texto = await navigator.clipboard.readText();
+  }catch(err){
+    alert('No se pudo leer el portapapeles. Revisá los permisos del navegador.');
+    return;
+  }
+  const lineas = texto.split(/\r?\n/).map(l=>l.trim()).filter(l=>l!=='');
+  if(!lineas.length){ alert('El portapapeles no contiene texto.'); return; }
+  if(!sec.filas) sec.filas=[];
+  const filasNuevas = lineas.map(linea=>{
+    const row = new Array(numCols).fill('');
+    row[0] = linea;
+    return row;
+  });
+  const filasExistentesConContenido = sec.filas.filter(row=>
+    Array.isArray(row) && row.some(v=>String(v||'').trim()!==''));
+  sec.filas = [...filasNuevas, ...filasExistentesConContenido];
+  renderEventoSheet(ev, comandaSheetActual);
+  sbSave(true);
+}
+
 // ── Drag & drop nativo para reordenar filas de tabla_menu ─────────
 let dragFilaTablaOrigen = null;
 function dragStartFilaTabla(event, key, idx){
@@ -4930,7 +4972,7 @@ function htmlTablaMenuPlana(c, datos){
   const rows = datos[key]||[];
   const numCols = ['Unidades','Peso (g)','Cantidad'];
   let h = `<div class="tw" style="overflow-x:auto"><table style="min-width:700px;table-layout:fixed;width:100%">
-    <colgroup><col style="width:20px">${c.cols.map(col=>`<col style="width:${col==='Menú'?'42%':numCols.includes(col)?'7%':'11%'}">`).join('')}<col style="width:30px"><col style="width:30px"></colgroup>
+    <colgroup><col style="width:20px">${c.cols.map(col=>col==='Menú'?'<col>':`<col style="width:15%">`).join('')}<col style="width:30px"><col style="width:30px"></colgroup>
     <thead><tr><th></th>${c.cols.map(col=>`<th style="font-size:11px;padding:4px 5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(col)}</th>`).join('')}<th></th><th></th></tr></thead>
     <tbody id="tabla_${key}">`;
   rows.forEach((row,ri)=>{
@@ -4979,10 +5021,11 @@ function htmlTablaMenuSecciones(c, datos){
       <input type="text" value="${escH(sec.nombre||'')}" placeholder="Nombre de la sección (ej: Entrada, Principal, Postre)"
         oninput="renombrarSeccionMenu('${key}',${secIdx},this.value)"
         style="font-weight:700;font-size:13px;background:transparent;border:none;border-bottom:2px solid var(--mp-gold);color:var(--text);padding:4px 2px;flex:1;min-width:180px;max-width:340px;outline:none">
+      <button class="btn btn-outline" style="font-size:11px;white-space:nowrap" onclick="pegarMenuPortapapelesSeccion('${key}',${secIdx},${c.cols.length})" title="Pegar contenido solo en esta sección">📋 Pegar</button>
       <button class="btn btn-danger" style="font-size:11px;white-space:nowrap" onclick="eliminarSeccionMenu('${key}',${secIdx})" title="Eliminar sección">🗑 Eliminar sección</button>
     </div>`;
     h += `<div class="tw" style="overflow-x:auto"><table style="min-width:700px;table-layout:fixed;width:100%">
-      <colgroup><col style="width:20px">${c.cols.map(col=>`<col style="width:${col==='Menú'?'42%':numCols.includes(col)?'7%':'11%'}">`).join('')}<col style="width:30px"><col style="width:30px"></colgroup>
+      <colgroup><col style="width:20px">${c.cols.map(col=>col==='Menú'?'<col>':`<col style="width:15%">`).join('')}<col style="width:30px"><col style="width:30px"></colgroup>
       <thead><tr><th></th>${c.cols.map(col=>`<th style="font-size:11px;padding:4px 5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(col)}</th>`).join('')}<th></th><th></th></tr></thead>
       <tbody>`;
     const filas = sec.filas||[];
@@ -5623,7 +5666,7 @@ function exportarEventoPDFById(periodoId, eventoId){
   y += 6;
 
   COMANDA_TEMPLATE.forEach(sheet=>{
-    if(sheet.nombre==='COMANDA' || sheet.nombre==='EVENTO' || sheet.nombre==='TIMING' || sheet.nombre==='BARRA' || sheet.nombre==='PRODUCCIÓN' || sheet.nombre==='CHECK LIST' || sheet.nombre==='VAJILLA COCINA' || sheet.nombre==='VAJILLA SALÓN' || sheet.nombre==='EVALUACIÓN' || sheet.nombre==='FICHA MANAGERS'){
+    if(sheet.nombre==='FICHA TÉCNICA' || sheet.nombre==='EVENTO' || sheet.nombre==='TIMING' || sheet.nombre==='BARRA' || sheet.nombre==='PRODUCCIÓN' || sheet.nombre==='CHECK LIST' || sheet.nombre==='VAJILLA COCINA' || sheet.nombre==='VAJILLA SALÓN' || sheet.nombre==='EVALUACIÓN' || sheet.nombre==='FICHA MANAGERS'){
       const sections=buildRenderableSections(sheet, ev);
       if(!sections.length) return; // sin datos cargados: omitir la solapa completa, sin título huérfano
 
