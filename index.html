@@ -4408,9 +4408,7 @@ const CAMPOS_COMPARTIDOS = {
   'fecha':          ['com_fecha','bar_fecha','vco_fecha','vsa_fecha','eva_fecha','fm_fecha'],
   'horario_inicio': ['com_hora_ini','eva_hora_ini','fm_hora_ini'],
   'horario_fin':    ['com_hora_fin','eva_hora_fin','fm_hora_fin'],
-  'tipo_formato':   ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'],
   'tipo_categoria': ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'],
-  'tipo_detalle':   ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'],
   'personal_cocineros':['com_personal_cocineros','fm_personal_cocineros'],
   'personal_managers':['com_personal_managers','fm_personal_managers'],
   'personal_camareros':['com_personal_camareros','fm_personal_camareros'],
@@ -4441,9 +4439,6 @@ function getTextoTipoEvento(datos){
 }
 
 function getValorCampoCompartido(key, datos){
-  if(['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo','tipo_evento'].includes(key)){
-    return getTextoTipoEvento(datos);
-  }
   return datos[key] ?? '';
 }
 
@@ -4452,14 +4447,7 @@ function updateEventoDato(key, val){
   if(!ev) return;
   ev.datos[key] = val;
   if(['tipo_formato','tipo_categoria','tipo_detalle'].includes(key)){
-    const texto = getTextoTipoEvento(ev.datos);
-    ev.datos.tipo_evento = texto;
-    ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'].forEach(destKey=>{
-      ev.datos[destKey] = texto;
-      const inputEl = document.querySelector('[data-key="'+destKey+'"]');
-      if(inputEl) inputEl.value = texto;
-    });
-    return;
+    ev.datos.tipo_evento = getTextoTipoEvento(ev.datos);
   }
   if(CAMPOS_COMPARTIDOS[key]){
     CAMPOS_COMPARTIDOS[key].forEach(destKey=>{
