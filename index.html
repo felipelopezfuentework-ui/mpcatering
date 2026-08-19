@@ -3364,11 +3364,11 @@ const COMANDA_TEMPLATE = [
       {tipo:'link_cliente_ficha', label:'Ver ficha del cliente'},
       {tipo:'seccion', label:'PERSONAL DEL EVENTO'},
       {tipo:'grupo_personal_evento', totalKey:'personal_total', campos:[
-        {label:'Cocineros', key:'personal_cocineros', detalleKey:'personal_cocineros_detalle', inputType:'number'},
-        {label:'Managers', key:'personal_managers', detalleKey:'personal_managers_detalle', inputType:'number'},
-        {label:'Camareros', key:'personal_camareros', detalleKey:'personal_camareros_detalle', inputType:'number'},
-        {label:'Asistentes', key:'personal_asistentes', detalleKey:'personal_asistentes_detalle', inputType:'number'},
-        {label:'Otros', key:'personal_otros', detalleKey:'personal_otros_detalle', inputType:'number'}
+        {label:'Cocineros', key:'personal_cocineros_cant', detalleKey:'personal_cocineros_detalle', inputType:'number'},
+        {label:'Managers', key:'personal_managers_cant', detalleKey:'personal_managers_detalle', inputType:'number'},
+        {label:'Camareros', key:'personal_camareros_cant', detalleKey:'personal_camareros_detalle', inputType:'number'},
+        {label:'Asistentes', key:'personal_asistentes_cant', detalleKey:'personal_asistentes_detalle', inputType:'number'},
+        {label:'Otros', key:'personal_otros_cant', detalleKey:'personal_otros_detalle', inputType:'number'}
       ], obsKey:'personal_obs'},
       {tipo:'campo_check', label:'Servicios incluidos', key:'servicios', opciones:['Comida','Personal','Barra','Vajilla','Equipamiento']},
       {tipo:'campo', label:'Teléfono / WhatsApp', key:'telefono', readonlyClienteMaestro:true},
@@ -3390,11 +3390,11 @@ const COMANDA_TEMPLATE = [
       {tipo:'campo_readonly', label:'Nombre del evento', key:'_nombre_evento'},
       {tipo:'campo', label:'Tipo de evento', key:'com_tipo_evento'},
       {tipo:'grupo_personal_evento', readonly:true, totalKey:'com_personal_total', campos:[
-        {label:'Cocineros', key:'com_personal_cocineros', detalleKey:'com_personal_cocineros_detalle', inputType:'number'},
-        {label:'Managers', key:'com_personal_managers', detalleKey:'com_personal_managers_detalle', inputType:'number'},
-        {label:'Camareros', key:'com_personal_camareros', detalleKey:'com_personal_camareros_detalle', inputType:'number'},
-        {label:'Asistentes', key:'com_personal_asistentes', detalleKey:'com_personal_asistentes_detalle', inputType:'number'},
-        {label:'Otros', key:'com_personal_otros', detalleKey:'com_personal_otros_detalle', inputType:'number'}
+        {label:'Cocineros', key:'com_personal_cocineros_cant', detalleKey:'com_personal_cocineros_detalle', inputType:'number'},
+        {label:'Managers', key:'com_personal_managers_cant', detalleKey:'com_personal_managers_detalle', inputType:'number'},
+        {label:'Camareros', key:'com_personal_camareros_cant', detalleKey:'com_personal_camareros_detalle', inputType:'number'},
+        {label:'Asistentes', key:'com_personal_asistentes_cant', detalleKey:'com_personal_asistentes_detalle', inputType:'number'},
+        {label:'Otros', key:'com_personal_otros_cant', detalleKey:'com_personal_otros_detalle', inputType:'number'}
       ], obsKey:'com_personal_obs'},
       {tipo:'campo', label:'Encargado', key:'com_encargado'},
       {tipo:'seccion', label:'JORNADA DE TRABAJO Y CANTIDADES DE PERSONAS'},
@@ -3500,11 +3500,11 @@ const COMANDA_TEMPLATE = [
       {tipo:'campo', label:'Descripción general del evento', key:'fm_descripcion', inputType:'textarea'},
       {tipo:'campo', label:'Tipo de evento', key:'fm_tipo'},
       {tipo:'grupo_personal_evento', readonly:true, totalKey:'fm_personal_total', campos:[
-        {label:'Cocineros', key:'fm_personal_cocineros', detalleKey:'fm_personal_cocineros_detalle', inputType:'number'},
-        {label:'Managers', key:'fm_personal_managers', detalleKey:'fm_personal_managers_detalle', inputType:'number'},
-        {label:'Camareros', key:'fm_personal_camareros', detalleKey:'fm_personal_camareros_detalle', inputType:'number'},
-        {label:'Asistentes', key:'fm_personal_asistentes', detalleKey:'fm_personal_asistentes_detalle', inputType:'number'},
-        {label:'Otros', key:'fm_personal_otros', detalleKey:'fm_personal_otros_detalle', inputType:'number'}
+        {label:'Cocineros', key:'fm_personal_cocineros_cant', detalleKey:'fm_personal_cocineros_detalle', inputType:'number'},
+        {label:'Managers', key:'fm_personal_managers_cant', detalleKey:'fm_personal_managers_detalle', inputType:'number'},
+        {label:'Camareros', key:'fm_personal_camareros_cant', detalleKey:'fm_personal_camareros_detalle', inputType:'number'},
+        {label:'Asistentes', key:'fm_personal_asistentes_cant', detalleKey:'fm_personal_asistentes_detalle', inputType:'number'},
+        {label:'Otros', key:'fm_personal_otros_cant', detalleKey:'fm_personal_otros_detalle', inputType:'number'}
       ], obsKey:'fm_personal_obs'},
       {tipo:'campo', label:'Horario inicio', key:'fm_hora_ini'},
       {tipo:'campo', label:'Horario finalización', key:'fm_hora_fin'},
@@ -4043,8 +4043,16 @@ function renderEventoSheet(ev, sheetIdx){
 
   // Recalcular total de invitados (adultos + jóvenes + menores) antes de sincronizar
   datos.invitados_total = (parseInt(datos.cant_adultos)||0)+(parseInt(datos.cant_jovenes)||0)+(parseInt(datos.cant_menores)||0);
+  // Migración de eventos guardados antes de agregar la columna "Detalle" de personal
+  // (las cantidades vivían en personal_cocineros/managers/camareros/asistentes/otros,
+  // ahora en *_cant). Se hace una sola vez: si la key nueva no tiene valor todavía,
+  // se toma la vieja.
+  ['cocineros','managers','camareros','asistentes','otros'].forEach(rol=>{
+    const legacyKey='personal_'+rol, cantKey='personal_'+rol+'_cant';
+    if(datos[cantKey]===undefined && datos[legacyKey]!==undefined) datos[cantKey]=datos[legacyKey];
+  });
   // Recalcular total de personal antes de sincronizar
-  datos.personal_total = (parseInt(datos.personal_cocineros)||0)+(parseInt(datos.personal_managers)||0)+(parseInt(datos.personal_camareros)||0)+(parseInt(datos.personal_asistentes)||0)+(parseInt(datos.personal_otros)||0);
+  datos.personal_total = (parseInt(datos.personal_cocineros_cant)||0)+(parseInt(datos.personal_managers_cant)||0)+(parseInt(datos.personal_camareros_cant)||0)+(parseInt(datos.personal_asistentes_cant)||0)+(parseInt(datos.personal_otros_cant)||0);
 
   // Sincronizar campos compartidos desde EVENTO hacia todas las solapas
   Object.entries(CAMPOS_COMPARTIDOS).forEach(([origen, destinos])=>{
@@ -4166,36 +4174,47 @@ function renderEventoSheet(ev, sheetIdx){
       const obsVal = datos[c.obsKey]||'';
       const totalVal = c.totalKey ? (datos[c.totalKey]||0) : 0;
       html+=`<div style="margin-bottom:16px">`;
-      html+=`<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">`;
+      html+=`<div class="tw" style="overflow-x:auto;margin-bottom:10px"><table style="width:100%;table-layout:fixed;min-width:420px">
+        <colgroup><col style="width:20%"><col style="width:15%"><col style="width:65%"></colgroup>
+        <thead><tr>
+          <th style="font-size:11px;padding:6px 8px;text-align:left">Rol</th>
+          <th style="font-size:11px;padding:6px 8px;text-align:left">Cantidad</th>
+          <th style="font-size:11px;padding:6px 8px;text-align:left">Detalle</th>
+        </tr></thead>
+        <tbody>`;
       fields.forEach(f=>{
         const val = datos[f.key]||'';
         const detalleVal = f.detalleKey ? (datos[f.detalleKey]||'') : '';
         if(c.readonly){
-          html+=`<div class="form-field" style="flex:1;min-width:${f.detalleKey?'220':'140'}px">
-            <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(f.label)}</label>
-            <div style="display:flex;gap:6px">
-              <input type="${f.inputType||'text'}" value="${escH(val)}" readonly data-key="${f.key}" placeholder="Cant."
-                style="width:${f.detalleKey?'64px':'100%'};flex:${f.detalleKey?'none':'1'};background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">
-              ${f.detalleKey ? `<input type="text" value="${escH(detalleVal)}" readonly data-key="${f.detalleKey}" placeholder="Detalle"
-                style="flex:1;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">` : ''}
-            </div>
-          </div>`;
+          html+=`<tr>
+            <td style="padding:5px 8px;font-size:12px;font-weight:600;color:var(--text)">${escH(f.label)}</td>
+            <td style="padding:4px 6px">
+              <input type="${f.inputType||'text'}" value="${escH(val)}" readonly data-key="${f.key}"
+                style="width:100%;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">
+            </td>
+            <td style="padding:4px 6px">
+              ${f.detalleKey ? `<input type="text" value="${escH(detalleVal)}" readonly data-key="${f.detalleKey}"
+                style="width:100%;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">` : ''}
+            </td>
+          </tr>`;
         } else {
           const emptyBg = (!val||String(val).trim()==='') ? 'rgba(220,53,69,0.09)' : 'var(--surface2)';
-          html+=`<div class="form-field" style="flex:1;min-width:${f.detalleKey?'220':'140'}px">
-            <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(f.label)}</label>
-            <div style="display:flex;gap:6px">
-              <input type="${f.inputType||'text'}" min="0" value="${escH(val)}" data-key="${f.key}" placeholder="Cant."
-                style="width:${f.detalleKey?'64px':'100%'};flex:${f.detalleKey?'none':'1'};background:${emptyBg};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none"
+          html+=`<tr>
+            <td style="padding:5px 8px;font-size:12px;font-weight:600;color:var(--text)">${escH(f.label)}</td>
+            <td style="padding:4px 6px">
+              <input type="${f.inputType||'text'}" min="0" value="${escH(val)}" data-key="${f.key}"
+                style="width:100%;background:${emptyBg};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:12px;font-family:inherit;outline:none"
                 oninput="updateEventoDato('${f.key}',this.value);this.style.background=this.value.trim()?'var(--surface2)':'rgba(220,53,69,0.09)';recalcPersonalTotal()">
-              ${f.detalleKey ? `<input type="text" value="${escH(detalleVal)}" data-key="${f.detalleKey}" placeholder="Detalle"
-                style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none"
+            </td>
+            <td style="padding:4px 6px">
+              ${f.detalleKey ? `<input type="text" value="${escH(detalleVal)}" data-key="${f.detalleKey}" placeholder="Nombres del personal"
+                style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:12px;font-family:inherit;outline:none"
                 oninput="updateEventoDato('${f.detalleKey}',this.value)">` : ''}
-            </div>
-          </div>`;
+            </td>
+          </tr>`;
         }
       });
-      html+=`</div>`;
+      html+=`</tbody></table></div>`;
       if(c.totalKey){
         html+=`<div class="form-field" style="margin-bottom:10px;max-width:220px">
           <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">Total personal</label>
@@ -4458,15 +4477,15 @@ const CAMPOS_COMPARTIDOS = {
   'horario_inicio': ['com_hora_ini','eva_hora_ini','fm_hora_ini'],
   'horario_fin':    ['com_hora_fin','eva_hora_fin','fm_hora_fin'],
   'tipo_categoria': ['com_tipo_evento','bar_tipo','vco_tipo','vsa_tipo','eva_tipo','fm_tipo'],
-  'personal_cocineros':['com_personal_cocineros','fm_personal_cocineros'],
+  'personal_cocineros_cant':['com_personal_cocineros_cant','fm_personal_cocineros_cant'],
   'personal_cocineros_detalle':['com_personal_cocineros_detalle','fm_personal_cocineros_detalle'],
-  'personal_managers':['com_personal_managers','fm_personal_managers'],
+  'personal_managers_cant':['com_personal_managers_cant','fm_personal_managers_cant'],
   'personal_managers_detalle':['com_personal_managers_detalle','fm_personal_managers_detalle'],
-  'personal_camareros':['com_personal_camareros','fm_personal_camareros'],
+  'personal_camareros_cant':['com_personal_camareros_cant','fm_personal_camareros_cant'],
   'personal_camareros_detalle':['com_personal_camareros_detalle','fm_personal_camareros_detalle'],
-  'personal_asistentes':['com_personal_asistentes','fm_personal_asistentes'],
+  'personal_asistentes_cant':['com_personal_asistentes_cant','fm_personal_asistentes_cant'],
   'personal_asistentes_detalle':['com_personal_asistentes_detalle','fm_personal_asistentes_detalle'],
-  'personal_otros':['com_personal_otros','fm_personal_otros'],
+  'personal_otros_cant':['com_personal_otros_cant','fm_personal_otros_cant'],
   'personal_otros_detalle':['com_personal_otros_detalle','fm_personal_otros_detalle'],
   'personal_total':['com_personal_total','fm_personal_total'],
   'personal_obs':['com_personal_obs','fm_personal_obs'],
@@ -4516,7 +4535,7 @@ function updateEventoDato(key, val){
 function recalcPersonalTotal(){
   const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
   if(!ev) return;
-  const total = (parseInt(ev.datos.personal_cocineros)||0)+(parseInt(ev.datos.personal_managers)||0)+(parseInt(ev.datos.personal_camareros)||0)+(parseInt(ev.datos.personal_asistentes)||0)+(parseInt(ev.datos.personal_otros)||0);
+  const total = (parseInt(ev.datos.personal_cocineros_cant)||0)+(parseInt(ev.datos.personal_managers_cant)||0)+(parseInt(ev.datos.personal_camareros_cant)||0)+(parseInt(ev.datos.personal_asistentes_cant)||0)+(parseInt(ev.datos.personal_otros_cant)||0);
   ev.datos.personal_total = total;
   const totalEl = document.getElementById('personal-total-display');
   if(totalEl) totalEl.value = total;
