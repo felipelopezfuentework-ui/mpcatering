@@ -398,6 +398,11 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div id="sub-alert" class="alert"></div>
     <div class="toolbar">
       <button class="btn btn-primary" onclick="abrirModalSub(null)">+ Nuevo Subproducto</button>
+      <label class="btn btn-outline" style="cursor:pointer">
+        <svg width="20" height="20" viewBox="0 0 20 20" style="vertical-align:-5px;margin-right:4px"><rect width="20" height="20" rx="4" fill="#1D6F42"/><text x="10" y="15" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">X</text></svg>
+        Cargar desde Excel
+        <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event)">
+      </label>
       <div class="sbox"><input type="text" id="sub-search" placeholder="Buscar subproducto…" oninput="renderSubproductos()"></div>
     </div>
     <div id="sub-list"></div>
@@ -411,6 +416,11 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div id="plato-alert" class="alert"></div>
     <div class="toolbar">
       <button class="btn btn-primary" onclick="abrirModalPlato(null)">+ Nuevo Plato</button>
+      <label class="btn btn-outline" style="cursor:pointer">
+        <svg width="20" height="20" viewBox="0 0 20 20" style="vertical-align:-5px;margin-right:4px"><rect width="20" height="20" rx="4" fill="#1D6F42"/><text x="10" y="15" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">X</text></svg>
+        Cargar desde Excel
+        <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event)">
+      </label>
       <div class="sbox"><input type="text" id="plato-search" placeholder="Buscar plato…" oninput="renderPlatos()"></div>
     </div>
     <div id="plato-list"></div>
@@ -947,6 +957,25 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
       <button class="btn btn-outline" onclick="cerrarModal('modal-plato')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarPlato()">💾 Guardar plato</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL IMPORTAR RECETAS DESDE EXCEL ══════════════════════════ -->
+<div class="modal-ov" id="modal-import-excel">
+  <div class="modal" style="max-width:1100px;width:98vw;max-height:90vh;overflow-y:auto">
+    <div class="modal-hd">
+      <span class="modal-title">
+        <svg width="20" height="20" viewBox="0 0 20 20" style="vertical-align:-5px;margin-right:4px"><rect width="20" height="20" rx="4" fill="#1D6F42"/><text x="10" y="15" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">X</text></svg>
+        Importar recetas desde Excel
+      </span>
+      <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-import-excel')">✕ Cerrar</button>
+    </div>
+    <div id="import-summary" style="font-size:12px;color:var(--text3);margin-bottom:14px"></div>
+    <div id="import-preview-body"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+      <button class="btn btn-outline" onclick="cerrarModal('modal-import-excel')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarImportExcel()">✓ Confirmar importación</button>
     </div>
   </div>
 </div>
@@ -2438,6 +2467,7 @@ function abrirModalPlato(platoName){
         comp:r.componente,
         tipo:r.componente.startsWith('SUB - ')?'sub':'ins',
         kgs:r.kgs,
+        merma:r.merma||0,
         pk:getCompPrice(r.componente),
         cr:(r.kgs||0)*getCompPrice(r.componente)
       }))
@@ -2647,6 +2677,156 @@ function renderPlatos(){
 function delPlato(plato){if(!confirm('¿Eliminar "'+plato.replace('PLATO - ','')+'"?'))return;DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==plato);renderPlatos();sbSave(true);}
 
 // ══════════════════════════════════════════════════════════════════
+//  IMPORTAR RECETAS DESDE EXCEL (una hoja por receta)
+//  Estructura de cada hoja: A=Ingrediente B=Peso(kg) C=Rinde(kg,opc) D=Merma
+//  F1/G1=Nombre de plato · F2/G2=Porciones · F3/G3=Peso por porción
+// ══════════════════════════════════════════════════════════════════
+let importRecetas=[];
+
+function handleImportRecetasFile(e){
+  const f=e.target.files[0];if(!f)return;
+  e.target.value='';
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const sheetNames=wb.SheetNames.filter(n=>n.trim().toLowerCase()!=='solapa ejemplo');
+      if(!sheetNames.length){alert('El Excel no tiene hojas de recetas (solo la hoja de ejemplo).');return;}
+      importRecetas=sheetNames.map(sn=>parseRecetaSheet(wb.Sheets[sn],sn)).filter(r=>r);
+      if(!importRecetas.length){alert('No se pudo leer ninguna receta del Excel. Revisá el formato de las hojas.');return;}
+      abrirModalImportPreview();
+    }catch(err){alert('Error al leer el archivo: '+err.message);}
+  };
+  r.readAsArrayBuffer(f);
+}
+
+function parseRecetaSheet(ws,sheetName){
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+  if(!rows.length)return null;
+  let nombre='',porciones=0,pesoPorcionKgCached=0;
+  rows.forEach(row=>{
+    const label=String(row[5]||'').trim().toLowerCase();
+    const val=row[6];
+    if(!label)return;
+    if(label.startsWith('nombre'))nombre=String(val||'').trim();
+    else if(label.startsWith('porciones'))porciones=parseFloat(val)||0;
+    else if(label.startsWith('peso por porcion')||label.startsWith('peso por porción'))pesoPorcionKgCached=parseFloat(val)||0;
+  });
+  if(!nombre)nombre=sheetName;
+  const ingredientes=[];
+  rows.slice(1).forEach(row=>{
+    const ing=String(row[0]||'').trim();
+    if(!ing)return;
+    const peso=parseFloat(row[1])||0;
+    const rindeRaw=row[2];
+    const rinde=(rindeRaw===''||rindeRaw===null||rindeRaw===undefined)?null:parseFloat(rindeRaw);
+    let merma=0;
+    if(rinde!==null&&!isNaN(rinde)&&peso>0&&rinde<peso)merma=((peso-rinde)/peso)*100;
+    const ingU=ing.toUpperCase();
+    const found=DB.insumos.find(x=>x.nombre.trim().toUpperCase()===ingU||x.key.replace('INSUMO - ','').trim().toUpperCase()===ingU);
+    ingredientes.push({nombreExcel:ing,peso,rinde,merma,comp:found?found.key:('INSUMO - '+ingU),matched:!!found});
+  });
+  if(!ingredientes.length)return null;
+  const totalKg=ingredientes.reduce((s,x)=>s+x.peso,0);
+  const pesoPorcionKg=porciones>0?(totalKg/porciones):pesoPorcionKgCached;
+  return{sheetName,nombre,tipo:'plato',porciones,pesoPorcionG:Math.round(pesoPorcionKg*1000*100)/100,ingredientes};
+}
+
+function abrirModalImportPreview(){
+  renderImportPreview();
+  document.getElementById('modal-import-excel').classList.add('open');
+}
+
+function renderImportPreview(){
+  const body=document.getElementById('import-preview-body');
+  const totalIng=importRecetas.reduce((s,r)=>s+r.ingredientes.length,0);
+  const totalMatch=importRecetas.reduce((s,r)=>s+r.ingredientes.filter(i=>i.matched).length,0);
+  document.getElementById('import-summary').innerHTML=
+    '<strong>'+importRecetas.length+'</strong> receta'+(importRecetas.length!==1?'s':'')+' encontrada'+(importRecetas.length!==1?'s':'')+' · '+
+    '<span style="color:var(--green)">✅ '+totalMatch+' insumo'+(totalMatch!==1?'s':'')+' reconocido'+(totalMatch!==1?'s':'')+'</span> · '+
+    '<span style="color:var(--red)">❌ '+(totalIng-totalMatch)+' no encontrado'+((totalIng-totalMatch)!==1?'s':'')+'</span>';
+  body.innerHTML=importRecetas.map((rec,idx)=>{
+    const isPlato=rec.tipo!=='sub';
+    return `<div class="card" style="margin-bottom:14px;background:var(--surface2)">
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+        <div class="form-field" style="flex:1;min-width:220px">
+          <label style="font-size:10px;color:var(--text3)">Nombre <span style="opacity:.7">(hoja: ${escH(rec.sheetName)})</span></label>
+          <input type="text" value="${escH(rec.nombre)}" style="width:100%" oninput="impSetNombre(${idx},this.value)">
+        </div>
+        <div class="form-field">
+          <label style="font-size:10px;color:var(--text3)">Tipo</label>
+          <select style="width:150px" onchange="impSetTipo(${idx},this.value)">
+            <option value="plato" ${isPlato?'selected':''}>🍴 Plato</option>
+            <option value="sub" ${!isPlato?'selected':''}>🧩 Subproducto</option>
+          </select>
+        </div>
+        ${isPlato?`
+        <div class="form-field">
+          <label style="font-size:10px;color:var(--text3)">Porciones</label>
+          <input type="number" value="${rec.porciones||''}" style="width:90px;background:var(--surface);color:var(--text3)" readonly>
+        </div>
+        <div class="form-field">
+          <label style="font-size:10px;color:var(--text3)">Peso/porción (g)</label>
+          <input type="number" step="1" value="${rec.pesoPorcionG||''}" style="width:100px" oninput="impSetPeso(${idx},this.value)">
+        </div>`:''}
+      </div>
+      <div class="tw" style="overflow-x:auto"><table style="min-width:500px">
+        <thead><tr><th>Ingrediente</th><th class="num">Peso (kg)</th><th class="num">Rinde (kg)</th><th class="num">% Merma</th><th>Estado</th></tr></thead>
+        <tbody>${rec.ingredientes.map(ing=>`<tr>
+          <td>${escH(ing.nombreExcel)}</td>
+          <td class="num">${fmtN(ing.peso,4)}</td>
+          <td class="num">${ing.rinde!==null?fmtN(ing.rinde,4):'—'}</td>
+          <td class="num">${ing.merma?fmtN(ing.merma,1)+'%':'—'}</td>
+          <td>${ing.matched?'<span style="color:var(--green)">✅ Encontrado</span>':'<span style="color:var(--red)">❌ No encontrado (se carga como texto)</span>'}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+  }).join('');
+}
+
+function impSetNombre(idx,v){importRecetas[idx].nombre=v;}
+function impSetTipo(idx,v){importRecetas[idx].tipo=v;renderImportPreview();}
+function impSetPeso(idx,v){importRecetas[idx].pesoPorcionG=parseFloat(v)||0;}
+
+function confirmarImportExcel(){
+  if(!importRecetas.length)return;
+  let nPlatos=0,nSubs=0;
+  importRecetas.forEach(rec=>{
+    const rawName=(rec.nombre||'').trim().toUpperCase();
+    if(!rawName||!rec.ingredientes.length)return;
+    if(rec.tipo==='sub'){
+      const nombre=rawName.startsWith('SUB - ')?rawName:'SUB - '+rawName;
+      DB.subproductos=DB.subproductos.filter(x=>x.subproducto!==nombre);
+      rec.ingredientes.forEach(ing=>{
+        const pk=getCompPrice(ing.comp);
+        const{kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(ing.peso,ing.merma,pk);
+        DB.subproductos.push({_id:Date.now()+Math.random(),subproducto:nombre,componente:ing.comp,kgs:ing.peso,kgBruto,merma:ing.merma,costoMerma,precio_kg:pkConMerma,costo_receta:costoTotal});
+      });
+      if(!DB.maestro_subs.includes(nombre))DB.maestro_subs.push(nombre);
+      nSubs++;
+    }else{
+      const nombre=rawName.startsWith('PLATO - ')?rawName:'PLATO - '+rawName;
+      DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==nombre);
+      rec.ingredientes.forEach(ing=>{
+        const pk=getCompPrice(ing.comp);
+        const{kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(ing.peso,ing.merma,pk);
+        DB.recetas_platos.push({_id:Date.now()+Math.random(),plato:nombre,componente:ing.comp,kgs:ing.peso,kgBruto,merma:ing.merma,costoMerma,precio_kg:pkConMerma,costo_receta:costoTotal});
+      });
+      if(!DB.platos_config)DB.platos_config={};
+      const peso=parseFloat(rec.pesoPorcionG)||0;
+      DB.platos_config[nombre]={...(DB.platos_config[nombre]||{}),...(peso>0?{peso_porcion:peso}:{})};
+      if(!DB.maestro_platos.includes(nombre))DB.maestro_platos.push(nombre);
+      nPlatos++;
+    }
+  });
+  cerrarModal('modal-import-excel');
+  importRecetas=[];
+  renderPlatos();renderSubproductos();renderMaestros();
+  showAlert('plato-alert','success','✓ Importación completa: '+nPlatos+' plato(s), '+nSubs+' subproducto(s).');
+  sbSave(true);
+}
+
+// ══════════════════════════════════════════════════════════════════
 //  COSTEO FINAL
 // ══════════════════════════════════════════════════════════════════
 let costeoRows=[];
@@ -2809,6 +2989,7 @@ function toggleCDet(id){
 // ══════════════════════════════════════════════════════════════════
 function renderMaestros(){
   const ptbody=document.getElementById('maestro-platos-tbody');
+  if(!ptbody)return;
   ptbody.innerHTML=DB.maestro_platos.map((p,i)=>`<tr>
     <td style="color:var(--text3)">${i+1}</td>
     <td><input type="text" value="${escH(p.replace('PLATO - ',''))}" 
