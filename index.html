@@ -980,6 +980,24 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   </div>
 </div>
 
+<!-- ═══ MODAL AMBIGÜEDAD DE INSUMOS (IMPORT EXCEL) ══════════════════ -->
+<div class="modal-ov" id="modal-import-ambiguous">
+  <div class="modal" style="max-width:800px;width:96vw;max-height:88vh;overflow-y:auto">
+    <div class="modal-hd">
+      <span class="modal-title">⚠️ Insumos ambiguos</span>
+      <button class="btn btn-outline" style="padding:4px 12px" onclick="cancelarImportAmbiguo()">✕ Cerrar</button>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px">
+      Encontramos más de un insumo del maestro que podría corresponder a estos ingredientes. Elegí la variante correcta para cada uno antes de continuar con la importación.
+    </div>
+    <div id="import-ambiguous-body"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+      <button class="btn btn-outline" onclick="cancelarImportAmbiguo()">Cancelar importación</button>
+      <button class="btn btn-primary" id="btn-continuar-ambiguo" onclick="continuarImportTrasAmbiguedad()" disabled>Continuar →</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════════════════════
 //  DATA
@@ -2682,6 +2700,7 @@ function delPlato(plato){if(!confirm('¿Eliminar "'+plato.replace('PLATO - ','')
 //  F1/G1=Nombre de plato · F2/G2=Porciones · F3/G3=Peso por porción
 // ══════════════════════════════════════════════════════════════════
 let importRecetas=[];
+let importAmbiguous=[]; // [{ri,ii}] índices de ingredientes ambiguos pendientes de resolver
 
 function handleImportRecetasFile(e){
   const f=e.target.files[0];if(!f)return;
@@ -2694,10 +2713,29 @@ function handleImportRecetasFile(e){
       if(!sheetNames.length){alert('El Excel no tiene hojas de recetas (solo la hoja de ejemplo).');return;}
       importRecetas=sheetNames.map(sn=>parseRecetaSheet(wb.Sheets[sn],sn)).filter(r=>r);
       if(!importRecetas.length){alert('No se pudo leer ninguna receta del Excel. Revisá el formato de las hojas.');return;}
-      abrirModalImportPreview();
+      iniciarFlujoImport();
     }catch(err){alert('Error al leer el archivo: '+err.message);}
   };
   r.readAsArrayBuffer(f);
+}
+
+function iniciarFlujoImport(){
+  importAmbiguous=[];
+  importRecetas.forEach((rec,ri)=>rec.ingredientes.forEach((ing,ii)=>{
+    if(ing.needsResolution)importAmbiguous.push({ri,ii});
+  }));
+  if(importAmbiguous.length)abrirModalAmbiguedad();
+  else abrirModalImportPreview();
+}
+
+// Normaliza texto para comparar insumos ignorando acentos/mayúsculas
+function normTxt(s){
+  return String(s||'').trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+}
+// ¿"a" está contenida en "b" como frase completa (respetando límites de palabra)?
+function contieneFrase(b,a){
+  const pad=t=>' '+t.replace(/[^A-Z0-9]+/g,' ').trim()+' ';
+  return pad(b).includes(pad(a));
 }
 
 function parseRecetaSheet(ws,sheetName){
@@ -2723,13 +2761,85 @@ function parseRecetaSheet(ws,sheetName){
     let merma=0;
     if(rinde!==null&&!isNaN(rinde)&&peso>0&&rinde<peso)merma=((peso-rinde)/peso)*100;
     const ingU=ing.toUpperCase();
-    const found=DB.insumos.find(x=>x.nombre.trim().toUpperCase()===ingU||x.key.replace('INSUMO - ','').trim().toUpperCase()===ingU);
-    ingredientes.push({nombreExcel:ing,peso,rinde,merma,comp:found?found.key:('INSUMO - '+ingU),matched:!!found});
+    const ingN=normTxt(ing);
+    const fallbackComp='INSUMO - '+ingU;
+    const exacto=DB.insumos.find(x=>normTxt(x.nombre)===ingN||normTxt(x.key.replace('INSUMO - ',''))===ingN);
+    let comp,matched,candidatos=[],needsResolution=false;
+    if(exacto){
+      comp=exacto.key;matched=true;
+    }else{
+      candidatos=DB.insumos.filter(x=>contieneFrase(normTxt(x.nombre),ingN)||contieneFrase(ingN,normTxt(x.nombre)));
+      if(candidatos.length===1){comp=candidatos[0].key;matched=true;}
+      else if(candidatos.length>1){comp=fallbackComp;matched=false;needsResolution=true;}
+      else{comp=fallbackComp;matched=false;}
+    }
+    ingredientes.push({nombreExcel:ing,peso,rinde,merma,comp,matched,candidatos,needsResolution,fallbackComp});
   });
   if(!ingredientes.length)return null;
   const totalKg=ingredientes.reduce((s,x)=>s+x.peso,0);
   const pesoPorcionKg=porciones>0?(totalKg/porciones):pesoPorcionKgCached;
   return{sheetName,nombre,tipo:'plato',porciones,pesoPorcionG:Math.round(pesoPorcionKg*1000*100)/100,ingredientes};
+}
+
+function abrirModalAmbiguedad(){
+  renderImportAmbiguous();
+  document.getElementById('modal-import-ambiguous').classList.add('open');
+}
+
+function renderImportAmbiguous(){
+  const body=document.getElementById('import-ambiguous-body');
+  body.innerHTML=importAmbiguous.map(({ri,ii},idx)=>{
+    const rec=importRecetas[ri],ing=rec.ingredientes[ii];
+    const chosen=ing._choice;
+    return `<div class="card" style="margin-bottom:12px;background:var(--surface2)">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Receta: <strong>${escH(rec.nombre)}</strong> <span style="opacity:.7">(hoja: ${escH(rec.sheetName)})</span></div>
+      <div style="font-weight:700;margin-bottom:10px">${escH(ing.nombreExcel)}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${ing.candidatos.map(c=>`<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input type="radio" name="amb-${idx}" value="${escH(c.key)}" ${chosen===c.key?'checked':''} onchange="ambSetChoice(${idx},'${c.key.replace(/'/g,"\\'")}')">
+          ${escH(c.nombre)}
+        </label>`).join('')}
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--red)">
+          <input type="radio" name="amb-${idx}" value="__none__" ${chosen==='__none__'?'checked':''} onchange="ambSetChoice(${idx},'__none__')">
+          Ninguno de estos — cargar como texto libre
+        </label>
+      </div>
+    </div>`;
+  }).join('');
+  updateContinuarAmbiguoState();
+}
+
+function ambSetChoice(idx,val){
+  const{ri,ii}=importAmbiguous[idx];
+  importRecetas[ri].ingredientes[ii]._choice=val;
+  updateContinuarAmbiguoState();
+}
+
+function updateContinuarAmbiguoState(){
+  const btn=document.getElementById('btn-continuar-ambiguo');
+  const allResolved=importAmbiguous.every(({ri,ii})=>!!importRecetas[ri].ingredientes[ii]._choice);
+  btn.disabled=!allResolved;
+}
+
+function cancelarImportAmbiguo(){
+  importRecetas=[];importAmbiguous=[];
+  cerrarModal('modal-import-ambiguous');
+}
+
+function continuarImportTrasAmbiguedad(){
+  importAmbiguous.forEach(({ri,ii})=>{
+    const ing=importRecetas[ri].ingredientes[ii];
+    if(ing._choice==='__none__'){
+      ing.comp=ing.fallbackComp;ing.matched=false;
+    }else{
+      const found=DB.insumos.find(x=>x.key===ing._choice);
+      ing.comp=found?found.key:ing.fallbackComp;ing.matched=!!found;
+    }
+    ing.resuelto=true;
+  });
+  cerrarModal('modal-import-ambiguous');
+  importAmbiguous=[];
+  abrirModalImportPreview();
 }
 
 function abrirModalImportPreview(){
@@ -2777,7 +2887,7 @@ function renderImportPreview(){
           <td class="num">${fmtN(ing.peso,4)}</td>
           <td class="num">${ing.rinde!==null?fmtN(ing.rinde,4):'—'}</td>
           <td class="num">${ing.merma?fmtN(ing.merma,1)+'%':'—'}</td>
-          <td>${ing.matched?'<span style="color:var(--green)">✅ Encontrado</span>':'<span style="color:var(--red)">❌ No encontrado (se carga como texto)</span>'}</td>
+          <td>${ing.matched?'<span style="color:var(--green)">✅ Encontrado'+(ing.resuelto?' (elegido)':'')+'</span>':'<span style="color:var(--red)">❌ No encontrado (se carga como texto)</span>'}</td>
         </tr>`).join('')}</tbody>
       </table></div>
     </div>`;
