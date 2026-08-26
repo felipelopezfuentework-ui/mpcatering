@@ -3975,6 +3975,9 @@ const COMANDA_TEMPLATE = [
       {tipo:'campo', label:'Dietas especiales — Detalle', key:'dietas_especiales', inputType:'textarea'},
       {tipo:'campo', label:'Observaciones', key:'obs_invitados', inputType:'textarea'},
       {tipo:'seccion', label:'LOCACIÓN y LOGÍSTICA'},
+      {tipo:'campo', label:'Locación/Dirección del evento', key:'direccion_evento', readonlyClienteMaestro:true},
+      {tipo:'campo', label:'Localidad', key:'localidad', readonlyClienteMaestro:true},
+      {tipo:'campo', label:'Observaciones de acceso/logística', key:'obs_acceso', readonlyClienteMaestro:true},
       {tipo:'campo', label:'Locación (tipo de establecimiento)', key:'locacion', sugerencias:['Casa particular','Oficina','Salón']},
       {tipo:'campo', label:'Ubicación', key:'ubicacion'},
       {tipo:'campo', label:'Dirección de ingreso de proveedores', key:'dir_ingreso'},
@@ -3998,9 +4001,7 @@ const COMANDA_TEMPLATE = [
         {label:'Asistentes', key:'personal_asistentes_cant', detalleKey:'personal_asistentes_detalle', inputType:'number'},
         {label:'Otros', key:'personal_otros_cant', detalleKey:'personal_otros_detalle', inputType:'number'}
       ], obsKey:'personal_obs'},
-      {tipo:'campo_check', label:'Servicios incluidos', key:'servicios', opciones:['Comida','Personal','Barra','Vajilla','Equipamiento']},
-      {tipo:'campo', label:'Teléfono / WhatsApp', key:'telefono', readonlyClienteMaestro:true},
-      {tipo:'campo', label:'Email', key:'email_cliente', readonlyClienteMaestro:true}
+      {tipo:'campo_check', label:'Servicios incluidos', key:'servicios', opciones:['Comida','Personal','Barra','Vajilla','Equipamiento']}
     ]
   },
   {
@@ -4386,6 +4387,9 @@ function aplicarClienteAEvento(clienteId){
   ev.datos.contacto_evento = cliente.contacto1_nombre||'';
   ev.datos.telefono = cliente.contacto1_telefono||'';
   ev.datos.email_cliente = cliente.contacto1_email||'';
+  ev.datos.direccion_evento = cliente.direccion_evento||'';
+  ev.datos.localidad = cliente.localidad||'';
+  ev.datos.obs_acceso = cliente.obs_acceso||'';
   renderEventoSheet(ev, comandaSheetActual);
   sbSave(true);
 }
@@ -4402,7 +4406,10 @@ function sincronizarClienteConMaestro(ev){
     contacto: cliente.nombre_cliente||cliente.razon_social||'',
     contacto_evento: cliente.contacto1_nombre||'',
     telefono: cliente.contacto1_telefono||'',
-    email_cliente: cliente.contacto1_email||''
+    email_cliente: cliente.contacto1_email||'',
+    direccion_evento: cliente.direccion_evento||'',
+    localidad: cliente.localidad||'',
+    obs_acceso: cliente.obs_acceso||''
   };
   let cambio=false;
   Object.entries(campos).forEach(([k,v])=>{
