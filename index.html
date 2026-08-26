@@ -4073,6 +4073,14 @@ const COMANDA_TEMPLATE = [
     ]
   },
   {
+    nombre: 'ARMADO VAJILLA',
+    campos: [
+      {tipo:'titulo', label:'ARMADO VAJILLA'},
+      {tipo:'info', label:'La columna Menú se completa sola desde el menú del evento (Ficha Técnica). La Vajilla sugiere los ítems ya cargados en Vajilla y Equipamiento Cocina.'},
+      {tipo:'tabla_armado_vajilla', key:'armado_vajilla'}
+    ]
+  },
+  {
     nombre: 'VAJILLA SALÓN',
     campos: [
       {tipo:'titulo', label:'VAJILLA Y EQUIP. SALÓN'},
@@ -4659,7 +4667,7 @@ function renderEventoSheet(ev, sheetIdx){
 
   // Franja resumen fija arriba de cada solapa operativa (no en EVENTO,
   // que ya muestra/edita estos datos directamente).
-  if(['TIMING','FICHA TÉCNICA','BARRA','CHECK LIST','VAJILLA Y EQUIPAMIENTO COCINA','VAJILLA SALÓN','EVALUACIÓN'].includes(sheet.nombre)){
+  if(['TIMING','FICHA TÉCNICA','BARRA','CHECK LIST','VAJILLA Y EQUIPAMIENTO COCINA','ARMADO VAJILLA','VAJILLA SALÓN','EVALUACIÓN'].includes(sheet.nombre)){
     const nombreEvento = ev.nombre || '(sin nombre)';
     const fechaLegible = formatFechaLarga(datos.fecha) || '(sin fecha)';
     const pax = datos.invitados_total||0;
@@ -5138,6 +5146,79 @@ function renderEventoSheet(ev, sheetIdx){
         </div>`;
       });
       html+=`</div>`;
+      html+=`</div>`;
+    } else if(c.tipo==='tabla_armado_vajilla'){
+      // Menú: derivado de com_menu/com_menu_secciones (Ficha Técnica), no editable acá.
+      // Cantidad/Vajilla/Cantidad: se guardan en datos[key], indexado por "sección::nombre
+      // del plato" (mismo criterio que checklist_comida) para sobrevivir a un re-render
+      // aunque cambie el orden o se agreguen/saquen platos del menú.
+      const key = c.key;
+      if(!datos[key] || typeof datos[key]!=='object' || Array.isArray(datos[key])) datos[key]={};
+      const estado = datos[key];
+      const seccionesMenu = (Array.isArray(datos.com_menu_secciones) && datos.com_menu_secciones.length)
+        ? datos.com_menu_secciones
+        : [{nombre:'', filas:(datos.com_menu||[])}];
+      const seccionesConItems = seccionesMenu
+        .map((sec,secIdx)=>({
+          nombre: sec.nombre||'Sin sección', secIdx,
+          filas:(sec.filas||[]).map((f,filaIdx)=>({nombre:Array.isArray(f)?String(f[0]||'').trim():'', filaIdx})).filter(x=>x.nombre)
+        }))
+        .filter(s=>s.filas.length);
+      // Catálogo de vajilla para el autocompletado: ítems ya cargados en Vajilla y
+      // Equipamiento Cocina (mismo evento), columna "Ítem" de sus dos tablas de checks.
+      const catalogoVajilla=[...new Set(
+        [...(Array.isArray(datos.vco_cocina)?datos.vco_cocina:[]), ...(Array.isArray(datos.vco_papeleria)?datos.vco_papeleria:[])]
+          .map(row=>Array.isArray(row)?String(row[0]||'').trim():'')
+          .filter(Boolean)
+      )];
+      const datalistId='armado-vajilla-list-'+key;
+      const wrapId='wrap_'+key;
+      html+=`<div style="margin-bottom:16px">`;
+      html+=`<datalist id="${datalistId}">${catalogoVajilla.map(v=>`<option value="${escH(v)}">`).join('')}</datalist>`;
+      if(!seccionesConItems.length){
+        html+=`<p style="font-size:11px;color:var(--text3);font-style:italic;margin:0">Todavía no hay platos cargados en el menú del evento (solapa Ficha Técnica).</p>`;
+      } else {
+        html+=`<div style="margin-bottom:10px">
+          <label style="font-size:11px;color:var(--text3);font-weight:600;margin-right:8px">Ver sección:</label>
+          <select onchange="filtrarChecklistSeccion(this,'${wrapId}')" style="font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+            <option value="__todas__">Todas las secciones</option>
+            ${seccionesConItems.map(s=>`<option value="${escH(s.nombre)}">${escH(s.nombre)}</option>`).join('')}
+          </select>
+        </div>`;
+        html+=`<div id="${wrapId}">`;
+        seccionesConItems.forEach(({nombre,secIdx,filas})=>{
+          html+=`<div data-sec-block="${escH(nombre)}" style="margin-bottom:16px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:rgba(200,169,81,.04)">
+            <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px">${escH(nombre)}</div>
+            <div class="tw" style="overflow-x:auto"><table style="min-width:640px;width:100%;table-layout:fixed">
+              <colgroup><col style="width:34%"><col style="width:14%"><col style="width:34%"><col style="width:18%"></colgroup>
+              <thead><tr>
+                <th style="font-size:11px;padding:4px 5px;text-align:left">Menú</th>
+                <th style="font-size:11px;padding:4px 5px;text-align:center">Cantidad</th>
+                <th style="font-size:11px;padding:4px 5px;text-align:left">Vajilla</th>
+                <th style="font-size:11px;padding:4px 5px;text-align:center">Cantidad</th>
+              </tr></thead>
+              <tbody>`;
+          filas.forEach(({nombre:nombrePlato,filaIdx})=>{
+            const itemKey=nombre+'::'+nombrePlato;
+            const row=estado[itemKey]||{cantidad_porciones:'',vajilla:'',cantidad_vajilla:''};
+            html+=`<tr>
+              <td style="padding:4px 5px;font-size:12px;color:var(--text)">${escH(nombrePlato)}</td>
+              <td style="padding:2px 2px"><input type="number" value="${escH(String(row.cantidad_porciones||''))}"
+                style="width:100%;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
+                oninput="updateArmadoVajillaCampo('${key}',${secIdx},${filaIdx},'cantidad_porciones',this.value)"></td>
+              <td style="padding:2px 2px"><input type="text" value="${escH(String(row.vajilla||''))}" list="${datalistId}" placeholder="Ej: Plato hondo, Fuente…"
+                style="width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
+                oninput="updateArmadoVajillaCampo('${key}',${secIdx},${filaIdx},'vajilla',this.value)"></td>
+              <td style="padding:2px 2px"><input type="number" value="${escH(String(row.cantidad_vajilla||''))}"
+                style="width:100%;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
+                oninput="updateArmadoVajillaCampo('${key}',${secIdx},${filaIdx},'cantidad_vajilla',this.value)"></td>
+            </tr>`;
+          });
+          html+=`</tbody></table></div>`;
+          html+=`</div>`;
+        });
+        html+=`</div>`;
+      }
       html+=`</div>`;
     } else if(c.tipo==='tabla_bebidas'){
       const rows = datos[c.key]||[];
@@ -5884,6 +5965,30 @@ function toggleChecklistComidaItem(key, secIdx, filaIdx, checked){
   if(!ev.datos[key] || typeof ev.datos[key]!=='object' || Array.isArray(ev.datos[key])) ev.datos[key]={};
   ev.datos[key][itemKey] = checked;
   sbSave(true);
+}
+
+// Actualiza un campo (cantidad_porciones/vajilla/cantidad_vajilla) de una fila
+// de ARMADO VAJILLA. Identifica el ítem por posición (secIdx/filaIdx dentro de
+// com_menu_secciones, o com_menu si el evento todavía no usa subsecciones) y
+// guarda el estado bajo "sección::nombre del plato" (mismo criterio que
+// checklist_comida) para sobrevivir a un re-render aunque cambie el menú.
+// Los inputs numéricos/de texto quedan cubiertos por el guardado automático
+// global (ver esCampoEditable), no hace falta llamar sbSave acá.
+function updateArmadoVajillaCampo(key, secIdx, filaIdx, campo, valor){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const seccionesMenu = (Array.isArray(ev.datos.com_menu_secciones) && ev.datos.com_menu_secciones.length)
+    ? ev.datos.com_menu_secciones
+    : [{nombre:'', filas:(ev.datos.com_menu||[])}];
+  const sec = seccionesMenu[secIdx];
+  const fila = sec?.filas?.[filaIdx];
+  if(!fila) return;
+  const nombrePlato = String(fila[0]||'').trim();
+  if(!nombrePlato) return;
+  const itemKey = (sec.nombre||'Sin sección')+'::'+nombrePlato;
+  if(!ev.datos[key] || typeof ev.datos[key]!=='object' || Array.isArray(ev.datos[key])) ev.datos[key]={};
+  if(!ev.datos[key][itemKey] || typeof ev.datos[key][itemKey]!=='object') ev.datos[key][itemKey]={};
+  ev.datos[key][itemKey][campo] = valor;
 }
 
 // Actualiza un campo (nombre/cantidad/checkboxes/obs) de un ítem del
