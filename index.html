@@ -2660,6 +2660,8 @@ function guardarSub(){
   const pasos=getProcPasos('sub');
   if(pasos.length) DB.subs_config[nombre].procedimiento=pasos;
   else delete DB.subs_config[nombre].procedimiento;
+  // Si se renombró, sacar el nombre viejo del maestro para no dejar una entrada fantasma
+  if(editSubOld&&editSubOld!==nombre) DB.maestro_subs=DB.maestro_subs.filter(s=>s!==editSubOld);
   if(!DB.maestro_subs.includes(nombre))DB.maestro_subs.push(nombre);
   // Guardar procedimiento
   if(!DB.procedimientos)DB.procedimientos={};
@@ -2702,7 +2704,15 @@ function renderSubproductos(){
   c.querySelectorAll('[data-edit-sub]').forEach(b=>b.addEventListener('click',()=>abrirModalSub(b.dataset.editSub)));
   c.querySelectorAll('[data-del-sub]').forEach(b=>b.addEventListener('click',()=>delSub(b.dataset.delSub)));
 }
-function delSub(sub){if(!confirm('¿Eliminar "'+sub.replace('SUB - ','')+'"?'))return;DB.subproductos=DB.subproductos.filter(x=>x.subproducto!==sub);renderSubproductos();sbSave(true);}
+function delSub(sub){
+  if(!confirm('¿Eliminar "'+sub.replace('SUB - ','')+'"?'))return;
+  DB.subproductos=DB.subproductos.filter(x=>x.subproducto!==sub);
+  DB.maestro_subs=DB.maestro_subs.filter(s=>s!==sub);
+  if(DB.subs_config)delete DB.subs_config[sub];
+  if(DB.procedimientos)delete DB.procedimientos[sub];
+  renderSubproductos();
+  sbSave(true);
+}
 
 // ══════════════════════════════════════════════════════════════════
 //  MODAL PLATOS
@@ -2874,6 +2884,8 @@ function guardarPlato(){
   const pasosPlato=getProcPasos('plato');
   if(pasosPlato.length) DB.platos_config[nombre].procedimiento=pasosPlato;
   else delete DB.platos_config[nombre].procedimiento;
+  // Si se renombró, sacar el nombre viejo del maestro para no dejar una entrada fantasma
+  if(editPlatoOld&&editPlatoOld!==nombre) DB.maestro_platos=DB.maestro_platos.filter(p=>p!==editPlatoOld);
   if(!DB.maestro_platos.includes(nombre))DB.maestro_platos.push(nombre);
   // Guardar procedimiento
   if(!DB.procedimientos)DB.procedimientos={};
@@ -2917,7 +2929,15 @@ function renderPlatos(){
   c.querySelectorAll('[data-edit-plato]').forEach(b=>b.addEventListener('click',()=>abrirModalPlato(b.dataset.editPlato)));
   c.querySelectorAll('[data-del-plato]').forEach(b=>b.addEventListener('click',()=>delPlato(b.dataset.delPlato)));
 }
-function delPlato(plato){if(!confirm('¿Eliminar "'+plato.replace('PLATO - ','')+'"?'))return;DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==plato);renderPlatos();sbSave(true);}
+function delPlato(plato){
+  if(!confirm('¿Eliminar "'+plato.replace('PLATO - ','')+'"?'))return;
+  DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==plato);
+  DB.maestro_platos=DB.maestro_platos.filter(p=>p!==plato);
+  if(DB.platos_config)delete DB.platos_config[plato];
+  if(DB.procedimientos)delete DB.procedimientos[plato];
+  renderPlatos();
+  sbSave(true);
+}
 
 // ══════════════════════════════════════════════════════════════════
 //  IMPORTAR RECETAS DESDE EXCEL (una hoja por receta)
