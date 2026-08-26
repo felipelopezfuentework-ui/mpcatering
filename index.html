@@ -853,12 +853,37 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
         <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-sub')">✕ Cerrar</button>
       </div>
     </div>
-    <div class="form-row" style="margin-bottom:14px">
-      <div class="form-field" style="flex:1;max-width:400px">
+    <div class="form-row" style="margin-bottom:12px">
+      <div class="form-field" style="flex:1;max-width:340px">
         <label>Nombre del subproducto</label>
         <input type="text" id="modal-sub-nombre" placeholder="Ej: Pesto, Salsa golf…" style="width:100%">
       </div>
+      <div class="form-field">
+        <label>Tipo de unidad *</label>
+        <select id="modal-sub-tipounidad" style="width:160px" onchange="rendUpdate('sub')">
+          <option value="porcion">Por porción</option>
+          <option value="unidad">Por unidad</option>
+          <option value="kg">Por kg</option>
+          <option value="litro">Por litro</option>
+        </select>
+      </div>
     </div>
+    <div class="form-field" style="margin-bottom:6px"><label>Rendimiento de la receta</label></div>
+    <div class="ttog" style="margin-bottom:8px">
+      <button id="sub-rendtab-unidades" class="on" onclick="rendSetModo('sub','unidades')">Porciones/Unidades</button>
+      <button id="sub-rendtab-peso" onclick="rendSetModo('sub','peso')">Peso por porción</button>
+    </div>
+    <div class="form-row" style="margin-bottom:8px">
+      <div class="form-field" id="sub-rendwrap-unidades">
+        <label>Porciones/Unidades obtenidas</label>
+        <input type="number" id="modal-sub-rend-unidades" step="0.01" min="0" placeholder="ej: 20" style="width:140px" oninput="rendOnInput('sub','unidades',this.value)">
+      </div>
+      <div class="form-field" id="sub-rendwrap-peso" style="display:none">
+        <label>Peso por porción (kg)</label>
+        <input type="number" id="modal-sub-rend-peso" step="0.001" min="0" placeholder="ej: 0.18" style="width:140px" oninput="rendOnInput('sub','peso',this.value)">
+      </div>
+    </div>
+    <div id="sub-rend-info" style="font-size:11px;color:var(--text3);margin-bottom:12px;padding:6px 10px;background:var(--surface2);border-radius:6px;display:none"></div>
     <div id="sub-alert-modal" class="alert"></div>
     <!-- 2 columnas -->
     <div class="modal-2col">
@@ -879,6 +904,13 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
           <tbody id="sub-items-tbody"></tbody>
         </table></div>
         <button class="btn btn-outline" style="margin-top:10px;font-size:11px" onclick="addSubItem()">+ Agregar componente</button>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <div class="form-field" style="max-width:260px;margin-bottom:10px">
+            <label>Merma general de la receta (%)</label>
+            <input type="number" id="modal-sub-mermareceta" step="0.1" min="0" max="99" placeholder="0" style="width:120px" oninput="rendUpdateCosto('sub')">
+          </div>
+          <div id="sub-costo-summary" style="font-size:12px;line-height:1.9"></div>
+        </div>
       </div>
       <!-- Derecha: procedimiento -->
       <div class="modal-col-proc">
@@ -912,18 +944,31 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
         <input type="text" id="modal-plato-nombre" placeholder="Ej: Tarta de salmón…" style="width:100%">
       </div>
       <div class="form-field">
-        <label>Peso por porción (g)</label>
-        <input type="number" id="modal-plato-peso" step="1" min="1" placeholder="ej: 180" style="width:120px" oninput="calcPorcionesModal()">
-      </div>
-      <div class="form-field">
-        <label>Porciones <span style="font-size:10px;color:var(--text3)">(auto)</span></label>
-        <input type="number" id="modal-plato-porciones" step="0.01" min="0" value="" placeholder="—"
-          style="width:100px;background:var(--surface2);color:var(--text3);cursor:default" readonly>
+        <label>Tipo de unidad *</label>
+        <select id="modal-plato-tipounidad" style="width:160px" onchange="rendUpdate('plato')">
+          <option value="porcion">Por porción</option>
+          <option value="unidad">Por unidad</option>
+          <option value="kg">Por kg</option>
+          <option value="litro">Por litro</option>
+        </select>
       </div>
     </div>
-    <div id="plato-porcion-info" style="font-size:11px;color:var(--text3);margin-bottom:12px;padding:6px 10px;background:var(--surface2);border-radius:6px;display:none">
-      📐 Total receta: <strong id="plato-total-kg">—</strong> kg · Peso/porción: <strong id="plato-peso-disp">—</strong> g · <strong id="plato-porc-disp" style="color:var(--mp-violet)">— porciones</strong>
+    <div class="form-field" style="margin-bottom:6px"><label>Rendimiento de la receta</label></div>
+    <div class="ttog" style="margin-bottom:8px">
+      <button id="plato-rendtab-unidades" class="on" onclick="rendSetModo('plato','unidades')">Porciones/Unidades</button>
+      <button id="plato-rendtab-peso" onclick="rendSetModo('plato','peso')">Peso por porción</button>
     </div>
+    <div class="form-row" style="margin-bottom:8px">
+      <div class="form-field" id="plato-rendwrap-unidades">
+        <label>Porciones/Unidades obtenidas</label>
+        <input type="number" id="modal-plato-rend-unidades" step="0.01" min="0" placeholder="ej: 20" style="width:140px" oninput="rendOnInput('plato','unidades',this.value)">
+      </div>
+      <div class="form-field" id="plato-rendwrap-peso" style="display:none">
+        <label>Peso por porción (kg)</label>
+        <input type="number" id="modal-plato-rend-peso" step="0.001" min="0" placeholder="ej: 0.18" style="width:140px" oninput="rendOnInput('plato','peso',this.value)">
+      </div>
+    </div>
+    <div id="plato-rend-info" style="font-size:11px;color:var(--text3);margin-bottom:12px;padding:6px 10px;background:var(--surface2);border-radius:6px;display:none"></div>
     <div id="plato-alert-modal" class="alert"></div>
     <!-- 2 columnas -->
     <div class="modal-2col">
@@ -944,6 +989,13 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
           <tbody id="plato-items-tbody"></tbody>
         </table></div>
         <button class="btn btn-outline" style="margin-top:10px;font-size:11px" onclick="addPlatoItem()">+ Agregar componente</button>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <div class="form-field" style="max-width:260px;margin-bottom:10px">
+            <label>Merma general de la receta (%)</label>
+            <input type="number" id="modal-plato-mermareceta" step="0.1" min="0" max="99" placeholder="0" style="width:120px" oninput="rendUpdateCosto('plato')">
+          </div>
+          <div id="plato-costo-summary" style="font-size:12px;line-height:1.9"></div>
+        </div>
       </div>
       <!-- Derecha: procedimiento -->
       <div class="modal-col-proc">
@@ -2284,6 +2336,114 @@ function handleXLSX(e){
 }
 
 // ══════════════════════════════════════════════════════════════════
+//  RENDIMIENTO (Porciones/Unidades ⇄ Peso por porción) + Merma general
+//  – Compartido entre modal Subproducto y modal Plato.
+// ══════════════════════════════════════════════════════════════════
+const UNIDAD_LABELS={porcion:'porciones',unidad:'unidades',kg:'kg',litro:'litros'};
+let _subRend={modo:'unidades',tipo_unidad:'porcion',unidades:null,peso:null,merma:0,calcUnidades:0,calcPeso:0};
+let _platoRend={modo:'unidades',tipo_unidad:'porcion',unidades:null,peso:null,merma:0,calcUnidades:0,calcPeso:0};
+function _rendState(tipo){return tipo==='sub'?_subRend:_platoRend;}
+function _rendIds(tipo){
+  return tipo==='sub'
+    ?{tu:'modal-sub-tipounidad',tabU:'sub-rendtab-unidades',tabP:'sub-rendtab-peso',
+      wrapU:'sub-rendwrap-unidades',wrapP:'sub-rendwrap-peso',
+      inU:'modal-sub-rend-unidades',inP:'modal-sub-rend-peso',
+      info:'sub-rend-info',merma:'modal-sub-mermareceta',summary:'sub-costo-summary'}
+    :{tu:'modal-plato-tipounidad',tabU:'plato-rendtab-unidades',tabP:'plato-rendtab-peso',
+      wrapU:'plato-rendwrap-unidades',wrapP:'plato-rendwrap-peso',
+      inU:'modal-plato-rend-unidades',inP:'modal-plato-rend-peso',
+      info:'plato-rend-info',merma:'modal-plato-mermareceta',summary:'plato-costo-summary'};
+}
+function _rendItems(tipo){return tipo==='sub'?subItems:platoItems;}
+function _rendTotalKg(tipo){return _rendItems(tipo).reduce((s,x)=>s+(parseFloat(x.kgs)||0),0);}
+function _rendTotalCosto(tipo){return _rendItems(tipo).reduce((s,x)=>s+(parseFloat(x.cr)||0),0);}
+
+function _rendLoadCfg(tipo,cfg){
+  const st=_rendState(tipo);
+  st.tipo_unidad=(cfg&&cfg.tipo_unidad)||'porcion';
+  st.modo=(cfg&&cfg.rendimiento_modo)||'unidades';
+  st.unidades=(cfg&&cfg.rendimiento_unidades)||null;
+  st.peso=(cfg&&cfg.rendimiento_peso_kg)||null;
+  st.merma=(cfg&&cfg.merma_receta)||0;
+  const ids=_rendIds(tipo);
+  document.getElementById(ids.tu).value=st.tipo_unidad;
+  document.getElementById(ids.merma).value=st.merma||'';
+  document.getElementById(ids.inU).value=st.unidades||'';
+  document.getElementById(ids.inP).value=st.peso||'';
+  rendSetModo(tipo,st.modo);
+}
+
+function rendSetModo(tipo,modo){
+  const st=_rendState(tipo);
+  st.modo=modo;
+  const ids=_rendIds(tipo);
+  document.getElementById(ids.tabU).classList.toggle('on',modo==='unidades');
+  document.getElementById(ids.tabP).classList.toggle('on',modo==='peso');
+  document.getElementById(ids.wrapU).style.display=modo==='unidades'?'':'none';
+  document.getElementById(ids.wrapP).style.display=modo==='peso'?'':'none';
+  rendUpdate(tipo);
+}
+
+function rendOnInput(tipo,which,val){
+  const st=_rendState(tipo);
+  const v=parseFloat(val)||0;
+  if(which==='unidades')st.unidades=v; else st.peso=v;
+  rendUpdate(tipo);
+}
+
+function rendUpdate(tipo){
+  const st=_rendState(tipo);
+  const ids=_rendIds(tipo);
+  const tuEl=document.getElementById(ids.tu);
+  if(tuEl)st.tipo_unidad=tuEl.value;
+  const totalKg=_rendTotalKg(tipo);
+  let unidades=0,peso=0;
+  if(st.modo==='unidades'){
+    unidades=st.unidades>0?st.unidades:0;
+    peso=(unidades>0&&totalKg>0)?totalKg/unidades:0;
+  }else{
+    peso=st.peso>0?st.peso:0;
+    unidades=(peso>0&&totalKg>0)?totalKg/peso:0;
+  }
+  st.calcUnidades=unidades;
+  st.calcPeso=peso;
+  const infoEl=document.getElementById(ids.info);
+  if(infoEl){
+    if(totalKg>0&&(unidades>0||peso>0)){
+      const lbl=UNIDAD_LABELS[st.tipo_unidad]||'unidades';
+      infoEl.style.display='block';
+      infoEl.innerHTML='📐 Total ingredientes: <strong>'+fmtN(totalKg,4)+' kg</strong> · '+
+        (st.modo==='unidades'
+          ?fmtN(unidades,2)+' '+lbl+' <span style="color:var(--text3)">(ingresado)</span> → Peso/porción: <strong style="color:var(--mp-violet)">'+fmtN(peso,4)+' kg</strong> <span style="color:var(--text3)">(calculado)</span>'
+          :fmtN(peso,4)+' kg/porción <span style="color:var(--text3)">(ingresado)</span> → <strong style="color:var(--mp-violet)">'+fmtN(unidades,2)+'</strong> '+lbl+' <span style="color:var(--text3)">(calculado)</span>');
+    }else{
+      infoEl.style.display='none';
+      infoEl.innerHTML='';
+    }
+  }
+  rendUpdateCosto(tipo);
+}
+
+function rendUpdateCosto(tipo){
+  const st=_rendState(tipo);
+  const ids=_rendIds(tipo);
+  const mermaEl=document.getElementById(ids.merma);
+  const merma=mermaEl?Math.min(Math.max(parseFloat(mermaEl.value)||0,0),99.99):0;
+  st.merma=merma;
+  const costoSinMerma=_rendTotalCosto(tipo);
+  const costoConMerma=costoSinMerma*(1+merma/100);
+  const unidades=st.calcUnidades||0;
+  const lbl=UNIDAD_LABELS[st.tipo_unidad]||'unidad';
+  const costoUnitario=unidades>0?costoConMerma/unidades:0;
+  const summaryEl=document.getElementById(ids.summary);
+  if(!summaryEl)return;
+  summaryEl.innerHTML=
+    '<div>Costo del batch sin merma: <strong>'+fmt(costoSinMerma)+'</strong></div>'+
+    '<div>Costo del batch con merma: <strong style="color:'+(merma>0?'var(--red)':'var(--text)')+'">'+fmt(costoConMerma)+'</strong></div>'+
+    '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)">Costo unitario ('+lbl+'): <strong style="color:var(--mp-gold);font-size:14px">'+(unidades>0?fmt(costoUnitario):'—')+'</strong></div>';
+}
+
+// ══════════════════════════════════════════════════════════════════
 //  MODAL SUBPRODUCTOS
 //  – Solo insumos como componentes.
 //  – Sin columna de merma.
@@ -2296,9 +2456,10 @@ function abrirModalSub(subName){
   document.getElementById('modal-sub-nombre').value=subName?subName.replace('SUB - ',''):'';
   document.getElementById('modal-sub-title').textContent=subName?'Editar: '+subName.replace('SUB - ',''):'Nuevo Subproducto';
   subItems=subName?DB.subproductos.filter(x=>x.subproducto===subName).map(r=>({comp:r.componente,kgs:r.kgs,merma:r.merma||0,pk:getCompPrice(r.componente),cr:r.costo_receta||(r.kgs||0)*getCompPrice(r.componente)})):[];
+  const cfg=(DB.subs_config||{})[subName]||{};
+  _rendLoadCfg('sub',cfg);
   buildSubTable();
   // Cargar procedimiento guardado
-  const cfg=(DB.subs_config||{})[subName]||{};
   buildProcList('sub', cfg.procedimiento||[]);
   document.getElementById('modal-sub').classList.add('open');
 }
@@ -2307,6 +2468,7 @@ function buildSubTable(){
   const tbody=document.getElementById('sub-items-tbody');
   if(!subItems.length){
     tbody.innerHTML='<tr><td colspan="5" class="empty">Agregá componentes abajo.</td></tr>';
+    rendUpdate('sub');
     return;
   }
   tbody.innerHTML=subItems.map((item,idx)=>{
@@ -2355,6 +2517,7 @@ function buildSubTable(){
       }
     );
   });
+  rendUpdate('sub');
 }
 
 function siKgs(idx,v){
@@ -2392,6 +2555,7 @@ function recalcSubItem(idx){
   if(elMermaCosto)elMermaCosto.textContent=fmt(costoMerma);
   if(elPk)elPk.textContent=fmt(pkConMerma);
   if(elCr)elCr.textContent=fmt(costoTotal);
+  rendUpdate('sub');
 }
 
 function addSubItem(){
@@ -2414,12 +2578,22 @@ function guardarSub(){
     const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(parseFloat(item.kgs)||0,merma,pk);
     DB.subproductos.push({_id:Date.now()+Math.random(),subproducto:nombre,componente:item.comp,kgs:item.kgs,kgBruto,merma,costoMerma,precio_kg:pkConMerma,costo_receta:costoTotal});
   });
-  // Guardar procedimiento
+  // Guardar rendimiento, tipo de unidad, merma general y procedimiento
   if(!DB.subs_config)DB.subs_config={};
   if(editSubOld&&editSubOld!==nombre)delete DB.subs_config[editSubOld];
+  const stS=_rendState('sub');
+  const existCfgS=DB.subs_config[nombre]||{};
+  DB.subs_config[nombre]={
+    ...existCfgS,
+    tipo_unidad:stS.tipo_unidad,
+    rendimiento_modo:stS.modo,
+    rendimiento_unidades:stS.calcUnidades||0,
+    rendimiento_peso_kg:stS.calcPeso||0,
+    merma_receta:stS.merma||0
+  };
   const pasos=getProcPasos('sub');
-  if(pasos.length) DB.subs_config[nombre]={procedimiento:pasos};
-  else if(DB.subs_config[nombre]) delete DB.subs_config[nombre].procedimiento;
+  if(pasos.length) DB.subs_config[nombre].procedimiento=pasos;
+  else delete DB.subs_config[nombre].procedimiento;
   if(!DB.maestro_subs.includes(nombre))DB.maestro_subs.push(nombre);
   // Guardar procedimiento
   if(!DB.procedimientos)DB.procedimientos={};
@@ -2476,10 +2650,8 @@ function abrirModalPlato(platoName){
   editPlatoOld=platoName;
   document.getElementById('modal-plato-nombre').value=platoName?platoName.replace('PLATO - ',''):'';
   document.getElementById('modal-plato-title').textContent=platoName?'Editar: '+platoName.replace('PLATO - ',''):'Nuevo Plato';
-  // Load saved peso_porcion for this plato
   const cfg=platoName?(DB.platos_config||{})[platoName]||{}:{};
-  document.getElementById('modal-plato-peso').value=cfg.peso_porcion||'';
-  document.getElementById('modal-plato-porciones').value='';
+  _rendLoadCfg('plato',cfg);
   platoItems=platoName
     ?DB.recetas_platos.filter(x=>x.plato===platoName).map(r=>({
         comp:r.componente,
@@ -2490,37 +2662,17 @@ function abrirModalPlato(platoName){
         cr:(r.kgs||0)*getCompPrice(r.componente)
       }))
     :[];
-  buildPlatoTable();  // also calls calcPorcionesModal
+  buildPlatoTable();
   // Cargar procedimiento guardado
-  const procCfg=(DB.platos_config||{})[platoName]||{};
-  buildProcList('plato', procCfg.procedimiento||[]);
+  buildProcList('plato', cfg.procedimiento||[]);
   document.getElementById('modal-plato').classList.add('open');
-}
-
-// Calculate porciones = total kg * 1000 / peso_porcion_g
-function calcPorcionesModal(){
-  const pesoEl=document.getElementById('modal-plato-peso');
-  const porcEl=document.getElementById('modal-plato-porciones');
-  const infoEl=document.getElementById('plato-porcion-info');
-  const peso=parseFloat(pesoEl.value)||0;
-  const totalKg=platoItems.reduce((s,x)=>s+(parseFloat(x.kgs)||0),0);
-  if(peso>0&&totalKg>0){
-    const porc=totalKg*1000/peso;
-    porcEl.value=Math.round(porc*100)/100;
-    document.getElementById('plato-total-kg').textContent=fmtN(totalKg,4);
-    document.getElementById('plato-peso-disp').textContent=peso;
-    document.getElementById('plato-porc-disp').textContent=fmtN(porc,2)+' porciones';
-    infoEl.style.display='block';
-  } else {
-    porcEl.value='';
-    infoEl.style.display='none';
-  }
 }
 
 function buildPlatoTable(){
   const tbody=document.getElementById('plato-items-tbody');
   if(!platoItems.length){
     tbody.innerHTML='<tr><td colspan="6" class="empty">Agregá componentes abajo.</td></tr>';
+    rendUpdate('plato');
     return;
   }
   tbody.innerHTML=platoItems.map((item,idx)=>{
@@ -2574,11 +2726,10 @@ function buildPlatoTable(){
         platoItems[idx].comp=val;
         platoItems[idx].pk=getCompPrice(val);
         recalcPlatoItem(idx);
-        calcPorcionesModal();
       }
     );
   });
-  calcPorcionesModal();
+  rendUpdate('plato');
 }
 
 function setPlatoTipo(idx,tipo){
@@ -2594,12 +2745,10 @@ function setPlatoTipo(idx,tipo){
 function piKgs(idx,v){
   platoItems[idx].kgs=parseFloat(v)||0;
   recalcPlatoItem(idx);
-  calcPorcionesModal();
 }
 function piMerma(idx,v){
   platoItems[idx].merma=parseFloat(v)||0;
   recalcPlatoItem(idx);
-  calcPorcionesModal();
 }
 function recalcPlatoItem(idx){
   const item=platoItems[idx];
@@ -2617,6 +2766,7 @@ function recalcPlatoItem(idx){
   if(elMermaCosto)elMermaCosto.textContent=fmt(costoMerma);
   if(elPk)elPk.textContent=fmt(pkConMerma);
   if(elCr)elCr.textContent=fmt(costoTotal);
+  rendUpdate('plato');
 }
 
 function addPlatoItem(){
@@ -2638,14 +2788,23 @@ function guardarPlato(){
     const {kgBruto:kbP,costoMerma:cmP,pkConMerma:pkmP,costoTotal:ctP}=calcMerma(parseFloat(item.kgs)||0,mermaP,pk);
     DB.recetas_platos.push({_id:Date.now()+Math.random(),plato:nombre,componente:item.comp,kgs:item.kgs,kgBruto:kbP,merma:mermaP,costoMerma:cmP,precio_kg:pkmP,costo_receta:ctP});
   });
-  // Save peso_porcion config (rename key if plato was renamed)
+  // Guardar rendimiento, tipo de unidad, merma general y procedimiento (rename key si el plato fue renombrado)
   if(!DB.platos_config)DB.platos_config={};
   if(editPlatoOld&&editPlatoOld!==nombre)delete DB.platos_config[editPlatoOld];
-  const peso=parseFloat(document.getElementById('modal-plato-peso').value)||0;
   const existCfg=DB.platos_config[nombre]||{};
-  if(peso>0) DB.platos_config[nombre]={...existCfg, peso_porcion:peso};
-  else { DB.platos_config[nombre]={...existCfg}; delete DB.platos_config[nombre].peso_porcion; }
-  // Guardar procedimiento
+  const stP=_rendState('plato');
+  const pesoKgP=stP.calcPeso||0;
+  DB.platos_config[nombre]={
+    ...existCfg,
+    tipo_unidad:stP.tipo_unidad,
+    rendimiento_modo:stP.modo,
+    rendimiento_unidades:stP.calcUnidades||0,
+    rendimiento_peso_kg:pesoKgP,
+    merma_receta:stP.merma||0
+  };
+  // Puente de compatibilidad: peso_porcion en gramos (usado por Costeo/PDF/Precio Final)
+  if(pesoKgP>0) DB.platos_config[nombre].peso_porcion=Math.round(pesoKgP*1000*100)/100;
+  else delete DB.platos_config[nombre].peso_porcion;
   const pasosPlato=getProcPasos('plato');
   if(pasosPlato.length) DB.platos_config[nombre].procedimiento=pasosPlato;
   else delete DB.platos_config[nombre].procedimiento;
@@ -6753,9 +6912,10 @@ function descargarRecetaPDF(tipo){
     items=platoItems.filter(x=>x.comp);
     pasos=getProcPasos('plato');
     totalCosto=items.reduce((s,x)=>s+((x.kgs||0)*(x.pk||0)),0);
-    const pesoV=parseFloat(document.getElementById('modal-plato-peso').value)||0;
-    const porcV=parseFloat(document.getElementById('modal-plato-porciones').value)||0;
-    if(pesoV&&porcV) porcInfo=`${pesoV}g/porción · ${fmtN(porcV,1)} porciones`;
+    const stPdfP=_rendState('plato');
+    const pesoV=stPdfP.calcPeso||0;
+    const porcV=stPdfP.calcUnidades||0;
+    if(pesoV&&porcV) porcInfo=`${fmtN(pesoV,3)}kg/porción · ${fmtN(porcV,1)} porciones`;
   }
   const displayName=nombre.replace(/^(SUB|PLATO) - /,'');
 
@@ -7124,12 +7284,14 @@ function descargarRecetaPDF(tipo){
 
   // Porciones (solo platos)
   if(!esSub){
-    const pesoInput=document.getElementById('modal-plato-porciones').value;
-    const pesoG=document.getElementById('modal-plato-peso').value;
-    if(pesoInput&&pesoG){
+    const stPdf=_rendState('plato');
+    const unidadesPdf=stPdf.calcUnidades||0;
+    const pesoKgPdf=stPdf.calcPeso||0;
+    if(unidadesPdf>0&&pesoKgPdf>0){
+      const lblPdf=UNIDAD_LABELS[stPdf.tipo_unidad]||'porciones';
       doc.setFontSize(8);
       doc.setTextColor(200,169,81);
-      doc.text(`${parseFloat(pesoInput).toFixed(1)} porciones  ·  ${pesoG}g por porción`,W/2,23,{align:'center'});
+      doc.text(`${unidadesPdf.toFixed(1)} ${lblPdf}  ·  ${pesoKgPdf.toFixed(3)}kg por ${lblPdf.replace(/s$/,'')}`,W/2,23,{align:'center'});
     }
   }
 
