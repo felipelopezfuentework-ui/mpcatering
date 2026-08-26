@@ -7523,240 +7523,182 @@ function descargarRecetaPDF(tipo){
   const H=doc.internal.pageSize.getHeight();
   const fecha=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
 
-  // Nombre y datos según tipo
+  // Diseño: blanco/negro/gris muy claro (solo separadores) — sin fondos ni
+  // colores. Márgenes 1.5cm, una sola columna a todo el ancho disponible.
+  const margin=15;
+  const contentW=W-margin*2;
+  const GRIS_LINEA=[210,210,210];
+  let y=margin;
+
   const esSub=tipo==='sub';
   const rawNombre=document.getElementById(esSub?'modal-sub-nombre':'modal-plato-nombre').value.trim()||'Sin nombre';
   const nombre=rawNombre.toUpperCase();
   const pasos=leerProcList(tipo);
-  const items=esSub?subItems:platoItems;
+  const items=(esSub?subItems:platoItems).filter(x=>x.comp); // omitir filas vacías
+  const notaChefEl=document.getElementById(esSub?'sub-nota-chef':'plato-nota-chef');
+  const notaChefTxt=notaChefEl?notaChefEl.value.trim():'';
 
-  // ── ENCABEZADO ────────────────────────────────────────────────
-  doc.setFillColor(30,10,46);
-  doc.rect(0,0,W,28,'F');
-  doc.setFillColor(61,26,82);
-  doc.rect(0,13,W,15,'F');
-  doc.setFillColor(200,169,81);
-  doc.rect(0,28,W,1,'F');
-
-  // Logo MP izquierda
-  doc.setTextColor(255,255,255);
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(15);
-  doc.text('Mariana Pages',13,12);
-  doc.setFontSize(7);
-  doc.setFont('helvetica','normal');
-  doc.setTextColor(200,169,81);
-  doc.text('C A T E R I N G',13.5,18);
-
-  // Tipo de ficha
-  doc.setTextColor(180,160,200);
-  doc.setFontSize(8);
-  doc.text(esSub?'FICHA TÉCNICA  ·  SUBRECETA':'FICHA TÉCNICA  ·  PLATO',13,25);
-
-  // Nombre receta centrado
-  doc.setTextColor(255,255,255);
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(13);
-  doc.text(nombre,W/2,15,{align:'center',maxWidth:W-80});
-
-  // Porciones (solo platos)
-  if(!esSub){
-    const stPdf=_rendState('plato');
-    const unidadesPdf=stPdf.calcUnidades||0;
-    const pesoKgPdf=stPdf.calcPeso||0;
-    if(unidadesPdf>0&&pesoKgPdf>0){
-      const lblPdf=UNIDAD_LABELS[stPdf.tipo_unidad]||'porciones';
-      doc.setFontSize(8);
-      doc.setTextColor(200,169,81);
-      doc.text(`${unidadesPdf.toFixed(1)} ${lblPdf}  ·  ${pesoKgPdf.toFixed(3)}kg por ${lblPdf.replace(/s$/,'')}`,W/2,23,{align:'center'});
-    }
+  function nuevaPagina(){ doc.addPage(); y=margin; }
+  function asegurarEspacio(alto){ if(y+alto>H-margin-8) nuevaPagina(); }
+  function lineaSeparadora(){
+    doc.setDrawColor(...GRIS_LINEA);
+    doc.setLineWidth(0.2);
+    doc.line(margin,y,margin+contentW,y);
   }
 
-  // Fecha
-  doc.setFontSize(7.5);
-  doc.setTextColor(180,160,200);
-  doc.text('Fecha: '+fecha,W-12,12,{align:'right'});
-
-  // ── LAYOUT dos columnas ───────────────────────────────────────
-  const margin=13;
-  const col1W=(W-margin*2)*0.48;
-  const col2X=margin+col1W+6;
-  const col2W=(W-margin*2)*0.52-6;
-  let y1=35, y2=35;
-
-  // ── Columna izquierda: Ingredientes ──────────────────────────
-  // Título sección
-  doc.setFillColor(92,45,110);
-  doc.rect(margin,y1-4,col1W,8,'F');
-  doc.setTextColor(255,255,255);
+  // ── ENCABEZADO ────────────────────────────────────────────────
+  doc.setTextColor(0,0,0);
   doc.setFont('helvetica','bold');
-  doc.setFontSize(8.5);
-  doc.text('INGREDIENTES',margin+3,y1);
-  y1+=8;
+  doc.setFontSize(20);
+  doc.text(nombre,margin,y+7,{maxWidth:contentW});
+  y+=12;
 
-  // Encabezados tabla
-  doc.setFillColor(237,229,245);
-  doc.rect(margin,y1-3,col1W,7,'F');
-  doc.setTextColor(61,26,82);
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(7.5);
-  doc.text('Ingrediente',margin+2,y1+1);
-  doc.text('Kg',margin+col1W-2,y1+1,{align:'right'});
-  y1+=8;
+  const st=_rendState(tipo);
+  const lblUnidad=UNIDAD_LABELS[st.tipo_unidad]||'porciones';
+  const lblUnidadCap=lblUnidad.charAt(0).toUpperCase()+lblUnidad.slice(1);
+  const porcionesTxt=st.calcUnidades>0?fmtN(st.calcUnidades,2):'—';
+  const pesoPorcionTxt=st.calcPeso>0?fmtN(st.calcPeso,3)+' kg':'—';
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.text(`Tipo de unidad: ${lblUnidadCap}    |    Porciones que salen: ${porcionesTxt}    |    Peso por porción: ${pesoPorcionTxt}`,margin,y);
+  y+=6;
+  lineaSeparadora();
+  y+=6;
 
-  // Filas ingredientes
-  items.forEach((item,idx)=>{
+  // ── TABLA DE INGREDIENTES ────────────────────────────────────
+  // Peso (kg): bruto si hay merma cargada, si no coincide con el neto.
+  // Rinde (kg): neto, solo cuando hay merma (si no, es igual al peso: se omite).
+  const filasIng=items.map(item=>{
+    const kgNeto=parseFloat(item.kgs)||0;
+    const merma=parseFloat(item.merma)||0;
+    const kgBruto=item.kgBruto!=null?item.kgBruto:(merma>0?kgNeto*(1+merma/100):kgNeto);
     const lbl=esSub
       ?(insOpts().find(o=>o.val===item.comp)?.label||item.comp||'').replace('INSUMO - ','')
       :(item.tipo==='sub'
         ? (item.comp||'').replace('SUB - ','')
         : (insOpts().find(o=>o.val===item.comp)?.label||item.comp||'').replace('INSUMO - ',''));
-
-    if(idx%2===0) doc.setFillColor(250,247,255);
-    else          doc.setFillColor(255,255,255);
-    doc.rect(margin,y1-3,col1W,6.5,'F');
-    doc.setDrawColor(220,210,232);
-    doc.line(margin,y1+3.5,margin+col1W,y1+3.5);
-
-    doc.setTextColor(30,10,46);
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(7.5);
-    const maxNomW=col1W-18;
-    doc.text(lbl,margin+2,y1+0.5,{maxWidth:maxNomW});
-    doc.text(fmtN(item.kgs,4),margin+col1W-2,y1+0.5,{align:'right'});
-    y1+=7;
-
-    if(y1>H-20){
-      // Por simplicidad no paginamos ingredientes — raro que excedan
-    }
+    return{
+      nombre:lbl,
+      peso:merma>0?kgBruto:kgNeto,
+      rinde:merma>0?kgNeto:null,
+      merma:merma>0?merma:null
+    };
   });
+  const hayRinde=filasIng.some(f=>f.rinde!=null);
+  const hayMerma=filasIng.some(f=>f.merma!=null);
+  const colsPeso=[{key:'peso',label:'Peso (kg)'}];
+  if(hayRinde) colsPeso.push({key:'rinde',label:'Rinde (kg)'});
+  if(hayMerma) colsPeso.push({key:'merma',label:'Merma (%)'});
+  const colIngW=contentW*0.5;
+  const colPesoW=(contentW*0.5)/colsPeso.length;
+  const cols=[{key:'nombre',label:'Ingrediente',x:margin,w:colIngW,align:'left'}];
+  colsPeso.forEach((c,i)=>cols.push({key:c.key,label:c.label,x:margin+colIngW+colPesoW*i,w:colPesoW,align:'right'}));
 
-  // Separador final (sin total de costo)
-  y1+=2;
-  doc.setDrawColor(92,45,110);
-  doc.setLineWidth(0.5);
-  doc.line(margin,y1,margin+col1W,y1);
-  doc.setLineWidth(0.2);
-  y1+=6;
+  function fmtCelda(key,val){
+    if(key==='nombre') return val;
+    if(val==null) return '—';
+    if(key==='merma') return fmtN(val,1)+'%';
+    return fmtN(val,4);
+  }
 
-  // ── Columna derecha: Procedimiento ───────────────────────────
-  doc.setFillColor(34,100,70);
-  doc.rect(col2X,y2-4,col2W,8,'F');
-  doc.setFillColor(200,169,81);
-  doc.rect(col2X,y2-4,3,8,'F');
-  doc.setTextColor(255,255,255);
+  asegurarEspacio(14);
   doc.setFont('helvetica','bold');
-  doc.setFontSize(8.5);
-  doc.text('PROCEDIMIENTO',col2X+6,y2);
-  y2+=10;
+  doc.setFontSize(10);
+  cols.forEach(c=>doc.text(c.label,c.align==='right'?c.x+c.w-1:c.x,y,{align:c.align}));
+  y+=2;
+  lineaSeparadora();
+  y+=5;
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  filasIng.forEach(fila=>{
+    const nombreLines=doc.splitTextToSize(fila.nombre,colIngW-2);
+    const rowH=Math.max(5,nombreLines.length*4.6);
+    asegurarEspacio(rowH+3);
+    cols.forEach(c=>{
+      const val=fmtCelda(c.key,fila[c.key]);
+      if(c.key==='nombre') doc.text(nombreLines,c.x,y);
+      else doc.text(val,c.x+c.w-1,y,{align:'right'});
+    });
+    y+=rowH;
+    doc.setDrawColor(...GRIS_LINEA);
+    doc.setLineWidth(0.15);
+    doc.line(margin,y-1.5,margin+contentW,y-1.5);
+    y+=2.5;
+  });
+  y+=2;
+
+  // ── RESUMEN DE COSTOS ─────────────────────────────────────────
+  const costoSinMerma=_rendTotalCosto(tipo);
+  const costoConMerma=costoSinMerma*(1+(st.merma||0)/100);
+  const unidadesCosto=st.calcUnidades||0;
+  const costoUnitario=unidadesCosto>0?costoConMerma/unidadesCosto:0;
+  asegurarEspacio(10);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.text(`Costo batch: ${fmt(costoSinMerma)}    |    Costo con merma: ${fmt(costoConMerma)}    |    Costo unitario: ${unidadesCosto>0?fmt(costoUnitario):'—'}`,margin,y);
+  y+=7;
+
+  // ── SEPARADOR ─────────────────────────────────────────────────
+  asegurarEspacio(4);
+  lineaSeparadora();
+  y+=8;
+
+  // ── PROCEDIMIENTO ─────────────────────────────────────────────
+  asegurarEspacio(10);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(12);
+  doc.text('PROCEDIMIENTO',margin,y);
+  y+=7;
 
   if(!pasos.length){
     doc.setFont('helvetica','italic');
-    doc.setFontSize(8);
-    doc.setTextColor(160,140,180);
-    doc.text('Sin procedimiento cargado.',col2X+2,y2+2);
+    doc.setFontSize(10);
+    doc.text('Sin procedimiento cargado.',margin,y);
+    y+=6;
   } else {
     let stepNum=0;
-    pasos.forEach((paso,pi)=>{
+    pasos.forEach(paso=>{
       const textoRaw=typeof paso==='string'?paso:(paso.texto||'');
       const esSubtitulo=typeof paso==='object'&&paso.subtitulo;
-      if(y2>H-20){
-        doc.addPage();
-        y2=20;
-        doc.setFillColor(61,26,82);
-        doc.rect(0,0,W,8,'F');
-        doc.setTextColor(200,169,81);
-        doc.setFont('helvetica','bold');
-        doc.setFontSize(7);
-        doc.text('Mariana Pages Catering  ·  '+nombre,W/2,5.5,{align:'center'});
-      }
-
-      if(esSubtitulo){
-        y2+=2;
-        const lns=doc.splitTextToSize(textoRaw||'',col2W-8);
-        const rh=lns.length*5+5;
-        doc.setFillColor(220,240,228);
-        doc.rect(col2X,y2-3,col2W,rh,'F');
-        doc.setFillColor(34,100,70);
-        doc.rect(col2X,y2-3,3,rh,'F');
-        doc.setFont('helvetica','bolditalic');
-        doc.setFontSize(8);
-        doc.setTextColor(20,80,50);
-        doc.text(lns,col2X+6,y2);
-        y2+=rh+3;
-      } else {
-        stepNum++;
-        const lns=doc.splitTextToSize(textoRaw||'',col2W-18);
-        const rowH=Math.max(10,lns.length*5+6);
-
-        // Fondo alternado
-        doc.setFillColor(stepNum%2===0?247:255, stepNum%2===0?244:255, stepNum%2===0?252:255);
-        doc.rect(col2X,y2-3,col2W,rowH,'F');
-
-        // Borde izq
-        doc.setFillColor(92,45,110);
-        doc.rect(col2X,y2-3,2.5,rowH,'F');
-
-        // Círculo numerado
-        const cy=y2-3+rowH/2;
-        doc.setFillColor(92,45,110);
-        doc.circle(col2X+9,cy,4,'F');
-        doc.setTextColor(255,255,255);
-        doc.setFont('helvetica','bold');
-        doc.setFontSize(7.5);
-        doc.text(String(stepNum),col2X+9,cy+1,{align:'center'});
-
-        // Texto
-        doc.setFont('helvetica','normal');
-        doc.setFontSize(8);
-        doc.setTextColor(20,10,35);
-        doc.text(lns,col2X+16,y2+1);
-
-        // Línea divisora
-        doc.setDrawColor(215,200,230);
-        doc.setLineWidth(0.3);
-        doc.line(col2X,y2+rowH-3,col2X+col2W,y2+rowH-3);
-        doc.setLineWidth(0.2);
-
-        y2+=rowH+2;
-      }
+      const prefijo=esSubtitulo?'':(++stepNum)+'. ';
+      const lns=doc.splitTextToSize(prefijo+textoRaw,contentW);
+      const rowH=lns.length*5;
+      asegurarEspacio(rowH+4);
+      doc.setFont('helvetica',esSubtitulo?'bold':'normal');
+      doc.setFontSize(10);
+      doc.text(lns,margin,y);
+      y+=rowH+4;
     });
   }
 
   // ── NOTA DEL CHEF ────────────────────────────────────────────
-  const notaChefEl=document.getElementById(esSub?'sub-nota-chef':'plato-nota-chef');
-  const notaChefTxt=notaChefEl?notaChefEl.value.trim():'';
   if(notaChefTxt){
-    let yN=Math.max(y1,y2)+6;
-    const notaW=W-margin*2;
-    const notaLines=doc.splitTextToSize(notaChefTxt,notaW-14);
-    const notaH=notaLines.length*4.5+13;
-    if(yN>H-notaH-14){doc.addPage();yN=20;}
-    doc.setFillColor(255,248,230);
-    doc.rect(margin,yN-4,notaW,notaH,'F');
-    doc.setFillColor(200,169,81);
-    doc.rect(margin,yN-4,3,notaH,'F');
-    doc.setTextColor(140,105,20);
+    y+=2;
+    asegurarEspacio(10);
+    lineaSeparadora();
+    y+=8;
     doc.setFont('helvetica','bold');
-    doc.setFontSize(8);
-    doc.text('NOTA DEL CHEF',margin+7,yN+1);
-    doc.setFont('helvetica','italic');
-    doc.setFontSize(8);
-    doc.setTextColor(70,55,15);
-    doc.text(notaLines,margin+7,yN+7);
+    doc.setFontSize(12);
+    doc.text('NOTA DEL CHEF',margin,y);
+    y+=7;
+    const notaLines=doc.splitTextToSize(notaChefTxt,contentW);
+    asegurarEspacio(notaLines.length*5);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    doc.text(notaLines,margin,y);
+    y+=notaLines.length*5;
   }
 
   // ── PIE DE PÁGINA ─────────────────────────────────────────────
   const totalPages=doc.internal.getNumberOfPages();
   for(let p=1;p<=totalPages;p++){
     doc.setPage(p);
-    doc.setFillColor(61,26,82);
-    doc.rect(0,H-8,W,8,'F');
-    doc.setTextColor(180,160,200);
+    doc.setTextColor(0,0,0);
     doc.setFont('helvetica','normal');
-    doc.setFontSize(7);
-    doc.text('Mariana Pages Catering  ·  Uso interno  ·  Receta confidencial',margin,H-3);
-    doc.text(fecha+' · Pág '+p+'/'+totalPages,W-margin,H-3,{align:'right'});
+    doc.setFontSize(10);
+    doc.text('Mariana Pages Catering',margin,H-margin+7);
+    doc.text(fecha+' · Pág '+p+'/'+totalPages,W-margin,H-margin+7,{align:'right'});
   }
 
   const fname='Receta_MP_'+nombre.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)+'.pdf';
