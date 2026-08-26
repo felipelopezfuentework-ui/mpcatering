@@ -2864,7 +2864,7 @@ function recalcPlatoItem(idx){
 }
 
 function addPlatoItem(){
-  platoItems.push({comp:'',tipo:'ins',kgs:0,pk:0,cr:0});
+  platoItems.push({comp:'',tipo:'ins',kgs:0,merma:0,pk:0,cr:0});
   buildPlatoTable();
   const last=document.getElementById('pi'+(platoItems.length-1));
   if(last)setTimeout(()=>last.focus(),30);
