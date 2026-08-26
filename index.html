@@ -4062,9 +4062,9 @@ const COMANDA_TEMPLATE = [
     ]
   },
   {
-    nombre: 'VAJILLA COCINA',
+    nombre: 'VAJILLA Y EQUIPAMIENTO COCINA',
     campos: [
-      {tipo:'titulo', label:'VAJILLA Y EQUIP. COCINA'},
+      {tipo:'titulo', label:'VAJILLA Y EQUIPAMIENTO COCINA'},
       {tipo:'campos_multi', label:'', keys:[{k:'vco_fecha',l:'Fecha',t:'date'},{k:'vco_tipo',l:'Tipo de evento'},{k:'vco_invitados',l:'Invitados',t:'number'}]},
       {tipo:'seccion', label:'RESPONSABLES DE ÁREAS'},
       {tipo:'campos_multi', label:'', keys:[{k:'vco_planif',l:'Planificación'},{k:'vco_armado',l:'Armado en local'},{k:'vco_ctrl_ing',l:'Control ingreso locación'},{k:'vco_ctrl_eg',l:'Control egreso locación'},{k:'vco_reingreso',l:'Reingreso al local'}]},
@@ -4659,7 +4659,7 @@ function renderEventoSheet(ev, sheetIdx){
 
   // Franja resumen fija arriba de cada solapa operativa (no en EVENTO,
   // que ya muestra/edita estos datos directamente).
-  if(['TIMING','FICHA TÉCNICA','BARRA','CHECK LIST','VAJILLA COCINA','VAJILLA SALÓN','EVALUACIÓN'].includes(sheet.nombre)){
+  if(['TIMING','FICHA TÉCNICA','BARRA','CHECK LIST','VAJILLA Y EQUIPAMIENTO COCINA','VAJILLA SALÓN','EVALUACIÓN'].includes(sheet.nombre)){
     const nombreEvento = ev.nombre || '(sin nombre)';
     const fechaLegible = formatFechaLarga(datos.fecha) || '(sin fecha)';
     const pax = datos.invitados_total||0;
@@ -6444,7 +6444,7 @@ function exportarEventoPDFById(periodoId, eventoId){
   y += 6;
 
   COMANDA_TEMPLATE.forEach(sheet=>{
-    if(sheet.nombre==='FICHA TÉCNICA' || sheet.nombre==='EVENTO' || sheet.nombre==='TIMING' || sheet.nombre==='BARRA' || sheet.nombre==='CHECK LIST' || sheet.nombre==='VAJILLA COCINA' || sheet.nombre==='VAJILLA SALÓN' || sheet.nombre==='EVALUACIÓN'){
+    if(sheet.nombre==='FICHA TÉCNICA' || sheet.nombre==='EVENTO' || sheet.nombre==='TIMING' || sheet.nombre==='BARRA' || sheet.nombre==='CHECK LIST' || sheet.nombre==='VAJILLA Y EQUIPAMIENTO COCINA' || sheet.nombre==='VAJILLA SALÓN' || sheet.nombre==='EVALUACIÓN'){
       const sections=buildRenderableSections(sheet, ev);
       if(!sections.length) return; // sin datos cargados: omitir la solapa completa, sin título huérfano
 
