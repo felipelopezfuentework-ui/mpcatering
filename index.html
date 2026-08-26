@@ -2512,14 +2512,13 @@ function rendUpdateCosto(tipo){
   const costoSinMerma=_rendTotalCosto(tipo);
   const costoConMerma=costoSinMerma*(1+merma/100);
   const unidades=st.calcUnidades||0;
-  const lbl=UNIDAD_LABELS[st.tipo_unidad]||'unidad';
   const costoUnitario=unidades>0?costoConMerma/unidades:0;
   const summaryEl=document.getElementById(ids.summary);
   if(!summaryEl)return;
   summaryEl.innerHTML=
-    '<div class="cost-summary-row"><span class="csr-label">Costo del batch sin merma</span><span class="csr-value">'+fmt(costoSinMerma)+'</span></div>'+
-    '<div class="cost-summary-row"><span class="csr-label">Costo del batch con merma</span><span class="csr-value'+(merma>0?' is-merma':'')+'">'+fmt(costoConMerma)+'</span></div>'+
-    '<div class="cost-summary-row cost-summary-total"><span class="csr-label">Costo unitario ('+lbl+')</span><span class="csr-value">'+(unidades>0?fmt(costoUnitario):'—')+'</span></div>';
+    '<div class="cost-summary-row"><span class="csr-label">Costo de la receta sin merma</span><span class="csr-value">'+fmt(costoSinMerma)+'</span></div>'+
+    '<div class="cost-summary-row"><span class="csr-label">Costo de la receta con merma</span><span class="csr-value'+(merma>0?' is-merma':'')+'">'+fmt(costoConMerma)+'</span></div>'+
+    '<div class="cost-summary-row cost-summary-total"><span class="csr-label">Costo unitario</span><span class="csr-value">'+(unidades>0?fmt(costoUnitario):'—')+'</span></div>';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -7554,13 +7553,11 @@ function descargarRecetaPDF(tipo){
   y+=12;
 
   const st=_rendState(tipo);
-  const lblUnidad=UNIDAD_LABELS[st.tipo_unidad]||'porciones';
-  const lblUnidadCap=lblUnidad.charAt(0).toUpperCase()+lblUnidad.slice(1);
   const porcionesTxt=st.calcUnidades>0?fmtN(st.calcUnidades,2):'—';
-  const pesoPorcionTxt=st.calcPeso>0?fmtN(st.calcPeso,3)+' kg':'—';
+  const pesoPorcionTxt=st.calcPeso>0?fmtN(st.calcPeso,3):'—';
   doc.setFont('helvetica','normal');
   doc.setFontSize(10);
-  doc.text(`Tipo de unidad: ${lblUnidadCap}    |    Porciones que salen: ${porcionesTxt}    |    Peso por porción: ${pesoPorcionTxt}`,margin,y);
+  doc.text(`Porciones que salen: ${porcionesTxt}    |    Peso por porción (kg): ${pesoPorcionTxt}`,margin,y);
   y+=6;
   lineaSeparadora();
   y+=6;
@@ -7628,18 +7625,9 @@ function descargarRecetaPDF(tipo){
   });
   y+=2;
 
-  // ── RESUMEN DE COSTOS ─────────────────────────────────────────
-  const costoSinMerma=_rendTotalCosto(tipo);
-  const costoConMerma=costoSinMerma*(1+(st.merma||0)/100);
-  const unidadesCosto=st.calcUnidades||0;
-  const costoUnitario=unidadesCosto>0?costoConMerma/unidadesCosto:0;
-  asegurarEspacio(10);
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(10);
-  doc.text(`Costo batch: ${fmt(costoSinMerma)}    |    Costo con merma: ${fmt(costoConMerma)}    |    Costo unitario: ${unidadesCosto>0?fmt(costoUnitario):'—'}`,margin,y);
-  y+=7;
-
   // ── SEPARADOR ─────────────────────────────────────────────────
+  // El PDF de receta no muestra costos (ver descargarRecetaPDF): va directo
+  // de la tabla de ingredientes al procedimiento.
   asegurarEspacio(4);
   lineaSeparadora();
   y+=8;
