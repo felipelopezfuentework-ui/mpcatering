@@ -238,6 +238,15 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   align-self:flex-start;
 }
 .btn-add-paso:hover{background:var(--accent-light);border-color:var(--accent)}
+.nota-chef-hd{margin-top:16px}
+.nota-chef-txt{
+  width:100%;resize:vertical;min-height:64px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;color:var(--text);
+  padding:8px 10px;font-size:12px;font-family:inherit;line-height:1.4;
+  outline:none;transition:border .15s,box-shadow .15s;
+}
+.nota-chef-txt:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(92,45,110,.1)}
 @media(max-width:780px){
   .modal-2col{flex-direction:column}
   .modal-col-ing{padding-right:0}
@@ -967,6 +976,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
           <div class="proc-empty">Agregá pasos del procedimiento.</div>
         </div>
         <button class="btn-add-paso" onclick="addProcPaso('sub')">+ Agregar paso</button>
+        <div class="proc-hd nota-chef-hd">📝 Nota del chef</div>
+        <textarea id="sub-nota-chef" class="nota-chef-txt" placeholder="Notas o consejos del chef para esta receta…"></textarea>
       </div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
@@ -1070,6 +1081,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
           <div class="proc-empty">Agregá pasos del procedimiento.</div>
         </div>
         <button class="btn-add-paso" onclick="addProcPaso('plato')">+ Agregar paso</button>
+        <div class="proc-hd nota-chef-hd">📝 Nota del chef</div>
+        <textarea id="plato-nota-chef" class="nota-chef-txt" placeholder="Notas o consejos del chef para esta receta…"></textarea>
       </div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
@@ -2527,6 +2540,7 @@ function abrirModalSub(subName){
   buildSubTable();
   // Cargar procedimiento guardado
   buildProcList('sub', cfg.procedimiento||[]);
+  document.getElementById('sub-nota-chef').value=cfg.nota_chef||'';
   document.getElementById('modal-sub').classList.add('open');
 }
 
@@ -2657,9 +2671,12 @@ function guardarSub(){
     rendimiento_peso_kg:stS.calcPeso||0,
     merma_receta:stS.merma||0
   };
-  const pasos=getProcPasos('sub');
+  const pasos=leerProcList('sub');
   if(pasos.length) DB.subs_config[nombre].procedimiento=pasos;
   else delete DB.subs_config[nombre].procedimiento;
+  const notaChefS=document.getElementById('sub-nota-chef').value.trim();
+  if(notaChefS) DB.subs_config[nombre].nota_chef=notaChefS;
+  else delete DB.subs_config[nombre].nota_chef;
   // Si se renombró, sacar el nombre viejo del maestro para no dejar una entrada fantasma
   if(editSubOld&&editSubOld!==nombre) DB.maestro_subs=DB.maestro_subs.filter(s=>s!==editSubOld);
   if(!DB.maestro_subs.includes(nombre))DB.maestro_subs.push(nombre);
@@ -2741,6 +2758,7 @@ function abrirModalPlato(platoName){
   buildPlatoTable();
   // Cargar procedimiento guardado
   buildProcList('plato', cfg.procedimiento||[]);
+  document.getElementById('plato-nota-chef').value=cfg.nota_chef||'';
   document.getElementById('modal-plato').classList.add('open');
 }
 
@@ -2881,9 +2899,12 @@ function guardarPlato(){
   // Puente de compatibilidad: peso_porcion en gramos (usado por Costeo/PDF/Precio Final)
   if(pesoKgP>0) DB.platos_config[nombre].peso_porcion=Math.round(pesoKgP*1000*100)/100;
   else delete DB.platos_config[nombre].peso_porcion;
-  const pasosPlato=getProcPasos('plato');
+  const pasosPlato=leerProcList('plato');
   if(pasosPlato.length) DB.platos_config[nombre].procedimiento=pasosPlato;
   else delete DB.platos_config[nombre].procedimiento;
+  const notaChefP=document.getElementById('plato-nota-chef').value.trim();
+  if(notaChefP) DB.platos_config[nombre].nota_chef=notaChefP;
+  else delete DB.platos_config[nombre].nota_chef;
   // Si se renombró, sacar el nombre viejo del maestro para no dejar una entrada fantasma
   if(editPlatoOld&&editPlatoOld!==nombre) DB.maestro_platos=DB.maestro_platos.filter(p=>p!==editPlatoOld);
   if(!DB.maestro_platos.includes(nombre))DB.maestro_platos.push(nombre);
@@ -2986,20 +3007,24 @@ function contieneFrase(b,a){
 function parseRecetaSheet(ws,sheetName){
   const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
   if(!rows.length)return null;
-  let nombre='',porciones=0,pesoPorcionKgCached=0;
-  rows.forEach(row=>{
-    const label=String(row[5]||'').trim().toLowerCase();
-    const val=row[6];
-    if(!label)return;
-    if(label.startsWith('nombre'))nombre=String(val||'').trim();
-    else if(label.startsWith('porciones'))porciones=parseFloat(val)||0;
-    else if(label.startsWith('peso por porcion')||label.startsWith('peso por porción'))pesoPorcionKgCached=parseFloat(val)||0;
-  });
+  // Nombre: celda F1. Si F1 contiene una etiqueta (plantillas viejas con "Nombre de Plato" en F1
+  // y el valor real en G1), se usa G1 como fallback para no romper esos archivos.
+  const f1=String(rows[0]?.[5]||'').trim();
+  const g1=String(rows[0]?.[6]||'').trim();
+  let nombre=(!f1||/^nombre/i.test(f1))?g1:f1;
+  // Porciones: celda G2 (si tiene valor). Peso por porción en G3 se ignora: es un valor calculado.
+  const porciones=parseFloat(rows[1]?.[6])||0;
   if(!nombre)nombre=sheetName;
   const ingredientes=[];
-  rows.slice(1).forEach(row=>{
-    const ing=String(row[0]||'').trim();
-    if(!ing)return;
+  const procedimiento=[];
+  let notaChef='';
+  let i=1; // rows[0] es el encabezado (Ingrediente/Peso/Rinde/Merma)
+  for(;i<rows.length;i++){
+    const cellA=String(rows[i][0]||'').trim();
+    if(cellA.toUpperCase()==='PROCEDIMIENTO')break;
+    if(!cellA)continue;
+    const row=rows[i];
+    const ing=cellA;
     const peso=parseFloat(row[1])||0;
     const rindeRaw=row[2];
     const rinde=(rindeRaw===''||rindeRaw===null||rindeRaw===undefined)?null:parseFloat(rindeRaw);
@@ -3019,11 +3044,35 @@ function parseRecetaSheet(ws,sheetName){
       else{comp=fallbackComp;matched=false;}
     }
     ingredientes.push({nombreExcel:ing,peso,rinde,merma,comp,matched,candidatos,needsResolution,fallbackComp});
-  });
+  }
+  // A partir de "PROCEDIMIENTO": pasos numerados "1. Texto" hasta fila vacía o "Nota del chef"
+  if(i<rows.length&&String(rows[i][0]||'').trim().toUpperCase()==='PROCEDIMIENTO'){
+    i++;
+    let blankRun=0;
+    for(;i<rows.length;i++){
+      const cellA=String(rows[i][0]||'').trim();
+      if(!cellA){
+        blankRun++;
+        if(blankRun>=3)break; // fila vacía prolongada: fin de la sección
+        continue;
+      }
+      blankRun=0;
+      if(cellA.toLowerCase()==='nota del chef'){
+        i++;
+        for(;i<rows.length;i++){
+          const notaCell=String(rows[i][0]||'').trim();
+          if(notaCell){notaChef=notaCell;break;}
+        }
+        break;
+      }
+      const m=cellA.match(/^\d+\.\s*(.*)$/);
+      procedimiento.push({texto:m?m[1]:cellA,subtitulo:false});
+    }
+  }
   if(!ingredientes.length)return null;
   const totalKg=ingredientes.reduce((s,x)=>s+x.peso,0);
-  const pesoPorcionKg=porciones>0?(totalKg/porciones):pesoPorcionKgCached;
-  return{sheetName,nombre,tipo:'plato',porciones,pesoPorcionG:Math.round(pesoPorcionKg*1000*100)/100,ingredientes};
+  const pesoPorcionKg=porciones>0?(totalKg/porciones):0;
+  return{sheetName,nombre,tipo:'plato',porciones,pesoPorcionG:Math.round(pesoPorcionKg*1000*100)/100,ingredientes,procedimiento,nota_chef:notaChef};
 }
 
 function abrirModalAmbiguedad(){
@@ -3125,6 +3174,11 @@ function renderImportPreview(){
           <input type="number" step="1" value="${rec.pesoPorcionG||''}" style="width:100px" oninput="impSetPeso(${idx},this.value)">
         </div>`:''}
       </div>
+      <div style="margin-bottom:8px;font-size:11px;color:var(--text3);display:flex;flex-wrap:wrap;gap:10px">
+        <span><span style="color:var(--green)">✅ ${rec.ingredientes.filter(i=>i.matched).length} encontrado${rec.ingredientes.filter(i=>i.matched).length!==1?'s':''}</span> · <span style="color:var(--red)">❌ ${rec.ingredientes.filter(i=>!i.matched).length} no encontrado${rec.ingredientes.filter(i=>!i.matched).length!==1?'s':''}</span></span>
+        <span>📋 ${rec.procedimiento?rec.procedimiento.length:0} paso${(rec.procedimiento?rec.procedimiento.length:0)!==1?'s':''} de procedimiento</span>
+        <span>📝 Nota del chef: ${rec.nota_chef?'<span style="color:var(--green)">sí</span>':'<span style="opacity:.7">no</span>'}</span>
+      </div>
       <div class="tw" style="overflow-x:auto"><table style="min-width:500px">
         <thead><tr><th>Ingrediente</th><th class="num">Peso (kg)</th><th class="num">Rinde (kg)</th><th class="num">% Merma</th><th>Estado</th></tr></thead>
         <tbody>${rec.ingredientes.map(ing=>`<tr>
@@ -3135,6 +3189,7 @@ function renderImportPreview(){
           <td>${ing.matched?'<span style="color:var(--green)">✅ Encontrado'+(ing.resuelto?' (elegido)':'')+'</span>':'<span style="color:var(--red)">❌ No encontrado (se carga como texto)</span>'}</td>
         </tr>`).join('')}</tbody>
       </table></div>
+      ${rec.nota_chef?`<div style="margin-top:8px;font-size:11px;color:var(--text3)"><strong>Nota del chef:</strong> ${escH(rec.nota_chef)}</div>`:''}
     </div>`;
   }).join('');
 }
@@ -3158,6 +3213,15 @@ function confirmarImportExcel(){
         DB.subproductos.push({_id:Date.now()+Math.random(),subproducto:nombre,componente:ing.comp,kgs:ing.peso,kgBruto,merma:ing.merma,costoMerma,precio_kg:pkConMerma,costo_receta:costoTotal});
       });
       if(!DB.maestro_subs.includes(nombre))DB.maestro_subs.push(nombre);
+      if(!DB.subs_config)DB.subs_config={};
+      const cfgS=DB.subs_config[nombre]||{};
+      if(rec.procedimiento&&rec.procedimiento.length)cfgS.procedimiento=rec.procedimiento;
+      else delete cfgS.procedimiento;
+      if(rec.nota_chef)cfgS.nota_chef=rec.nota_chef;
+      else delete cfgS.nota_chef;
+      DB.subs_config[nombre]=cfgS;
+      if(!DB.procedimientos)DB.procedimientos={};
+      DB.procedimientos[nombre]=rec.procedimiento||[];
       nSubs++;
     }else{
       const nombre=rawName.startsWith('PLATO - ')?rawName:'PLATO - '+rawName;
@@ -3170,7 +3234,13 @@ function confirmarImportExcel(){
       if(!DB.platos_config)DB.platos_config={};
       const peso=parseFloat(rec.pesoPorcionG)||0;
       DB.platos_config[nombre]={...(DB.platos_config[nombre]||{}),...(peso>0?{peso_porcion:peso}:{})};
+      if(rec.procedimiento&&rec.procedimiento.length)DB.platos_config[nombre].procedimiento=rec.procedimiento;
+      else delete DB.platos_config[nombre].procedimiento;
+      if(rec.nota_chef)DB.platos_config[nombre].nota_chef=rec.nota_chef;
+      else delete DB.platos_config[nombre].nota_chef;
       if(!DB.maestro_platos.includes(nombre))DB.maestro_platos.push(nombre);
+      if(!DB.procedimientos)DB.procedimientos={};
+      DB.procedimientos[nombre]=rec.procedimiento||[];
       nPlatos++;
     }
   });
@@ -7530,6 +7600,29 @@ function descargarRecetaPDF(tipo){
         y2+=rowH+2;
       }
     });
+  }
+
+  // ── NOTA DEL CHEF ────────────────────────────────────────────
+  const notaChefEl=document.getElementById(esSub?'sub-nota-chef':'plato-nota-chef');
+  const notaChefTxt=notaChefEl?notaChefEl.value.trim():'';
+  if(notaChefTxt){
+    let yN=Math.max(y1,y2)+6;
+    const notaW=W-margin*2;
+    const notaLines=doc.splitTextToSize(notaChefTxt,notaW-14);
+    const notaH=notaLines.length*4.5+13;
+    if(yN>H-notaH-14){doc.addPage();yN=20;}
+    doc.setFillColor(255,248,230);
+    doc.rect(margin,yN-4,notaW,notaH,'F');
+    doc.setFillColor(200,169,81);
+    doc.rect(margin,yN-4,3,notaH,'F');
+    doc.setTextColor(140,105,20);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.text('NOTA DEL CHEF',margin+7,yN+1);
+    doc.setFont('helvetica','italic');
+    doc.setFontSize(8);
+    doc.setTextColor(70,55,15);
+    doc.text(notaLines,margin+7,yN+7);
   }
 
   // ── PIE DE PÁGINA ─────────────────────────────────────────────
