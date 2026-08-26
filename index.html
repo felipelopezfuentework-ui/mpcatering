@@ -4077,7 +4077,7 @@ const COMANDA_TEMPLATE = [
     campos: [
       {tipo:'titulo', label:'ARMADO VAJILLA'},
       {tipo:'info', label:'La columna Menú se completa sola desde el menú del evento (Ficha Técnica). La Vajilla sugiere los ítems ya cargados en Vajilla y Equipamiento Cocina.'},
-      {tipo:'tabla_armado_vajilla', key:'armado_vajilla'}
+      {tipo:'tabla_armado_vajilla', key:'armado_vajilla', cols:['Menú','Cantidad','Vajilla','Cantidad']}
     ]
   },
   {
@@ -5176,7 +5176,7 @@ function renderEventoSheet(ev, sheetIdx){
       html+=`<div style="margin-bottom:16px">`;
       html+=`<datalist id="${datalistId}">${catalogoVajilla.map(v=>`<option value="${escH(v)}">`).join('')}</datalist>`;
       if(!seccionesConItems.length){
-        html+=`<p style="font-size:11px;color:var(--text3);font-style:italic;margin:0">Todavía no hay platos cargados en el menú del evento (solapa Ficha Técnica).</p>`;
+        html+=`<p style="font-size:11px;color:var(--text3);font-style:italic;margin:0">No hay menú cargado en la Ficha Técnica.</p>`;
       } else {
         html+=`<div style="margin-bottom:10px">
           <label style="font-size:11px;color:var(--text3);font-weight:600;margin-right:8px">Ver sección:</label>
@@ -5191,12 +5191,7 @@ function renderEventoSheet(ev, sheetIdx){
             <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px">${escH(nombre)}</div>
             <div class="tw" style="overflow-x:auto"><table style="min-width:640px;width:100%;table-layout:fixed">
               <colgroup><col style="width:34%"><col style="width:14%"><col style="width:34%"><col style="width:18%"></colgroup>
-              <thead><tr>
-                <th style="font-size:11px;padding:4px 5px;text-align:left">Menú</th>
-                <th style="font-size:11px;padding:4px 5px;text-align:center">Cantidad</th>
-                <th style="font-size:11px;padding:4px 5px;text-align:left">Vajilla</th>
-                <th style="font-size:11px;padding:4px 5px;text-align:center">Cantidad</th>
-              </tr></thead>
+              <thead><tr>${c.cols.map((col,ci)=>`<th style="font-size:11px;padding:4px 5px;text-align:${ci%2===0?'left':'center'}">${escH(col)}</th>`).join('')}</tr></thead>
               <tbody>`;
           filas.forEach(({nombre:nombrePlato,filaIdx})=>{
             const itemKey=nombre+'::'+nombrePlato;
