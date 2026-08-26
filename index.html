@@ -2529,18 +2529,30 @@ function rendUpdateCosto(tipo){
 // ══════════════════════════════════════════════════════════════════
 let subItems=[], editSubOld=null;
 
+// Normaliza pasos de procedimiento a la forma {texto, subtitulo} que usa la UI.
+// Cubre recetas guardadas antes de que existiera este campo (undefined/null) y
+// datos guardados con el formato viejo (array de strings planas, sin subtitulo).
+function normalizarProcedimiento(pasos){
+  if(!Array.isArray(pasos))return[];
+  return pasos.map(p=>typeof p==='string'
+    ?{texto:p,subtitulo:false}
+    :{texto:(p&&p.texto)||'',subtitulo:!!(p&&p.subtitulo)});
+}
+
 function abrirModalSub(subName){
   ddClose();
   editSubOld=subName;
   document.getElementById('modal-sub-nombre').value=subName?subName.replace('SUB - ',''):'';
   document.getElementById('modal-sub-title').textContent=subName?'Editar: '+subName.replace('SUB - ',''):'Nuevo Subproducto';
-  subItems=subName?DB.subproductos.filter(x=>x.subproducto===subName).map(r=>({comp:r.componente,kgs:r.kgs,merma:r.merma||0,pk:getCompPrice(r.componente),cr:r.costo_receta||(r.kgs||0)*getCompPrice(r.componente)})):[];
+  // Defaults en memoria para recetas guardadas antes de que existieran estos campos:
+  // merma por ingrediente en 0, sin tocar lo que ya está persistido.
+  subItems=subName?DB.subproductos.filter(x=>x.subproducto===subName).map(r=>({comp:r.componente,kgs:r.kgs,merma:parseFloat(r.merma)||0,pk:getCompPrice(r.componente),cr:r.costo_receta||(r.kgs||0)*getCompPrice(r.componente)})):[];
   const cfg=(DB.subs_config||{})[subName]||{};
   _rendLoadCfg('sub',cfg);
   buildSubTable();
-  // Cargar procedimiento guardado
-  buildProcList('sub', cfg.procedimiento||[]);
-  document.getElementById('sub-nota-chef').value=cfg.nota_chef||'';
+  // Cargar procedimiento guardado (o [] por defecto si la receta no lo tenía)
+  buildProcList('sub', normalizarProcedimiento(cfg.procedimiento));
+  document.getElementById('sub-nota-chef').value=String(cfg.nota_chef||'');
   document.getElementById('modal-sub').classList.add('open');
 }
 
@@ -2745,20 +2757,22 @@ function abrirModalPlato(platoName){
   document.getElementById('modal-plato-title').textContent=platoName?'Editar: '+platoName.replace('PLATO - ',''):'Nuevo Plato';
   const cfg=platoName?(DB.platos_config||{})[platoName]||{}:{};
   _rendLoadCfg('plato',cfg);
+  // Defaults en memoria para recetas guardadas antes de que existieran estos campos:
+  // merma por ingrediente en 0, sin tocar lo que ya está persistido.
   platoItems=platoName
     ?DB.recetas_platos.filter(x=>x.plato===platoName).map(r=>({
         comp:r.componente,
         tipo:r.componente.startsWith('SUB - ')?'sub':'ins',
         kgs:r.kgs,
-        merma:r.merma||0,
+        merma:parseFloat(r.merma)||0,
         pk:getCompPrice(r.componente),
         cr:(r.kgs||0)*getCompPrice(r.componente)
       }))
     :[];
   buildPlatoTable();
-  // Cargar procedimiento guardado
-  buildProcList('plato', cfg.procedimiento||[]);
-  document.getElementById('plato-nota-chef').value=cfg.nota_chef||'';
+  // Cargar procedimiento guardado (o [] por defecto si la receta no lo tenía)
+  buildProcList('plato', normalizarProcedimiento(cfg.procedimiento));
+  document.getElementById('plato-nota-chef').value=String(cfg.nota_chef||'');
   document.getElementById('modal-plato').classList.add('open');
 }
 
