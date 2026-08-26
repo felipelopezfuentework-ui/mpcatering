@@ -245,6 +245,36 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   .proc-list{max-height:220px}
 }
 
+/* ─── FICHA DE RECETA: secciones, tabla, tabs y resumen de costos ─ */
+.recipe-section{margin-bottom:22px}
+.recipe-section:last-child{margin-bottom:0}
+.recipe-table{table-layout:fixed}
+.recipe-table td{vertical-align:middle}
+.ttog-lg button{padding:8px 18px;font-size:12.5px}
+.recipe-calc-info{
+  font-size:11.5px;color:var(--text3);line-height:1.6;
+  padding:9px 12px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:8px;
+}
+.recipe-calc-info strong{color:var(--text)}
+.recipe-calc-info .calc-val{color:var(--mp-violet)}
+.recipe-calc-info .tag-in,.recipe-calc-info .tag-calc{
+  font-size:10px;text-transform:uppercase;letter-spacing:.3px;font-weight:700;
+}
+.recipe-calc-info .tag-in{color:var(--text3)}
+.recipe-calc-info .tag-calc{color:var(--mp-violet)}
+.cost-summary{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:2px 16px;
+}
+.cost-summary-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0}
+.cost-summary-row+.cost-summary-row{border-top:1px dashed var(--border)}
+.cost-summary-row .csr-label{font-size:12px;color:var(--text2);font-weight:600}
+.cost-summary-row .csr-value{font-size:14px;font-weight:700;color:var(--text)}
+.cost-summary-row .csr-value.is-merma{color:var(--red)}
+.cost-summary-row.cost-summary-total .csr-label{font-size:12.5px;color:var(--mp-plum);font-weight:700}
+.cost-summary-row.cost-summary-total .csr-value{font-size:19px;color:var(--mp-violet)}
+
 
 /* ─── PROCEDIMIENTO ──────────────────────────────────────────── */
 .modal-two-col{display:flex;gap:20px;align-items:flex-start}
@@ -853,64 +883,82 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
         <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-sub')">✕ Cerrar</button>
       </div>
     </div>
-    <div class="form-row" style="margin-bottom:12px">
-      <div class="form-field" style="flex:1;max-width:340px">
-        <label>Nombre del subproducto</label>
-        <input type="text" id="modal-sub-nombre" placeholder="Ej: Pesto, Salsa golf…" style="width:100%">
-      </div>
-      <div class="form-field">
-        <label>Tipo de unidad *</label>
-        <select id="modal-sub-tipounidad" style="width:160px" onchange="rendUpdate('sub')">
-          <option value="porcion">Por porción</option>
-          <option value="unidad">Por unidad</option>
-          <option value="kg">Por kg</option>
-          <option value="litro">Por litro</option>
-        </select>
-      </div>
-    </div>
-    <div class="form-field" style="margin-bottom:6px"><label>Rendimiento de la receta</label></div>
-    <div class="ttog" style="margin-bottom:8px">
-      <button id="sub-rendtab-unidades" class="on" onclick="rendSetModo('sub','unidades')">Porciones/Unidades</button>
-      <button id="sub-rendtab-peso" onclick="rendSetModo('sub','peso')">Peso por porción</button>
-    </div>
-    <div class="form-row" style="margin-bottom:8px">
-      <div class="form-field" id="sub-rendwrap-unidades">
-        <label>Porciones/Unidades obtenidas</label>
-        <input type="number" id="modal-sub-rend-unidades" step="0.01" min="0" placeholder="ej: 20" style="width:140px" oninput="rendOnInput('sub','unidades',this.value)">
-      </div>
-      <div class="form-field" id="sub-rendwrap-peso" style="display:none">
-        <label>Peso por porción (kg)</label>
-        <input type="number" id="modal-sub-rend-peso" step="0.001" min="0" placeholder="ej: 0.18" style="width:140px" oninput="rendOnInput('sub','peso',this.value)">
+    <div class="recipe-section">
+      <div class="form-row" style="margin-bottom:0">
+        <div class="form-field" style="flex:1;max-width:340px">
+          <label>Nombre del subproducto</label>
+          <input type="text" id="modal-sub-nombre" placeholder="Ej: Pesto, Salsa golf…" style="width:100%">
+        </div>
+        <div class="form-field">
+          <label>Tipo de unidad *</label>
+          <select id="modal-sub-tipounidad" style="width:160px" onchange="rendUpdate('sub')">
+            <option value="porcion">Por porción</option>
+            <option value="unidad">Por unidad</option>
+            <option value="kg">Por kg</option>
+            <option value="litro">Por litro</option>
+          </select>
+        </div>
       </div>
     </div>
-    <div id="sub-rend-info" style="font-size:11px;color:var(--text3);margin-bottom:12px;padding:6px 10px;background:var(--surface2);border-radius:6px;display:none"></div>
     <div id="sub-alert-modal" class="alert"></div>
     <!-- 2 columnas -->
     <div class="modal-2col">
-      <!-- Izquierda: ingredientes -->
+      <!-- Izquierda: ingredientes + rendimiento + costos -->
       <div class="modal-col-ing">
-        <div class="card-title" style="font-size:13px;margin-bottom:10px">Componentes (Insumos)</div>
-        <div class="tw" style="overflow-x:auto"><table id="sub-items-table" style="min-width:650px">
-          <thead><tr>
-            <th>Insumo / Subproducto</th>
-            <th class="num">Kg neto</th>
-            <th class="num">% Merma</th>
-            <th class="num">Kg bruto</th>
-            <th class="num">$ costo merma</th>
-            <th class="num">$/kg c/merma</th>
-            <th class="num">Costo receta</th>
-            <th></th>
-          </tr></thead>
-          <tbody id="sub-items-tbody"></tbody>
-        </table></div>
-        <button class="btn btn-outline" style="margin-top:10px;font-size:11px" onclick="addSubItem()">+ Agregar componente</button>
-        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
-          <div class="form-field" style="max-width:260px;margin-bottom:10px">
-            <label>Merma general de la receta (%)</label>
-            <input type="number" id="modal-sub-mermareceta" step="0.1" min="0" max="99" placeholder="0" style="width:120px" oninput="rendUpdateCosto('sub')">
-          </div>
-          <div id="sub-costo-summary" style="font-size:12px;line-height:1.9"></div>
+
+        <div class="recipe-section">
+          <div class="card-title" style="font-size:13px;margin-bottom:10px">Componentes (Insumos)</div>
+          <div class="tw" style="overflow-x:auto"><table id="sub-items-table" class="recipe-table" style="min-width:760px">
+            <colgroup>
+              <col style="width:26%"><col style="width:10%"><col style="width:9%"><col style="width:10%">
+              <col style="width:14%"><col style="width:13%"><col style="width:14%"><col style="width:4%">
+            </colgroup>
+            <thead><tr>
+              <th>Insumo / Subproducto</th>
+              <th class="num">Kg neto</th>
+              <th class="num">% Merma</th>
+              <th class="num">Kg bruto</th>
+              <th class="num">$ costo merma</th>
+              <th class="num">$/kg c/merma</th>
+              <th class="num">Costo receta</th>
+              <th></th>
+            </tr></thead>
+            <tbody id="sub-items-tbody"></tbody>
+          </table></div>
+          <button class="btn btn-outline" style="margin-top:10px;font-size:11px" onclick="addSubItem()">+ Agregar componente</button>
         </div>
+
+        <div class="recipe-section">
+          <div class="form-field" style="max-width:200px">
+            <label>Merma general de la receta (%)</label>
+            <input type="number" id="modal-sub-mermareceta" step="0.1" min="0" max="99" placeholder="0" style="width:100%" oninput="rendUpdateCosto('sub')">
+          </div>
+        </div>
+
+        <div class="recipe-section">
+          <div class="card-title" style="font-size:13px;margin-bottom:10px">Rendimiento de la receta</div>
+          <div class="ttog ttog-lg" style="margin-bottom:10px">
+            <button id="sub-rendtab-unidades" class="on" onclick="rendSetModo('sub','unidades')">Porciones/Unidades</button>
+            <button id="sub-rendtab-peso" onclick="rendSetModo('sub','peso')">Peso por porción</button>
+          </div>
+          <div class="form-row" style="margin-bottom:10px">
+            <div class="form-field" id="sub-rendwrap-unidades">
+              <label>Porciones/Unidades obtenidas</label>
+              <input type="number" id="modal-sub-rend-unidades" step="0.01" min="0" placeholder="ej: 20" style="width:160px" oninput="rendOnInput('sub','unidades',this.value)">
+            </div>
+            <div class="form-field" id="sub-rendwrap-peso" style="display:none">
+              <label>Peso por porción (kg)</label>
+              <input type="number" id="modal-sub-rend-peso" step="0.001" min="0" placeholder="ej: 0.18" style="width:160px" oninput="rendOnInput('sub','peso',this.value)">
+            </div>
+          </div>
+          <div id="sub-rend-info" class="recipe-calc-info" style="display:none"></div>
+        </div>
+
+        <div class="recipe-section">
+          <div class="card-title" style="font-size:13px;margin-bottom:10px">Resumen de costos</div>
+          <div id="sub-costo-summary" class="cost-summary"></div>
+        </div>
+
       </div>
       <!-- Derecha: procedimiento -->
       <div class="modal-col-proc">
@@ -938,64 +986,82 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
         <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-plato')">✕ Cerrar</button>
       </div>
     </div>
-    <div class="form-row" style="margin-bottom:12px">
-      <div class="form-field" style="flex:1;max-width:340px">
-        <label>Nombre del plato</label>
-        <input type="text" id="modal-plato-nombre" placeholder="Ej: Tarta de salmón…" style="width:100%">
-      </div>
-      <div class="form-field">
-        <label>Tipo de unidad *</label>
-        <select id="modal-plato-tipounidad" style="width:160px" onchange="rendUpdate('plato')">
-          <option value="porcion">Por porción</option>
-          <option value="unidad">Por unidad</option>
-          <option value="kg">Por kg</option>
-          <option value="litro">Por litro</option>
-        </select>
-      </div>
-    </div>
-    <div class="form-field" style="margin-bottom:6px"><label>Rendimiento de la receta</label></div>
-    <div class="ttog" style="margin-bottom:8px">
-      <button id="plato-rendtab-unidades" class="on" onclick="rendSetModo('plato','unidades')">Porciones/Unidades</button>
-      <button id="plato-rendtab-peso" onclick="rendSetModo('plato','peso')">Peso por porción</button>
-    </div>
-    <div class="form-row" style="margin-bottom:8px">
-      <div class="form-field" id="plato-rendwrap-unidades">
-        <label>Porciones/Unidades obtenidas</label>
-        <input type="number" id="modal-plato-rend-unidades" step="0.01" min="0" placeholder="ej: 20" style="width:140px" oninput="rendOnInput('plato','unidades',this.value)">
-      </div>
-      <div class="form-field" id="plato-rendwrap-peso" style="display:none">
-        <label>Peso por porción (kg)</label>
-        <input type="number" id="modal-plato-rend-peso" step="0.001" min="0" placeholder="ej: 0.18" style="width:140px" oninput="rendOnInput('plato','peso',this.value)">
+    <div class="recipe-section">
+      <div class="form-row" style="margin-bottom:0">
+        <div class="form-field" style="flex:1;max-width:340px">
+          <label>Nombre del plato</label>
+          <input type="text" id="modal-plato-nombre" placeholder="Ej: Tarta de salmón…" style="width:100%">
+        </div>
+        <div class="form-field">
+          <label>Tipo de unidad *</label>
+          <select id="modal-plato-tipounidad" style="width:160px" onchange="rendUpdate('plato')">
+            <option value="porcion">Por porción</option>
+            <option value="unidad">Por unidad</option>
+            <option value="kg">Por kg</option>
+            <option value="litro">Por litro</option>
+          </select>
+        </div>
       </div>
     </div>
-    <div id="plato-rend-info" style="font-size:11px;color:var(--text3);margin-bottom:12px;padding:6px 10px;background:var(--surface2);border-radius:6px;display:none"></div>
     <div id="plato-alert-modal" class="alert"></div>
     <!-- 2 columnas -->
     <div class="modal-2col">
-      <!-- Izquierda: ingredientes -->
+      <!-- Izquierda: ingredientes + rendimiento + costos -->
       <div class="modal-col-ing">
-        <div class="card-title" style="font-size:13px;margin-bottom:10px">Componentes</div>
-        <div class="tw" style="overflow-x:auto"><table id="plato-items-table" style="min-width:700px">
-          <thead><tr>
-            <th>Tipo</th><th>Componente</th>
-            <th class="num">Kg neto</th>
-            <th class="num">% Merma</th>
-            <th class="num">Kg bruto</th>
-            <th class="num">$ costo merma</th>
-            <th class="num">$/kg c/merma</th>
-            <th class="num">Costo receta</th>
-            <th></th>
-          </tr></thead>
-          <tbody id="plato-items-tbody"></tbody>
-        </table></div>
-        <button class="btn btn-outline" style="margin-top:10px;font-size:11px" onclick="addPlatoItem()">+ Agregar componente</button>
-        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
-          <div class="form-field" style="max-width:260px;margin-bottom:10px">
-            <label>Merma general de la receta (%)</label>
-            <input type="number" id="modal-plato-mermareceta" step="0.1" min="0" max="99" placeholder="0" style="width:120px" oninput="rendUpdateCosto('plato')">
-          </div>
-          <div id="plato-costo-summary" style="font-size:12px;line-height:1.9"></div>
+
+        <div class="recipe-section">
+          <div class="card-title" style="font-size:13px;margin-bottom:10px">Componentes</div>
+          <div class="tw" style="overflow-x:auto"><table id="plato-items-table" class="recipe-table" style="min-width:880px">
+            <colgroup>
+              <col style="width:9%"><col style="width:21%"><col style="width:9%"><col style="width:8%">
+              <col style="width:9%"><col style="width:13%"><col style="width:12%"><col style="width:14%"><col style="width:5%">
+            </colgroup>
+            <thead><tr>
+              <th>Tipo</th><th>Componente</th>
+              <th class="num">Kg neto</th>
+              <th class="num">% Merma</th>
+              <th class="num">Kg bruto</th>
+              <th class="num">$ costo merma</th>
+              <th class="num">$/kg c/merma</th>
+              <th class="num">Costo receta</th>
+              <th></th>
+            </tr></thead>
+            <tbody id="plato-items-tbody"></tbody>
+          </table></div>
+          <button class="btn btn-outline" style="margin-top:10px;font-size:11px" onclick="addPlatoItem()">+ Agregar componente</button>
         </div>
+
+        <div class="recipe-section">
+          <div class="form-field" style="max-width:200px">
+            <label>Merma general de la receta (%)</label>
+            <input type="number" id="modal-plato-mermareceta" step="0.1" min="0" max="99" placeholder="0" style="width:100%" oninput="rendUpdateCosto('plato')">
+          </div>
+        </div>
+
+        <div class="recipe-section">
+          <div class="card-title" style="font-size:13px;margin-bottom:10px">Rendimiento de la receta</div>
+          <div class="ttog ttog-lg" style="margin-bottom:10px">
+            <button id="plato-rendtab-unidades" class="on" onclick="rendSetModo('plato','unidades')">Porciones/Unidades</button>
+            <button id="plato-rendtab-peso" onclick="rendSetModo('plato','peso')">Peso por porción</button>
+          </div>
+          <div class="form-row" style="margin-bottom:10px">
+            <div class="form-field" id="plato-rendwrap-unidades">
+              <label>Porciones/Unidades obtenidas</label>
+              <input type="number" id="modal-plato-rend-unidades" step="0.01" min="0" placeholder="ej: 20" style="width:160px" oninput="rendOnInput('plato','unidades',this.value)">
+            </div>
+            <div class="form-field" id="plato-rendwrap-peso" style="display:none">
+              <label>Peso por porción (kg)</label>
+              <input type="number" id="modal-plato-rend-peso" step="0.001" min="0" placeholder="ej: 0.18" style="width:160px" oninput="rendOnInput('plato','peso',this.value)">
+            </div>
+          </div>
+          <div id="plato-rend-info" class="recipe-calc-info" style="display:none"></div>
+        </div>
+
+        <div class="recipe-section">
+          <div class="card-title" style="font-size:13px;margin-bottom:10px">Resumen de costos</div>
+          <div id="plato-costo-summary" class="cost-summary"></div>
+        </div>
+
       </div>
       <!-- Derecha: procedimiento -->
       <div class="modal-col-proc">
@@ -2414,8 +2480,8 @@ function rendUpdate(tipo){
       infoEl.style.display='block';
       infoEl.innerHTML='📐 Total ingredientes: <strong>'+fmtN(totalKg,4)+' kg</strong> · '+
         (st.modo==='unidades'
-          ?fmtN(unidades,2)+' '+lbl+' <span style="color:var(--text3)">(ingresado)</span> → Peso/porción: <strong style="color:var(--mp-violet)">'+fmtN(peso,4)+' kg</strong> <span style="color:var(--text3)">(calculado)</span>'
-          :fmtN(peso,4)+' kg/porción <span style="color:var(--text3)">(ingresado)</span> → <strong style="color:var(--mp-violet)">'+fmtN(unidades,2)+'</strong> '+lbl+' <span style="color:var(--text3)">(calculado)</span>');
+          ?fmtN(unidades,2)+' '+lbl+' <span class="tag-in">(ingresado)</span> → Peso/porción: <strong class="calc-val">'+fmtN(peso,4)+' kg</strong> <span class="tag-calc">(calculado)</span>'
+          :fmtN(peso,4)+' kg/porción <span class="tag-in">(ingresado)</span> → <strong class="calc-val">'+fmtN(unidades,2)+'</strong> '+lbl+' <span class="tag-calc">(calculado)</span>');
     }else{
       infoEl.style.display='none';
       infoEl.innerHTML='';
@@ -2438,9 +2504,9 @@ function rendUpdateCosto(tipo){
   const summaryEl=document.getElementById(ids.summary);
   if(!summaryEl)return;
   summaryEl.innerHTML=
-    '<div>Costo del batch sin merma: <strong>'+fmt(costoSinMerma)+'</strong></div>'+
-    '<div>Costo del batch con merma: <strong style="color:'+(merma>0?'var(--red)':'var(--text)')+'">'+fmt(costoConMerma)+'</strong></div>'+
-    '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)">Costo unitario ('+lbl+'): <strong style="color:var(--mp-gold);font-size:14px">'+(unidades>0?fmt(costoUnitario):'—')+'</strong></div>';
+    '<div class="cost-summary-row"><span class="csr-label">Costo del batch sin merma</span><span class="csr-value">'+fmt(costoSinMerma)+'</span></div>'+
+    '<div class="cost-summary-row"><span class="csr-label">Costo del batch con merma</span><span class="csr-value'+(merma>0?' is-merma':'')+'">'+fmt(costoConMerma)+'</span></div>'+
+    '<div class="cost-summary-row cost-summary-total"><span class="csr-label">Costo unitario ('+lbl+')</span><span class="csr-value">'+(unidades>0?fmt(costoUnitario):'—')+'</span></div>';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -2467,7 +2533,7 @@ function abrirModalSub(subName){
 function buildSubTable(){
   const tbody=document.getElementById('sub-items-tbody');
   if(!subItems.length){
-    tbody.innerHTML='<tr><td colspan="5" class="empty">Agregá componentes abajo.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" class="empty">Agregá componentes abajo.</td></tr>';
     rendUpdate('sub');
     return;
   }
@@ -2477,20 +2543,20 @@ function buildSubTable(){
     const {kgBruto,costoMerma,pkConMerma,costoTotal:cr}=calcMerma(kgNeto,merma,item.pk);
     item.cr=cr;
     return `<tr id="sr${idx}">
-    <td style="min-width:220px;padding:6px 8px">
-      <input class="dd-input" id="si${idx}" type="text" placeholder="Elegí un insumo o sub…" style="min-width:220px">
+    <td style="padding:6px 8px">
+      <input class="dd-input" id="si${idx}" type="text" placeholder="Elegí un insumo o sub…" style="width:100%">
     </td>
     <td class="num" style="padding:6px 8px">
       <input type="number" step="0.0001" min="0" value="${kgNeto||0}"
-        style="width:80px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
+        style="width:100%;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
         oninput="siKgs(${idx},this.value)">
     </td>
     <td class="num" style="padding:6px 8px">
-      <div style="display:inline-flex;align-items:center;gap:3px">
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:3px">
         <input type="number" step="0.1" min="0" max="99" value="${merma||''}" placeholder="0"
-          style="width:60px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
+          style="width:100%;min-width:0;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
           oninput="siMerma(${idx},this.value)">
-        <span style="font-size:11px;color:var(--text3);line-height:1">%</span>
+        <span style="font-size:11px;color:var(--text3);line-height:1;flex-shrink:0">%</span>
       </div>
     </td>
     <td class="num" id="sibruto${idx}" style="color:var(--text3);font-size:11px;white-space:nowrap">${fmtN(kgBruto,4)}</td>
@@ -2671,7 +2737,7 @@ function abrirModalPlato(platoName){
 function buildPlatoTable(){
   const tbody=document.getElementById('plato-items-tbody');
   if(!platoItems.length){
-    tbody.innerHTML='<tr><td colspan="6" class="empty">Agregá componentes abajo.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="9" class="empty">Agregá componentes abajo.</td></tr>';
     rendUpdate('plato');
     return;
   }
@@ -2688,20 +2754,20 @@ function buildPlatoTable(){
           <button id="tsub${idx}" class="${!tipoIns?'on':''}" onclick="setPlatoTipo(${idx},'sub')">Sub</button>
         </div>
       </td>
-      <td style="min-width:200px;padding:6px 6px">
-        <input class="dd-input" id="pi${idx}" type="text" placeholder="Elegí ${tipoIns?'un insumo':'un subproducto'}…" style="min-width:200px">
+      <td style="padding:6px 6px">
+        <input class="dd-input" id="pi${idx}" type="text" placeholder="Elegí ${tipoIns?'un insumo':'un subproducto'}…" style="width:100%">
       </td>
       <td class="num" style="padding:6px 6px">
         <input type="number" step="0.0001" min="0" value="${kgNeto||0}"
-          style="width:80px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
+          style="width:100%;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
           oninput="piKgs(${idx},this.value)">
       </td>
       <td class="num" style="padding:6px 6px">
-        <div style="display:inline-flex;align-items:center;gap:3px">
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:3px">
           <input type="number" step="0.1" min="0" max="99" value="${merma||''}" placeholder="0"
-            style="width:55px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
+            style="width:100%;min-width:0;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
             oninput="piMerma(${idx},this.value)">
-          <span style="font-size:11px;color:var(--text3);line-height:1">%</span>
+          <span style="font-size:11px;color:var(--text3);line-height:1;flex-shrink:0">%</span>
         </div>
       </td>
       <td class="num" id="pibruto${idx}" style="color:var(--text3);font-size:11px;white-space:nowrap">${fmtN(kgBruto,4)}</td>
