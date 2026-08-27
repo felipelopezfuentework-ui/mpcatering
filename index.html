@@ -267,6 +267,13 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   80%{background-color:#fff9c4}
   100%{background-color:transparent}
 }
+/* Botones chicos de card de receta (📅 fechas / ⚠️ campos incompletos) y su popover */
+.mp-icon-btn{
+  flex-shrink:0;background:transparent;border:1px solid var(--border);border-radius:6px;
+  padding:2px 6px;font-size:12px;line-height:1.5;cursor:pointer;color:var(--text2);
+}
+.mp-icon-btn:hover{background:var(--surface2)}
+.mp-icon-btn-warn{border-color:rgba(230,160,20,.45)}
 .ttog-lg button{padding:8px 18px;font-size:12.5px}
 .recipe-calc-info{
   font-size:11.5px;color:var(--text3);line-height:1.6;
@@ -2645,6 +2652,77 @@ function calcMerma(kgNeto, merma, pk){
   const costoTotal = pkConMerma * kgBruto;
   return {kgBruto, costoMerma, pkConMerma, costoTotal};
 }
+
+// Campos de una receta (plato o subproducto) que están vacíos o en cero.
+// rows: filas de ingredientes (DB.recetas_platos / DB.subproductos filtradas por receta).
+// cfg: DB.platos_config[nombre] / DB.subs_config[nombre].
+// Por ingrediente se reporta un solo campo (el primero que falte, en orden Kg
+// neto → % Merma → $ Costo merma) para no listar el mismo insumo varias veces
+// cuando la merma en 0 arrastra el costo de merma también a 0.
+function recetaCamposFaltantes(rows,cfg){
+  const faltantes=[];
+  (rows||[]).forEach(r=>{
+    const nombreIng=r.componente||'(sin nombre)';
+    const kg=parseFloat(r.kgs)||0;
+    const merma=parseFloat(r.merma)||0;
+    const costoMerma=parseFloat(r.costoMerma)||0;
+    if(kg<=0) faltantes.push('Kg neto ('+nombreIng+')');
+    else if(merma<=0) faltantes.push('% Merma ('+nombreIng+')');
+    else if(costoMerma<=0) faltantes.push('$ Costo merma ('+nombreIng+')');
+  });
+  const c=cfg||{};
+  if(!(parseFloat(c.merma_receta)>0)) faltantes.push('Merma general de la receta');
+  if(!(parseFloat(c.rendimiento_unidades)>0)) faltantes.push('Porciones/Unidades obtenidas');
+  return faltantes;
+}
+
+// Popover chico y genérico para los botones 📅/⚠️ de las cards de plato/subproducto.
+// Lee data-pop-title y data-pop-lines (líneas separadas por "|") del botón clickeado
+// y muestra un panel flotante cerca del botón; un solo popover compartido en el DOM.
+function _mpPopoverEl(){
+  let el=document.getElementById('mp-popover');
+  if(!el){
+    el=document.createElement('div');
+    el.id='mp-popover';
+    el.style.cssText='position:fixed;z-index:4000;display:none;background:var(--surface);'
+      +'border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;'
+      +'line-height:1.6;color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:280px';
+    document.body.appendChild(el);
+    document.addEventListener('click',()=>{el.style.display='none';el._owner=null;});
+    window.addEventListener('scroll',()=>{el.style.display='none';el._owner=null;},true);
+  }
+  return el;
+}
+function mpTogglePopover(btn){
+  const pop=_mpPopoverEl();
+  if(pop.style.display==='block'&&pop._owner===btn){pop.style.display='none';pop._owner=null;return;}
+  pop.innerHTML='';
+  const title=btn.dataset.popTitle||'';
+  if(title){
+    const t=document.createElement('div');
+    t.style.cssText='font-weight:700;margin-bottom:4px';
+    t.textContent=title;
+    pop.appendChild(t);
+  }
+  (btn.dataset.popLines||'').split('|').filter(Boolean).forEach(line=>{
+    const d=document.createElement('div');
+    d.textContent=line;
+    pop.appendChild(d);
+  });
+  pop._owner=btn;
+  pop.style.visibility='hidden';
+  pop.style.display='block';
+  const r=btn.getBoundingClientRect();
+  requestAnimationFrame(()=>{
+    const pw=pop.offsetWidth,ph=pop.offsetHeight;
+    let left=r.left, top=r.bottom+6;
+    if(left+pw>window.innerWidth-8) left=Math.max(8,window.innerWidth-pw-8);
+    if(top+ph>window.innerHeight-8) top=Math.max(8,r.top-ph-6);
+    pop.style.left=left+'px';
+    pop.style.top=top+'px';
+    pop.style.visibility='visible';
+  });
+}
 function recalcSubItem(idx){
   const item=subItems[idx];
   const kgNeto=parseFloat(item.kgs)||0;
@@ -2730,12 +2808,18 @@ function renderSubproductos(){
     const rows=DB.subproductos.filter(x=>x.subproducto===sub);
     const total=rows.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0);
     const cfgSub=(DB.subs_config&&DB.subs_config[sub])||{};
+    const faltantesSub=recetaCamposFaltantes(rows,cfgSub);
     return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-        <div style="flex:1;min-width:0">
-          <span class="sub-gh">🧩 ${escH(sub.replace('SUB - ',''))}</span>
-          <div style="font-size:10.5px;color:var(--text3);margin-top:2px">Creada: ${formatFechaHoraCompacta(cfgSub.fecha_creacion)} · Última modificación: ${formatFechaHoraCompacta(cfgSub.fecha_modificacion)}</div>
-        </div>
+        <span class="sub-gh" style="flex:1;min-width:0">🧩 ${escH(sub.replace('SUB - ',''))}</span>
+        <button type="button" class="mp-icon-btn" title="Ver fechas"
+          data-pop-title="📅 Fechas"
+          data-pop-lines="${escH('Creada: '+formatFechaHoraCompacta(cfgSub.fecha_creacion)+'|Última modificación: '+formatFechaHoraCompacta(cfgSub.fecha_modificacion))}"
+          onclick="event.stopPropagation();mpTogglePopover(this)">📅</button>
+        ${faltantesSub.length?`<button type="button" class="mp-icon-btn mp-icon-btn-warn" title="Ver campos incompletos"
+          data-pop-title="⚠️ Campos incompletos"
+          data-pop-lines="${escH('Faltan: '+faltantesSub.join(', '))}"
+          onclick="event.stopPropagation();mpTogglePopover(this)">⚠️</button>`:''}
         <span style="color:var(--yellow);font-weight:700">${fmt(total)}</span>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" data-edit-sub="${escH(sub)}">✏️ Editar</button>
         <button class="btn btn-danger" data-del-sub="${escH(sub)}">🗑</button>
@@ -2970,12 +3054,18 @@ function renderPlatos(){
     const rows=DB.recetas_platos.filter(x=>x.plato===plato);
     const total=rows.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0);
     const cfgPlato=(DB.platos_config&&DB.platos_config[plato])||{};
+    const faltantesPlato=recetaCamposFaltantes(rows,cfgPlato);
     return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-        <div style="flex:1;min-width:0">
-          <span class="plato-gh">🍴 ${escH(plato.replace('PLATO - ',''))}</span>
-          <div style="font-size:10.5px;color:var(--text3);margin-top:2px">Creada: ${formatFechaHoraCompacta(cfgPlato.fecha_creacion)} · Última modificación: ${formatFechaHoraCompacta(cfgPlato.fecha_modificacion)}</div>
-        </div>
+        <span class="plato-gh" style="flex:1;min-width:0">🍴 ${escH(plato.replace('PLATO - ',''))}</span>
+        <button type="button" class="mp-icon-btn" title="Ver fechas"
+          data-pop-title="📅 Fechas"
+          data-pop-lines="${escH('Creada: '+formatFechaHoraCompacta(cfgPlato.fecha_creacion)+'|Última modificación: '+formatFechaHoraCompacta(cfgPlato.fecha_modificacion))}"
+          onclick="event.stopPropagation();mpTogglePopover(this)">📅</button>
+        ${faltantesPlato.length?`<button type="button" class="mp-icon-btn mp-icon-btn-warn" title="Ver campos incompletos"
+          data-pop-title="⚠️ Campos incompletos"
+          data-pop-lines="${escH('Faltan: '+faltantesPlato.join(', '))}"
+          onclick="event.stopPropagation();mpTogglePopover(this)">⚠️</button>`:''}
         ${(DB.platos_config&&DB.platos_config[plato]&&DB.platos_config[plato].peso_porcion)?`<span class="badge" style="background:rgba(92,45,110,.12);color:var(--mp-violet);font-size:10px">${DB.platos_config[plato].peso_porcion}g/porción</span>`:''}
         <span style="color:var(--mp-gold);font-weight:700">${fmt(total)}</span>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" data-edit-plato="${escH(plato)}">✏️ Editar</button>
