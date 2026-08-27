@@ -259,10 +259,10 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .recipe-section:last-child{margin-bottom:0}
 .recipe-table{table-layout:fixed}
 .recipe-table td{vertical-align:middle}
-/* Fila recién agregada (manual o por importación desde Excel): fondo destacado
-   3s y después vuelve sola al color normal, sin JS extra para limpiarla. */
-.fila-recien-agregada{animation:destacarFilaNueva 3s ease-out forwards}
-@keyframes destacarFilaNueva{
+/* Insumo recién agregado en el Maestro de Insumos: fondo destacado 3s y
+   después vuelve solo al color normal (no aplica a tablas de recetas). */
+#ins-tbody tr.ins-fila-nueva{animation:destacarInsumoNuevo 3s ease-out forwards}
+@keyframes destacarInsumoNuevo{
   0%{background-color:#fff9c4}
   80%{background-color:#fff9c4}
   100%{background-color:transparent}
@@ -900,7 +900,6 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
         <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-sub')">✕ Cerrar</button>
       </div>
     </div>
-    <div id="sub-fechas-info" style="font-size:11px;color:var(--text3);margin:-14px 0 14px 0"></div>
     <div class="recipe-section">
       <div class="form-row" style="margin-bottom:0">
         <div class="form-field" style="flex:1;max-width:340px">
@@ -1006,7 +1005,6 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
         <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-plato')">✕ Cerrar</button>
       </div>
     </div>
-    <div id="plato-fechas-info" style="font-size:11px;color:var(--text3);margin:-14px 0 14px 0"></div>
     <div class="recipe-section">
       <div class="form-row" style="margin-bottom:0">
         <div class="form-field" style="flex:1;max-width:340px">
@@ -2323,7 +2321,7 @@ function renderInsumos(){
     const pkgKg=parseFloat(x.formato_kg)||0;
     const pkgPrecio=parseFloat(x.precio_formato)||0;
     const precioKg=pkgKg>0?(pkgPrecio/pkgKg):parseFloat(x.costo)||0;
-    return `<tr>
+    return `<tr${x._id===_insumoNuevoId?' class="ins-fila-nueva"':''}>
     <td style="color:var(--text3)">${insPage*INS_PER+i+1}</td>
     <td id="ikey${x._id}" style="font-size:11px;color:var(--text3)">${escH(x.key)}</td>
     <td contenteditable oninput="updInsNombre(${x._id},this.textContent)" style="font-weight:600">${escH(x.nombre)}</td>
@@ -2352,6 +2350,7 @@ function renderInsumos(){
     </td>
     <td><button class="btn btn-danger" onclick="delIns(${x._id})">🗑</button></td>
   </tr>`;}).join('');
+  _insumoNuevoId=null; // se usa una sola vez por render
   document.getElementById('ins-pag').innerHTML=`
     <button class="btn btn-outline" onclick="insPage--;renderInsumos()" ${insPage===0?'disabled':''}>‹</button>
     <span class="pag-info">Pág ${insPage+1}/${pages} · ${f.length} insumos</span>
@@ -2379,7 +2378,13 @@ function updInsKgFormato(id,val){
   if(el)el.textContent=fmtN(x.costo,2);
 }
 function delIns(id){if(confirm('¿Eliminar insumo?')){DB.insumos=DB.insumos.filter(x=>x._id!==id);renderInsumos();sbSave(true);}}
-function addInsumo(){DB.insumos.unshift({_id:Date.now(),key:'INSUMO - NUEVO INSUMO',nombre:'NUEVO INSUMO',costo:0,proveedor:'',formato:'',precio_formato:0,formato_kg:0});insPage=0;document.getElementById('ins-search').value='';renderInsumos();sbSave(true);}
+let _insumoNuevoId=null; // _id del insumo recién agregado, para resaltar su fila en el próximo render
+function addInsumo(){
+  const nuevoId=Date.now();
+  DB.insumos.unshift({_id:nuevoId,key:'INSUMO - NUEVO INSUMO',nombre:'NUEVO INSUMO',costo:0,proveedor:'',formato:'',precio_formato:0,formato_kg:0});
+  _insumoNuevoId=nuevoId;
+  insPage=0;document.getElementById('ins-search').value='';renderInsumos();sbSave(true);
+}
 function handleXLSX(e){
   const f=e.target.files[0];if(!f)return;
   e.target.value=''; // allow re-import same file
@@ -2537,7 +2542,6 @@ function rendUpdateCosto(tipo){
 //  – Sin columna de merma.
 // ══════════════════════════════════════════════════════════════════
 let subItems=[], editSubOld=null;
-let _subItemHighlightIdx=null; // índice de la fila recién agregada (manual o import) a resaltar en el próximo render
 
 // Normaliza pasos de procedimiento a la forma {texto, subtitulo} que usa la UI.
 // Cubre recetas guardadas antes de que existiera este campo (undefined/null) y
@@ -2563,8 +2567,6 @@ function abrirModalSub(subName){
   // Cargar procedimiento guardado (o [] por defecto si la receta no lo tenía)
   buildProcList('sub', normalizarProcedimiento(cfg.procedimiento));
   document.getElementById('sub-nota-chef').value=String(cfg.nota_chef||'');
-  document.getElementById('sub-fechas-info').textContent=
-    'Creada: '+formatFechaHoraCompacta(cfg.fecha_creacion)+'  ·  Última modificación: '+formatFechaHoraCompacta(cfg.fecha_modificacion);
   document.getElementById('modal-sub').classList.add('open');
 }
 
@@ -2580,7 +2582,7 @@ function buildSubTable(){
     const kgNeto=parseFloat(item.kgs)||0;
     const {kgBruto,costoMerma,pkConMerma,costoTotal:cr}=calcMerma(kgNeto,merma,item.pk);
     item.cr=cr;
-    return `<tr id="sr${idx}"${idx===_subItemHighlightIdx?' class="fila-recien-agregada"':''}>
+    return `<tr id="sr${idx}">
     <td style="padding:6px 8px">
       <input class="dd-input" id="si${idx}" type="text" placeholder="Elegí un insumo o sub…" style="width:100%">
     </td>
@@ -2603,7 +2605,6 @@ function buildSubTable(){
     <td class="num" id="sicr${idx}" style="color:var(--yellow);font-weight:600;white-space:nowrap">${fmt(cr)}</td>
     <td style="padding:4px 6px"><button class="btn btn-danger" onclick="subItems.splice(${idx},1);buildSubTable()">🗑</button></td>
   </tr>`;}).join('');
-  _subItemHighlightIdx=null; // se usa una sola vez por render
 
   subItems.forEach((item,idx)=>{
     const inp=document.getElementById('si'+idx);
@@ -2665,7 +2666,6 @@ function recalcSubItem(idx){
 
 function addSubItem(){
   subItems.push({comp:'',kgs:0,pk:0,cr:0,merma:0});
-  _subItemHighlightIdx=subItems.length-1;
   buildSubTable();
   // focus the new input
   const last=document.getElementById('si'+(subItems.length-1));
@@ -2729,17 +2729,20 @@ function renderSubproductos(){
   c.innerHTML=subs.map(sub=>{
     const rows=DB.subproductos.filter(x=>x.subproducto===sub);
     const total=rows.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0);
-    const esRecienImportado=_recienImportadosNombres.has(sub);
+    const cfgSub=(DB.subs_config&&DB.subs_config[sub])||{};
     return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-        <span class="sub-gh" style="flex:1">🧩 ${escH(sub.replace('SUB - ',''))}</span>
+        <div style="flex:1;min-width:0">
+          <span class="sub-gh">🧩 ${escH(sub.replace('SUB - ',''))}</span>
+          <div style="font-size:10.5px;color:var(--text3);margin-top:2px">Creada: ${formatFechaHoraCompacta(cfgSub.fecha_creacion)} · Última modificación: ${formatFechaHoraCompacta(cfgSub.fecha_modificacion)}</div>
+        </div>
         <span style="color:var(--yellow);font-weight:700">${fmt(total)}</span>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" data-edit-sub="${escH(sub)}">✏️ Editar</button>
         <button class="btn btn-danger" data-del-sub="${escH(sub)}">🗑</button>
       </div>
       <div class="tw"><table>
         <thead><tr><th>Componente</th><th class="num">Kg neto</th><th class="num">% Merma</th><th class="num">Kg bruto</th><th class="num">$ merma</th><th class="num">$/kg c/merma</th><th class="num">Costo Rec.</th></tr></thead>
-        <tbody>${rows.map(r=>{const m=parseFloat(r.merma)||0;const kb=r.kgBruto||(m>0&&m<100?((r.kgs||0)/(1-m/100)):(r.kgs||0));const cm=r.costoMerma||(r.precio_kg*(m/100));return`<tr${esRecienImportado?' class="fila-recien-agregada"':''}>
+        <tbody>${rows.map(r=>{const m=parseFloat(r.merma)||0;const kb=r.kgBruto||(m>0&&m<100?((r.kgs||0)/(1-m/100)):(r.kgs||0));const cm=r.costoMerma||(r.precio_kg*(m/100));return`<tr>
           <td>${escH(r.componente)}</td>
           <td class="num">${fmtN(r.kgs,4)}</td>
           <td class="num" style="color:var(--red)">${m?m+'%':'—'}</td>
@@ -2770,7 +2773,6 @@ function delSub(sub){
 //  – Sin columna de merma.
 // ══════════════════════════════════════════════════════════════════
 let platoItems=[], editPlatoOld=null;
-let _platoItemHighlightIdx=null; // índice de la fila recién agregada (manual o import) a resaltar en el próximo render
 
 function abrirModalPlato(platoName){
   ddClose();
@@ -2795,8 +2797,6 @@ function abrirModalPlato(platoName){
   // Cargar procedimiento guardado (o [] por defecto si la receta no lo tenía)
   buildProcList('plato', normalizarProcedimiento(cfg.procedimiento));
   document.getElementById('plato-nota-chef').value=String(cfg.nota_chef||'');
-  document.getElementById('plato-fechas-info').textContent=
-    'Creada: '+formatFechaHoraCompacta(cfg.fecha_creacion)+'  ·  Última modificación: '+formatFechaHoraCompacta(cfg.fecha_modificacion);
   document.getElementById('modal-plato').classList.add('open');
 }
 
@@ -2813,7 +2813,7 @@ function buildPlatoTable(){
     const merma=parseFloat(item.merma)||0;
     const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(kgNeto,merma,item.pk);
     item.cr=costoTotal;
-    return `<tr id="pr${idx}"${idx===_platoItemHighlightIdx?' class="fila-recien-agregada"':''}>
+    return `<tr id="pr${idx}">
       <td style="padding:6px 6px;white-space:nowrap">
         <div class="ttog">
           <button id="tins${idx}" class="${tipoIns?'on':''}" onclick="setPlatoTipo(${idx},'ins')">Ins</button>
@@ -2843,7 +2843,6 @@ function buildPlatoTable(){
       <td style="padding:4px 6px"><button class="btn btn-danger" onclick="platoItems.splice(${idx},1);buildPlatoTable()">🗑</button></td>
     </tr>`;
   }).join('');
-  _platoItemHighlightIdx=null; // se usa una sola vez por render
 
   platoItems.forEach((item,idx)=>{
     const inp=document.getElementById('pi'+idx);
@@ -2904,7 +2903,6 @@ function recalcPlatoItem(idx){
 
 function addPlatoItem(){
   platoItems.push({comp:'',tipo:'ins',kgs:0,merma:0,pk:0,cr:0});
-  _platoItemHighlightIdx=platoItems.length-1;
   buildPlatoTable();
   const last=document.getElementById('pi'+(platoItems.length-1));
   if(last)setTimeout(()=>last.focus(),30);
@@ -2971,10 +2969,13 @@ function renderPlatos(){
   c.innerHTML=platos.map(plato=>{
     const rows=DB.recetas_platos.filter(x=>x.plato===plato);
     const total=rows.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0);
-    const esRecienImportado=_recienImportadosNombres.has(plato);
+    const cfgPlato=(DB.platos_config&&DB.platos_config[plato])||{};
     return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-        <span class="plato-gh" style="flex:1">🍴 ${escH(plato.replace('PLATO - ',''))}</span>
+        <div style="flex:1;min-width:0">
+          <span class="plato-gh">🍴 ${escH(plato.replace('PLATO - ',''))}</span>
+          <div style="font-size:10.5px;color:var(--text3);margin-top:2px">Creada: ${formatFechaHoraCompacta(cfgPlato.fecha_creacion)} · Última modificación: ${formatFechaHoraCompacta(cfgPlato.fecha_modificacion)}</div>
+        </div>
         ${(DB.platos_config&&DB.platos_config[plato]&&DB.platos_config[plato].peso_porcion)?`<span class="badge" style="background:rgba(92,45,110,.12);color:var(--mp-violet);font-size:10px">${DB.platos_config[plato].peso_porcion}g/porción</span>`:''}
         <span style="color:var(--mp-gold);font-weight:700">${fmt(total)}</span>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" data-edit-plato="${escH(plato)}">✏️ Editar</button>
@@ -2982,7 +2983,7 @@ function renderPlatos(){
       </div>
       <div class="tw"><table>
         <thead><tr><th>Componente</th><th class="num">Kg neto</th><th class="num">% Merma</th><th class="num">Kg bruto</th><th class="num">$ merma</th><th class="num">$/kg c/merma</th><th class="num">Costo Rec.</th></tr></thead>
-        <tbody>${rows.map(r=>{const m=parseFloat(r.merma)||0;const kb=r.kgBruto||(m>0&&m<100?((r.kgs||0)/(1-m/100)):(r.kgs||0));const cm=r.costoMerma||(r.precio_kg*(m/100));return`<tr${esRecienImportado?' class="fila-recien-agregada"':''}>
+        <tbody>${rows.map(r=>{const m=parseFloat(r.merma)||0;const kb=r.kgBruto||(m>0&&m<100?((r.kgs||0)/(1-m/100)):(r.kgs||0));const cm=r.costoMerma||(r.precio_kg*(m/100));return`<tr>
           <td>${escH(r.componente)}</td>
           <td class="num">${fmtN(r.kgs,4)}</td>
           <td class="num" style="color:var(--red)">${m?m+'%':'—'}</td>
@@ -3014,10 +3015,6 @@ function delPlato(plato){
 // ══════════════════════════════════════════════════════════════════
 let importRecetas=[];
 let importAmbiguous=[]; // [{ri,ii}] índices de ingredientes ambiguos pendientes de resolver
-// Nombres (con prefijo PLATO -/SUB -) de recetas recién creadas/actualizadas por
-// la última importación desde Excel: renderPlatos()/renderSubproductos() resaltan
-// todas sus filas de ingredientes una vez y luego este set se vacía.
-let _recienImportadosNombres=new Set();
 
 function handleImportRecetasFile(e){
   const f=e.target.files[0];if(!f)return;
@@ -3257,7 +3254,6 @@ function confirmarImportExcel(){
     if(!rawName||!rec.ingredientes.length)return;
     if(rec.tipo==='sub'){
       const nombre=rawName.startsWith('SUB - ')?rawName:'SUB - '+rawName;
-      _recienImportadosNombres.add(nombre);
       DB.subproductos=DB.subproductos.filter(x=>x.subproducto!==nombre);
       rec.ingredientes.forEach(ing=>{
         const pk=getCompPrice(ing.comp);
@@ -3279,7 +3275,6 @@ function confirmarImportExcel(){
       nSubs++;
     }else{
       const nombre=rawName.startsWith('PLATO - ')?rawName:'PLATO - '+rawName;
-      _recienImportadosNombres.add(nombre);
       DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==nombre);
       rec.ingredientes.forEach(ing=>{
         const pk=getCompPrice(ing.comp);
@@ -3304,7 +3299,6 @@ function confirmarImportExcel(){
   cerrarModal('modal-import-excel');
   importRecetas=[];
   renderPlatos();renderSubproductos();renderMaestros();
-  _recienImportadosNombres.clear(); // ya se usó para resaltar filas en ambos renders de arriba
   showAlert('plato-alert','success','✓ Importación completa: '+nPlatos+' plato(s), '+nSubs+' subproducto(s).');
   sbSave(true);
 }
