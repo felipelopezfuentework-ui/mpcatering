@@ -274,6 +274,38 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 }
 .mp-icon-btn:hover{background:var(--surface2)}
 .mp-icon-btn-warn{border-color:rgba(230,160,20,.45)}
+/* Barra sticky de vistas (Lista/Grilla/Cards/Tabla) + buscador, en Subproductos y Platos */
+.mp-vista-bar{
+  position:sticky;top:var(--mp-vbar-top,130px);z-index:30;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;
+  margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:nowrap;
+  box-shadow:0 2px 10px rgba(61,26,82,.1);overflow-x:auto
+}
+.mp-vista-btns{display:flex;gap:4px;flex-shrink:0}
+.mp-vista-btn{
+  padding:6px 12px;font-size:12px;font-weight:600;border:1px solid var(--border);
+  background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--text2);white-space:nowrap
+}
+.mp-vista-btn:hover{background:var(--accent-light)}
+.mp-vista-btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.mp-vista-bar .sbox{flex:1;min-width:160px;max-width:none;margin:0}
+/* Vista Grilla: cards cuadradas compactas */
+.mp-grilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.mp-grilla-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:10px;cursor:pointer;transition:box-shadow .15s;display:flex;flex-direction:column;gap:6px
+}
+.mp-grilla-card:hover{box-shadow:var(--shadow)}
+.mp-grilla-nombre{font-size:12px;font-weight:700;color:var(--text);line-height:1.3;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mp-grilla-foot{display:flex;align-items:center;justify-content:space-between;gap:6px}
+/* Vista Tabla: filas compactas */
+.mp-tabla-row td{vertical-align:middle}
+/* Botón flotante "Cargar desde Excel" */
+.mp-fab-excel{
+  position:fixed;right:26px;bottom:26px;z-index:60;box-shadow:0 6px 20px rgba(30,10,46,.35);
+  border-radius:24px;padding:11px 18px
+}
 .ttog-lg button{padding:8px 18px;font-size:12.5px}
 .recipe-calc-info{
   font-size:11.5px;color:var(--text3);line-height:1.6;
@@ -449,17 +481,24 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 <div class="content" id="tab-subproductos">
   <div class="card">
     <div class="card-title">🧩 Recetas de Subproductos</div>
-    <div id="sub-alert" class="alert"></div>
+    <div class="mp-vista-bar">
+      <div class="mp-vista-btns">
+        <button type="button" class="mp-vista-btn on" data-vista-btn="sub" data-vista="lista" onclick="setVistaReceta('sub','lista')">📋 Lista</button>
+        <button type="button" class="mp-vista-btn" data-vista-btn="sub" data-vista="grilla" onclick="setVistaReceta('sub','grilla')">⊞ Grilla</button>
+        <button type="button" class="mp-vista-btn" data-vista-btn="sub" data-vista="cards" onclick="setVistaReceta('sub','cards')">▦ Cards</button>
+        <button type="button" class="mp-vista-btn" data-vista-btn="sub" data-vista="tabla" onclick="setVistaReceta('sub','tabla')">≡ Tabla</button>
+      </div>
+      <div class="sbox"><input type="text" id="sub-search" placeholder="Buscar por nombre o categoría…" oninput="renderSubproductos()"></div>
+    </div>
     <div class="toolbar">
       <button class="btn btn-primary" onclick="abrirModalSub(null)">+ Nuevo Subproducto</button>
-      <label class="btn btn-outline" style="cursor:pointer">
-        <svg width="20" height="20" viewBox="0 0 20 20" style="vertical-align:-5px;margin-right:4px"><rect width="20" height="20" rx="4" fill="#1D6F42"/><text x="10" y="15" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">X</text></svg>
-        Cargar desde Excel
-        <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event)">
-      </label>
-      <div class="sbox"><input type="text" id="sub-search" placeholder="Buscar subproducto…" oninput="renderSubproductos()"></div>
     </div>
+    <div id="sub-alert" class="alert"></div>
     <div id="sub-list"></div>
+    <label class="btn btn-primary mp-fab-excel" style="cursor:pointer" title="Cargar recetas desde Excel">
+      📊 Cargar desde Excel
+      <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event)">
+    </label>
   </div>
 </div>
 
@@ -467,17 +506,24 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 <div class="content" id="tab-platos">
   <div class="card">
     <div class="card-title">🍴 Recetas de Platos</div>
-    <div id="plato-alert" class="alert"></div>
+    <div class="mp-vista-bar">
+      <div class="mp-vista-btns">
+        <button type="button" class="mp-vista-btn on" data-vista-btn="plato" data-vista="lista" onclick="setVistaReceta('plato','lista')">📋 Lista</button>
+        <button type="button" class="mp-vista-btn" data-vista-btn="plato" data-vista="grilla" onclick="setVistaReceta('plato','grilla')">⊞ Grilla</button>
+        <button type="button" class="mp-vista-btn" data-vista-btn="plato" data-vista="cards" onclick="setVistaReceta('plato','cards')">▦ Cards</button>
+        <button type="button" class="mp-vista-btn" data-vista-btn="plato" data-vista="tabla" onclick="setVistaReceta('plato','tabla')">≡ Tabla</button>
+      </div>
+      <div class="sbox"><input type="text" id="plato-search" placeholder="Buscar por nombre o categoría…" oninput="renderPlatos()"></div>
+    </div>
     <div class="toolbar">
       <button class="btn btn-primary" onclick="abrirModalPlato(null)">+ Nuevo Plato</button>
-      <label class="btn btn-outline" style="cursor:pointer">
-        <svg width="20" height="20" viewBox="0 0 20 20" style="vertical-align:-5px;margin-right:4px"><rect width="20" height="20" rx="4" fill="#1D6F42"/><text x="10" y="15" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">X</text></svg>
-        Cargar desde Excel
-        <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event)">
-      </label>
-      <div class="sbox"><input type="text" id="plato-search" placeholder="Buscar plato…" oninput="renderPlatos()"></div>
     </div>
+    <div id="plato-alert" class="alert"></div>
     <div id="plato-list"></div>
+    <label class="btn btn-primary mp-fab-excel" style="cursor:pointer" title="Cargar recetas desde Excel">
+      📊 Cargar desde Excel
+      <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event)">
+    </label>
   </div>
 </div>
 
@@ -922,6 +968,16 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
             <option value="litro">Por litro</option>
           </select>
         </div>
+        <div class="form-field">
+          <label>Categoría</label>
+          <select id="modal-sub-categoria" style="width:150px">
+            <option value="">— Sin categoría —</option>
+            <option value="Desayuno">Desayuno</option>
+            <option value="Almuerzo">Almuerzo</option>
+            <option value="Merienda">Merienda</option>
+            <option value="Cena">Cena</option>
+          </select>
+        </div>
       </div>
     </div>
     <div id="sub-alert-modal" class="alert"></div>
@@ -1027,6 +1083,16 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
             <option value="litro">Por litro</option>
           </select>
         </div>
+        <div class="form-field">
+          <label>Categoría</label>
+          <select id="modal-plato-categoria" style="width:150px">
+            <option value="">— Sin categoría —</option>
+            <option value="Desayuno">Desayuno</option>
+            <option value="Almuerzo">Almuerzo</option>
+            <option value="Merienda">Merienda</option>
+            <option value="Cena">Cena</option>
+          </select>
+        </div>
       </div>
     </div>
     <div id="plato-alert-modal" class="alert"></div>
@@ -1103,6 +1169,22 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
       <button class="btn btn-outline" onclick="cerrarModal('modal-plato')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarPlato()">💾 Guardar plato</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL CONFIRMAR NOMBRE DUPLICADO (platos/subproductos) ═════ -->
+<div class="modal-ov" id="modal-confirm-duplicado">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-hd">
+      <span class="modal-title">⚠️ Nombre duplicado</span>
+    </div>
+    <div style="margin-bottom:22px;font-size:13px;line-height:1.6">
+      Ya existe una receta con ese nombre. ¿Querés reemplazarla o cancelar?
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="cerrarModal('modal-confirm-duplicado')">Cancelar</button>
+      <button class="btn btn-primary" onclick="_confirmDuplicadoReemplazar()">Reemplazar</button>
     </div>
   </div>
 </div>
@@ -2560,6 +2642,20 @@ function normalizarProcedimiento(pasos){
     :{texto:(p&&p.texto)||'',subtitulo:!!(p&&p.subtitulo)});
 }
 
+// ── Confirmación de nombre duplicado al guardar plato/subproducto ──
+// onReemplazar se guarda y se ejecuta recién si el usuario confirma "Reemplazar".
+let _confirmDuplicadoCallback=null;
+function mostrarConfirmDuplicado(onReemplazar){
+  _confirmDuplicadoCallback=onReemplazar;
+  document.getElementById('modal-confirm-duplicado').classList.add('open');
+}
+function _confirmDuplicadoReemplazar(){
+  const cb=_confirmDuplicadoCallback;
+  _confirmDuplicadoCallback=null;
+  cerrarModal('modal-confirm-duplicado');
+  if(cb)cb();
+}
+
 function abrirModalSub(subName){
   ddClose();
   editSubOld=subName;
@@ -2574,6 +2670,7 @@ function abrirModalSub(subName){
   // Cargar procedimiento guardado (o [] por defecto si la receta no lo tenía)
   buildProcList('sub', normalizarProcedimiento(cfg.procedimiento));
   document.getElementById('sub-nota-chef').value=String(cfg.nota_chef||'');
+  document.getElementById('modal-sub-categoria').value=cfg.categoria_receta||'';
   document.getElementById('modal-sub').classList.add('open');
 }
 
@@ -2723,6 +2820,178 @@ function mpTogglePopover(btn){
     pop.style.visibility='visible';
   });
 }
+
+// ══════════════════════════════════════════════════════════════════
+//  VISTAS de las cards de Subproductos/Platos: Lista/Grilla/Cards/Tabla
+//  La vista elegida se recuerda solo en memoria (dura la sesión, no
+//  se persiste a Firebase ni a localStorage).
+// ══════════════════════════════════════════════════════════════════
+let _subVista='lista', _platoVista='lista';
+function setVistaReceta(tipo,vista){
+  if(tipo==='sub')_subVista=vista; else _platoVista=vista;
+  document.querySelectorAll('[data-vista-btn="'+tipo+'"]').forEach(b=>{
+    b.classList.toggle('on',b.dataset.vista===vista);
+  });
+  tipo==='sub'?renderSubproductos():renderPlatos();
+}
+// Alto real de header+tabs (ambos sticky) para que la barra de vistas se
+// enganche justo debajo, sin superponerse. Se recalcula en cada render
+// porque es barato y evita depender de un hook de resize/login exacto.
+function _mpUpdateVbarTop(){
+  const header=document.getElementById('app-header');
+  const tabs=document.getElementById('tabs-produccion');
+  if(!header||!tabs)return;
+  const h=(header.offsetHeight||0)+(tabs.offsetHeight||0);
+  if(h>0) document.documentElement.style.setProperty('--mp-vbar-top',h+'px');
+}
+window.addEventListener('resize',_mpUpdateVbarTop);
+
+// Helpers de UI compartidos entre las 4 vistas y entre platos/subproductos.
+function _mpBotonFecha(cfg){
+  return `<button type="button" class="mp-icon-btn" title="Ver fechas"
+    data-pop-title="📅 Fechas"
+    data-pop-lines="${escH('Creada: '+formatFechaHoraCompacta(cfg.fecha_creacion)+'|Última modificación: '+formatFechaHoraCompacta(cfg.fecha_modificacion))}"
+    onclick="event.stopPropagation();mpTogglePopover(this)">📅</button>`;
+}
+function _mpBotonAlerta(faltantes){
+  if(!faltantes||!faltantes.length)return'';
+  return `<button type="button" class="mp-icon-btn mp-icon-btn-warn" title="Ver campos incompletos"
+    data-pop-title="⚠️ Campos incompletos"
+    data-pop-lines="${escH('Faltan: '+faltantes.join(', '))}"
+    onclick="event.stopPropagation();mpTogglePopover(this)">⚠️</button>`;
+}
+function _mpCategoriaBadge(categoria){
+  if(!categoria)return'';
+  return `<span class="badge" style="background:rgba(92,45,110,.12);color:var(--mp-violet);font-size:10px;flex-shrink:0">${escH(categoria)}</span>`;
+}
+// Datos comunes de una receta (plato o sub) para las 4 vistas.
+function _recetaViewData(tipo,nombre){
+  const rows=tipo==='sub'?DB.subproductos.filter(x=>x.subproducto===nombre):DB.recetas_platos.filter(x=>x.plato===nombre);
+  const cfg=((tipo==='sub'?DB.subs_config:DB.platos_config)||{})[nombre]||{};
+  const total=rows.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0);
+  const faltantes=recetaCamposFaltantes(rows,cfg);
+  const porciones=parseFloat(cfg.rendimiento_unidades)||0;
+  const costoUnitario=porciones>0?total/porciones:null;
+  return {nombre,rows,cfg,total,faltantes,porciones,costoUnitario,categoria:cfg.categoria_receta||''};
+}
+// Filtra nombres de recetas por coincidencia parcial (nombre visible o categoría), sin distinguir mayúsculas/minúsculas.
+function _filtrarRecetasPorBusqueda(tipo,nombres,q){
+  if(!q)return nombres;
+  const qq=q.toLowerCase();
+  const prefix=tipo==='sub'?'SUB - ':'PLATO - ';
+  const cfgObj=(tipo==='sub'?DB.subs_config:DB.platos_config)||{};
+  return nombres.filter(n=>{
+    const visible=n.startsWith(prefix)?n.slice(prefix.length):n;
+    const categoria=(cfgObj[n]&&cfgObj[n].categoria_receta)||'';
+    return visible.toLowerCase().includes(qq)||categoria.toLowerCase().includes(qq);
+  });
+}
+
+function _tipoMeta(tipo){
+  return tipo==='sub'
+    ?{prefix:'SUB - ',emoji:'🧩',ghClass:'sub-gh',totalColor:'var(--yellow)',editAttr:'data-edit-sub',delAttr:'data-del-sub'}
+    :{prefix:'PLATO - ',emoji:'🍴',ghClass:'plato-gh',totalColor:'var(--mp-gold)',editAttr:'data-edit-plato',delAttr:'data-del-plato'};
+}
+function _nombreVisible(meta,nombre){
+  return nombre.startsWith(meta.prefix)?nombre.slice(meta.prefix.length):nombre;
+}
+
+// Vista 📋 Lista: el detalle completo de siempre (card + tabla de ingredientes), con categoría.
+function _renderListaRecetas(tipo,nombres){
+  const meta=_tipoMeta(tipo);
+  return nombres.map(nombre=>{
+    const d=_recetaViewData(tipo,nombre);
+    const pesoBadge=(tipo==='plato'&&d.cfg.peso_porcion)?`<span class="badge" style="background:rgba(92,45,110,.12);color:var(--mp-violet);font-size:10px">${d.cfg.peso_porcion}g/porción</span>`:'';
+    return `<div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span class="${meta.ghClass}" style="flex:1;min-width:0">${meta.emoji} ${escH(_nombreVisible(meta,nombre))}</span>
+        ${_mpCategoriaBadge(d.categoria)}
+        ${_mpBotonFecha(d.cfg)}
+        ${_mpBotonAlerta(d.faltantes)}
+        ${pesoBadge}
+        <span style="color:${meta.totalColor};font-weight:700">${fmt(d.total)}</span>
+        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.editAttr}="${escH(nombre)}">✏️ Editar</button>
+        <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
+      </div>
+      <div class="tw"><table>
+        <thead><tr><th>Componente</th><th class="num">Kg neto</th><th class="num">% Merma</th><th class="num">Kg bruto</th><th class="num">$ merma</th><th class="num">$/kg c/merma</th><th class="num">Costo Rec.</th></tr></thead>
+        <tbody>${d.rows.map(r=>{const m=parseFloat(r.merma)||0;const kb=r.kgBruto||(m>0&&m<100?((r.kgs||0)/(1-m/100)):(r.kgs||0));const cm=r.costoMerma||(r.precio_kg*(m/100));return`<tr>
+          <td>${escH(r.componente)}</td>
+          <td class="num">${fmtN(r.kgs,4)}</td>
+          <td class="num" style="color:var(--red)">${m?m+'%':'—'}</td>
+          <td class="num" style="color:var(--text3)">${m?fmtN(kb,4):'—'}</td>
+          <td class="num" style="color:var(--red)">${m?fmt(cm):'—'}</td>
+          <td class="num">${fmt(r.precio_kg)}</td>
+          <td class="num" style="color:var(--green);font-weight:600">${fmt(r.costo_receta)}</td>
+        </tr>`}).join('')}</tbody>
+      </table></div>
+    </div>`;
+  }).join('');
+}
+
+// Vista ▦ Cards: nombre, costo completo y alertas — sin la tabla de ingredientes.
+function _renderCardsRecetas(tipo,nombres){
+  const meta=_tipoMeta(tipo);
+  return nombres.map(nombre=>{
+    const d=_recetaViewData(tipo,nombre);
+    return `<div class="card" style="margin-bottom:10px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="${meta.ghClass}">${meta.emoji} ${escH(_nombreVisible(meta,nombre))}</span>
+        ${_mpCategoriaBadge(d.categoria)}
+      </div>
+      ${_mpBotonFecha(d.cfg)}
+      ${_mpBotonAlerta(d.faltantes)}
+      <span style="color:${meta.totalColor};font-weight:700;white-space:nowrap">${fmt(d.total)}</span>
+      <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.editAttr}="${escH(nombre)}">✏️ Editar</button>
+      <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+// Vista ⊞ Grilla: cards cuadradas compactas — nombre, categoría y costo unitario.
+function _renderGrillaRecetas(tipo,nombres){
+  const meta=_tipoMeta(tipo);
+  const cards=nombres.map(nombre=>{
+    const d=_recetaViewData(tipo,nombre);
+    return `<div class="mp-grilla-card">
+      <div class="mp-grilla-nombre" title="${escH(_nombreVisible(meta,nombre))}">${escH(_nombreVisible(meta,nombre))}</div>
+      ${_mpCategoriaBadge(d.categoria)||'<span></span>'}
+      <div style="font-size:12px;color:${meta.totalColor};font-weight:700">${d.costoUnitario!=null?fmt(d.costoUnitario)+' / u.':'—'}</div>
+      <div class="mp-grilla-foot">
+        <span style="display:flex;gap:2px">${_mpBotonFecha(d.cfg)}${_mpBotonAlerta(d.faltantes)}</span>
+        <span style="display:flex;gap:4px">
+          <button type="button" class="mp-icon-btn" title="Editar" ${meta.editAttr}="${escH(nombre)}">✏️</button>
+          <button type="button" class="mp-icon-btn" style="color:var(--red);border-color:rgba(192,57,43,.3)" title="Eliminar" ${meta.delAttr}="${escH(nombre)}">🗑</button>
+        </span>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="mp-grilla">${cards}</div>`;
+}
+
+// Vista ≡ Tabla: filas compactas — nombre, categoría, porciones, costo unitario y alertas.
+function _renderTablaRecetas(tipo,nombres){
+  const meta=_tipoMeta(tipo);
+  const rowsHtml=nombres.map(nombre=>{
+    const d=_recetaViewData(tipo,nombre);
+    return `<tr class="mp-tabla-row">
+      <td><span style="font-weight:600">${escH(_nombreVisible(meta,nombre))}</span></td>
+      <td>${d.categoria?escH(d.categoria):'—'}</td>
+      <td class="num">${d.porciones>0?fmtN(d.porciones,2):'—'}</td>
+      <td class="num" style="color:${meta.totalColor};font-weight:600">${d.costoUnitario!=null?fmt(d.costoUnitario):'—'}</td>
+      <td style="white-space:nowrap">${_mpBotonFecha(d.cfg)} ${_mpBotonAlerta(d.faltantes)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" ${meta.editAttr}="${escH(nombre)}">✏️</button>
+        <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div class="tw"><table>
+    <thead><tr><th>Nombre</th><th>Categoría</th><th class="num">Porciones</th><th class="num">Costo unitario</th><th>Alertas</th><th></th></tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table></div>`;
+}
+
 function recalcSubItem(idx){
   const item=subItems[idx];
   const kgNeto=parseFloat(item.kgs)||0;
@@ -2755,6 +3024,15 @@ function guardarSub(){
   if(!rawName){showAlert('sub-alert-modal','error','Ingresá un nombre.');return;}
   const nombre=rawName.startsWith('SUB - ')?rawName:'SUB - '+rawName;
   if(!subItems.some(x=>x.comp)){showAlert('sub-alert-modal','error','Agregá al menos un componente.');return;}
+  const nombresExistentesS=[...new Set([...DB.maestro_subs,...DB.subproductos.map(x=>x.subproducto)])];
+  const nombreLowerS=nombre.toLowerCase();
+  if(nombresExistentesS.some(n=>n!==editSubOld&&n.toLowerCase()===nombreLowerS)){
+    mostrarConfirmDuplicado(()=>_guardarSubReal(nombre));
+    return;
+  }
+  _guardarSubReal(nombre);
+}
+function _guardarSubReal(nombre){
   DB.subproductos=DB.subproductos.filter(x=>x.subproducto!==nombre&&x.subproducto!==editSubOld);
   subItems.filter(x=>x.comp).forEach(item=>{
     const pk=getCompPrice(item.comp);
@@ -2787,6 +3065,9 @@ function guardarSub(){
   const notaChefS=document.getElementById('sub-nota-chef').value.trim();
   if(notaChefS) DB.subs_config[nombre].nota_chef=notaChefS;
   else delete DB.subs_config[nombre].nota_chef;
+  const categoriaS=document.getElementById('modal-sub-categoria').value;
+  if(categoriaS) DB.subs_config[nombre].categoria_receta=categoriaS;
+  else delete DB.subs_config[nombre].categoria_receta;
   // Si se renombró, sacar el nombre viejo del maestro para no dejar una entrada fantasma
   if(editSubOld&&editSubOld!==nombre) DB.maestro_subs=DB.maestro_subs.filter(s=>s!==editSubOld);
   if(!DB.maestro_subs.includes(nombre))DB.maestro_subs.push(nombre);
@@ -2800,44 +3081,16 @@ function guardarSub(){
 }
 
 function renderSubproductos(){
-  const q=document.getElementById('sub-search').value.toLowerCase();
-  const subs=[...new Set(DB.subproductos.map(x=>x.subproducto))].filter(s=>!q||s.toLowerCase().includes(q));
+  _mpUpdateVbarTop();
+  const q=document.getElementById('sub-search').value.trim();
+  const subs=_filtrarRecetasPorBusqueda('sub',[...new Set(DB.subproductos.map(x=>x.subproducto))],q);
   const c=document.getElementById('sub-list');
   if(!subs.length){c.innerHTML='<div class="empty">Sin subproductos.</div>';return;}
-  c.innerHTML=subs.map(sub=>{
-    const rows=DB.subproductos.filter(x=>x.subproducto===sub);
-    const total=rows.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0);
-    const cfgSub=(DB.subs_config&&DB.subs_config[sub])||{};
-    const faltantesSub=recetaCamposFaltantes(rows,cfgSub);
-    return `<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-        <span class="sub-gh" style="flex:1;min-width:0">🧩 ${escH(sub.replace('SUB - ',''))}</span>
-        <button type="button" class="mp-icon-btn" title="Ver fechas"
-          data-pop-title="📅 Fechas"
-          data-pop-lines="${escH('Creada: '+formatFechaHoraCompacta(cfgSub.fecha_creacion)+'|Última modificación: '+formatFechaHoraCompacta(cfgSub.fecha_modificacion))}"
-          onclick="event.stopPropagation();mpTogglePopover(this)">📅</button>
-        ${faltantesSub.length?`<button type="button" class="mp-icon-btn mp-icon-btn-warn" title="Ver campos incompletos"
-          data-pop-title="⚠️ Campos incompletos"
-          data-pop-lines="${escH('Faltan: '+faltantesSub.join(', '))}"
-          onclick="event.stopPropagation();mpTogglePopover(this)">⚠️</button>`:''}
-        <span style="color:var(--yellow);font-weight:700">${fmt(total)}</span>
-        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" data-edit-sub="${escH(sub)}">✏️ Editar</button>
-        <button class="btn btn-danger" data-del-sub="${escH(sub)}">🗑</button>
-      </div>
-      <div class="tw"><table>
-        <thead><tr><th>Componente</th><th class="num">Kg neto</th><th class="num">% Merma</th><th class="num">Kg bruto</th><th class="num">$ merma</th><th class="num">$/kg c/merma</th><th class="num">Costo Rec.</th></tr></thead>
-        <tbody>${rows.map(r=>{const m=parseFloat(r.merma)||0;const kb=r.kgBruto||(m>0&&m<100?((r.kgs||0)/(1-m/100)):(r.kgs||0));const cm=r.costoMerma||(r.precio_kg*(m/100));return`<tr>
-          <td>${escH(r.componente)}</td>
-          <td class="num">${fmtN(r.kgs,4)}</td>
-          <td class="num" style="color:var(--red)">${m?m+'%':'—'}</td>
-          <td class="num" style="color:var(--text3)">${m?fmtN(kb,4):'—'}</td>
-          <td class="num" style="color:var(--red)">${m?fmt(cm):'—'}</td>
-          <td class="num">${fmt(r.precio_kg)}</td>
-          <td class="num" style="color:var(--green);font-weight:600">${fmt(r.costo_receta)}</td>
-        </tr>`}).join('')}</tbody>
-      </table></div>
-    </div>`;
-  }).join('');
+  const vista=_subVista;
+  c.innerHTML = vista==='grilla'?_renderGrillaRecetas('sub',subs)
+    : vista==='cards'?_renderCardsRecetas('sub',subs)
+    : vista==='tabla'?_renderTablaRecetas('sub',subs)
+    : _renderListaRecetas('sub',subs);
   c.querySelectorAll('[data-edit-sub]').forEach(b=>b.addEventListener('click',()=>abrirModalSub(b.dataset.editSub)));
   c.querySelectorAll('[data-del-sub]').forEach(b=>b.addEventListener('click',()=>delSub(b.dataset.delSub)));
 }
@@ -2881,6 +3134,7 @@ function abrirModalPlato(platoName){
   // Cargar procedimiento guardado (o [] por defecto si la receta no lo tenía)
   buildProcList('plato', normalizarProcedimiento(cfg.procedimiento));
   document.getElementById('plato-nota-chef').value=String(cfg.nota_chef||'');
+  document.getElementById('modal-plato-categoria').value=cfg.categoria_receta||'';
   document.getElementById('modal-plato').classList.add('open');
 }
 
@@ -2997,6 +3251,15 @@ function guardarPlato(){
   if(!rawName){showAlert('plato-alert-modal','error','Ingresá un nombre.');return;}
   const nombre=rawName.startsWith('PLATO - ')?rawName:'PLATO - '+rawName;
   if(!platoItems.some(x=>x.comp)){showAlert('plato-alert-modal','error','Agregá al menos un componente.');return;}
+  const nombresExistentesP=[...new Set([...DB.maestro_platos,...DB.recetas_platos.map(x=>x.plato)])];
+  const nombreLowerP=nombre.toLowerCase();
+  if(nombresExistentesP.some(n=>n!==editPlatoOld&&n.toLowerCase()===nombreLowerP)){
+    mostrarConfirmDuplicado(()=>_guardarPlatoReal(nombre));
+    return;
+  }
+  _guardarPlatoReal(nombre);
+}
+function _guardarPlatoReal(nombre){
   DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==nombre&&x.plato!==editPlatoOld);
   platoItems.filter(x=>x.comp).forEach(item=>{
     const pk=getCompPrice(item.comp);
@@ -3033,6 +3296,9 @@ function guardarPlato(){
   const notaChefP=document.getElementById('plato-nota-chef').value.trim();
   if(notaChefP) DB.platos_config[nombre].nota_chef=notaChefP;
   else delete DB.platos_config[nombre].nota_chef;
+  const categoriaP=document.getElementById('modal-plato-categoria').value;
+  if(categoriaP) DB.platos_config[nombre].categoria_receta=categoriaP;
+  else delete DB.platos_config[nombre].categoria_receta;
   // Si se renombró, sacar el nombre viejo del maestro para no dejar una entrada fantasma
   if(editPlatoOld&&editPlatoOld!==nombre) DB.maestro_platos=DB.maestro_platos.filter(p=>p!==editPlatoOld);
   if(!DB.maestro_platos.includes(nombre))DB.maestro_platos.push(nombre);
@@ -3046,45 +3312,16 @@ function guardarPlato(){
 }
 
 function renderPlatos(){
-  const q=document.getElementById('plato-search').value.toLowerCase();
-  const platos=[...new Set(DB.recetas_platos.map(x=>x.plato))].filter(p=>!q||p.toLowerCase().includes(q));
+  _mpUpdateVbarTop();
+  const q=document.getElementById('plato-search').value.trim();
+  const platos=_filtrarRecetasPorBusqueda('plato',[...new Set(DB.recetas_platos.map(x=>x.plato))],q);
   const c=document.getElementById('plato-list');
   if(!platos.length){c.innerHTML='<div class="empty">Sin platos.</div>';return;}
-  c.innerHTML=platos.map(plato=>{
-    const rows=DB.recetas_platos.filter(x=>x.plato===plato);
-    const total=rows.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0);
-    const cfgPlato=(DB.platos_config&&DB.platos_config[plato])||{};
-    const faltantesPlato=recetaCamposFaltantes(rows,cfgPlato);
-    return `<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-        <span class="plato-gh" style="flex:1;min-width:0">🍴 ${escH(plato.replace('PLATO - ',''))}</span>
-        <button type="button" class="mp-icon-btn" title="Ver fechas"
-          data-pop-title="📅 Fechas"
-          data-pop-lines="${escH('Creada: '+formatFechaHoraCompacta(cfgPlato.fecha_creacion)+'|Última modificación: '+formatFechaHoraCompacta(cfgPlato.fecha_modificacion))}"
-          onclick="event.stopPropagation();mpTogglePopover(this)">📅</button>
-        ${faltantesPlato.length?`<button type="button" class="mp-icon-btn mp-icon-btn-warn" title="Ver campos incompletos"
-          data-pop-title="⚠️ Campos incompletos"
-          data-pop-lines="${escH('Faltan: '+faltantesPlato.join(', '))}"
-          onclick="event.stopPropagation();mpTogglePopover(this)">⚠️</button>`:''}
-        ${(DB.platos_config&&DB.platos_config[plato]&&DB.platos_config[plato].peso_porcion)?`<span class="badge" style="background:rgba(92,45,110,.12);color:var(--mp-violet);font-size:10px">${DB.platos_config[plato].peso_porcion}g/porción</span>`:''}
-        <span style="color:var(--mp-gold);font-weight:700">${fmt(total)}</span>
-        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" data-edit-plato="${escH(plato)}">✏️ Editar</button>
-        <button class="btn btn-danger" data-del-plato="${escH(plato)}">🗑</button>
-      </div>
-      <div class="tw"><table>
-        <thead><tr><th>Componente</th><th class="num">Kg neto</th><th class="num">% Merma</th><th class="num">Kg bruto</th><th class="num">$ merma</th><th class="num">$/kg c/merma</th><th class="num">Costo Rec.</th></tr></thead>
-        <tbody>${rows.map(r=>{const m=parseFloat(r.merma)||0;const kb=r.kgBruto||(m>0&&m<100?((r.kgs||0)/(1-m/100)):(r.kgs||0));const cm=r.costoMerma||(r.precio_kg*(m/100));return`<tr>
-          <td>${escH(r.componente)}</td>
-          <td class="num">${fmtN(r.kgs,4)}</td>
-          <td class="num" style="color:var(--red)">${m?m+'%':'—'}</td>
-          <td class="num" style="color:var(--text3)">${m?fmtN(kb,4):'—'}</td>
-          <td class="num" style="color:var(--red)">${m?fmt(cm):'—'}</td>
-          <td class="num">${fmt(r.precio_kg)}</td>
-          <td class="num" style="color:var(--green);font-weight:600">${fmt(r.costo_receta)}</td>
-        </tr>`}).join('')}</tbody>
-      </table></div>
-    </div>`;
-  }).join('');
+  const vista=_platoVista;
+  c.innerHTML = vista==='grilla'?_renderGrillaRecetas('plato',platos)
+    : vista==='cards'?_renderCardsRecetas('plato',platos)
+    : vista==='tabla'?_renderTablaRecetas('plato',platos)
+    : _renderListaRecetas('plato',platos);
   c.querySelectorAll('[data-edit-plato]').forEach(b=>b.addEventListener('click',()=>abrirModalPlato(b.dataset.editPlato)));
   c.querySelectorAll('[data-del-plato]').forEach(b=>b.addEventListener('click',()=>delPlato(b.dataset.delPlato)));
 }
