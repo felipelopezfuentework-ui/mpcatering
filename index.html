@@ -466,6 +466,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
           <button class="btn btn-outline" style="color:var(--text2)" onclick="cambiarModulo('comanda')">📋 Fichas Técnicas</button>
         </div>
       </div>
+      <button class="btn-logout" onclick="volverASeleccionModulo()">Cambiar de módulo</button>
       <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
     </div>
   </div>
@@ -4347,6 +4348,23 @@ function cambiarModulo(perfil){
 // primero deja elegir el módulo en #modulo-select-screen.
 function entrarComo(){
   document.getElementById('login-screen').style.display='none';
+  const emailEl=document.getElementById('modulo-select-email');
+  if(emailEl){
+    const u=fbAuth.currentUser;
+    emailEl.textContent=(u&&u.email)||'';
+  }
+  document.getElementById('modulo-select-screen').style.display='flex';
+}
+
+// Botón "Cambiar de módulo" del encabezado: vuelve a #modulo-select-screen
+// sin tocar la sesión de Google (no llama a signOut, no hace falta loguearse de nuevo).
+function volverASeleccionModulo(){
+  perfilActivo=null;
+  document.getElementById('app-header').style.display='none';
+  document.getElementById('tabs-produccion').style.display='none';
+  document.getElementById('tabs-cotizacion').style.display='none';
+  document.getElementById('tabs-comanda').style.display='none';
+  document.querySelectorAll('.content').forEach(el=>el.classList.remove('active'));
   const emailEl=document.getElementById('modulo-select-email');
   if(emailEl){
     const u=fbAuth.currentUser;
