@@ -5165,8 +5165,13 @@ function renderEventoSheet(ev, sheetIdx){
         html+=`<p style="font-size:11px;color:var(--text3);font-style:italic;margin:0">No hay clientes cargados. Agregá uno en el Maestro de Clientes.</p>`;
       } else {
         const val = datos[c.key]||'';
+        // Campo especial: trae datos del Maestro de Clientes, no es un campo de texto libre
+        // como el resto de la ficha. Se distingue con fondo/borde violeta (sin leyendas) —
+        // el resto de los campos de esta misma ficha ya usa un violeta muy pálido de base
+        // (var(--surface2)), así que acá subimos la opacidad y el grosor de borde para que
+        // el contraste se note de verdad y no se confunda con un campo común.
         html+=`<input type="text" class="dd-input" autocomplete="off" placeholder="Buscar cliente…" data-key="${c.key}"
-          style="width:100%;max-width:500px;background:${val?'var(--surface2)':'rgba(220,53,69,0.09)'};border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none">`;
+          style="width:100%;max-width:500px;background:${val?'rgba(92,45,110,.16)':'rgba(220,53,69,0.09)'};border:2px solid var(--mp-violet);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;box-shadow:0 0 0 3px rgba(92,45,110,.08)">`;
       }
       html+=`</div>`;
     } else if(c.tipo==='link_cliente_ficha'){
