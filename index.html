@@ -2404,6 +2404,79 @@ function getCompPrice(comp){
   if(comp.startsWith('SUB - ')){return DB.subproductos.filter(x=>x.subproducto===comp).reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0);}
   return 0;
 }
+// Recalcula el costo de todos los platos y subproductos que usan un insumo
+// —directamente, o a través de un subproducto que lo usa— cada vez que cambia
+// su precio en el Maestro de Insumos. Así ninguna receta queda con un costo
+// desactualizado sin necesidad de abrirla y volver a guardarla a mano.
+// render=false solo recalcula los números en DB.subproductos/DB.recetas_platos
+// sin repintar nada — se usa desde la importación masiva por Excel, que llama
+// a esta función una vez por insumo y prefiere repintar una sola vez al final
+// en lugar de una vez por cada insumo actualizado.
+function recalcularRecetasPorInsumo(insumoKey,render=true){
+  if(!insumoKey) return false;
+  let huboCambios=false;
+  // 1) Subproductos que usan el insumo directamente.
+  const subsAfectados=new Set();
+  DB.subproductos.forEach(r=>{
+    if(r.componente!==insumoKey) return;
+    const pk=getCompPrice(r.componente);
+    const merma=parseFloat(r.merma)||0;
+    const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(parseFloat(r.kgs)||0,merma,pk);
+    r.kgBruto=kgBruto;r.costoMerma=costoMerma;r.precio_kg=pkConMerma;r.costo_receta=costoTotal;
+    subsAfectados.add(r.subproducto);
+    huboCambios=true;
+  });
+  // 2) Platos que usan el insumo directamente, o un subproducto recién
+  //    recalculado arriba (cascada: el costo del sub ya cambió).
+  DB.recetas_platos.forEach(r=>{
+    if(r.componente!==insumoKey && !subsAfectados.has(r.componente)) return;
+    const pk=getCompPrice(r.componente);
+    const merma=parseFloat(r.merma)||0;
+    const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(parseFloat(r.kgs)||0,merma,pk);
+    r.kgBruto=kgBruto;r.costoMerma=costoMerma;r.precio_kg=pkConMerma;r.costo_receta=costoTotal;
+    huboCambios=true;
+  });
+  if(huboCambios && render) _repintarRecetasTrasRecalculo();
+  return huboCambios;
+}
+// 3) Refrescar los listados de Subproductos/Platos (se actualizan aunque esa
+//    pestaña no esté visible en este momento; es barato y evita que se vean
+//    costos viejos si el usuario cambia de pestaña sin recargar).
+// 4) Si hay una ficha de subproducto o plato abierta ahora mismo (modal),
+//    reflejar el nuevo costo ahí también, en el momento (merma general
+//    incluida: buildSubTable/buildPlatoTable vuelven a llamar a
+//    rendUpdateCosto, que la aplica sobre los ítems ya recalculados).
+function _repintarRecetasTrasRecalculo(){
+  renderSubproductos();
+  renderPlatos();
+  refrescarModalesAbiertosSiCorresponde();
+}
+// Vuelve a cargar subItems/platoItems desde DB (mismo mapeo que abrirModalSub/
+// abrirModalPlato) y repinta la tabla, solo si ese modal está abierto y
+// corresponde a una receta ya guardada. Se usa tanto para reflejar en el acto
+// un cambio de precio propio como uno recibido en tiempo real de otro usuario.
+function refrescarModalesAbiertosSiCorresponde(){
+  const modalSub=document.getElementById('modal-sub');
+  if(modalSub && modalSub.classList.contains('open') && editSubOld){
+    subItems=DB.subproductos.filter(x=>x.subproducto===editSubOld).map(r=>({
+      comp:r.componente,kgs:r.kgs,merma:parseFloat(r.merma)||0,
+      pk:getCompPrice(r.componente),
+      cr:r.costo_receta||(r.kgs||0)*getCompPrice(r.componente)
+    }));
+    buildSubTable();
+  }
+  const modalPlato=document.getElementById('modal-plato');
+  if(modalPlato && modalPlato.classList.contains('open') && editPlatoOld){
+    platoItems=DB.recetas_platos.filter(x=>x.plato===editPlatoOld).map(r=>({
+      comp:r.componente,
+      tipo:r.componente.startsWith('SUB - ')?'sub':'ins',
+      kgs:r.kgs,merma:parseFloat(r.merma)||0,
+      pk:getCompPrice(r.componente),
+      cr:(r.kgs||0)*getCompPrice(r.componente)
+    }));
+    buildPlatoTable();
+  }
+}
 function insOpts(){return DB.insumos.map(i=>({val:i.key,label:i.nombre}));}
 function subOpts(){return DB.maestro_subs.map(s=>({val:s,label:s.replace('SUB - ','')}));}
 function platoOpts(){return[...new Set(DB.recetas_platos.map(x=>x.plato))].map(p=>({val:p,label:p.replace('PLATO - ','')}));}
@@ -2491,6 +2564,7 @@ function updInsPrecioFormato(id,val){
   x.costo=kg>0?(x.precio_formato/kg):x.precio_formato;
   const el=document.getElementById('ipk'+id);
   if(el)el.textContent=fmtN(x.costo,2);
+  recalcularRecetasPorInsumo(x.key);
 }
 function updInsKgFormato(id,val){
   const x=DB.insumos.find(i=>i._id===id);if(!x)return;
@@ -2499,6 +2573,7 @@ function updInsKgFormato(id,val){
   x.costo=x.formato_kg>0?(pf/x.formato_kg):pf;
   const el=document.getElementById('ipk'+id);
   if(el)el.textContent=fmtN(x.costo,2);
+  recalcularRecetasPorInsumo(x.key);
 }
 function delIns(id){if(confirm('¿Eliminar insumo?')){DB.insumos=DB.insumos.filter(x=>x._id!==id);renderInsumos();sbSave(true);}}
 let _insumoNuevoId=null; // _id del insumo recién agregado, para resaltar su fila en el próximo render
@@ -2518,6 +2593,7 @@ function handleXLSX(e){
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
       let upd=0;
+      const insumosActualizados=new Set();
       rows.forEach(row=>{
         // Accept rows where col 0 = name/key, col 5 = new price (our Excel format)
         // Also accept simple 2-col format: name, price
@@ -2541,12 +2617,16 @@ function handleXLSX(e){
         }
         if(!nombre||precio===null||isNaN(precio))return;
         const found=DB.insumos.find(x=>x.key===nombre||x.nombre.toUpperCase()===nombre.replace('INSUMO - ',''));
-        if(found){found.costo=precio;upd++;}
+        if(found){found.costo=precio;upd++;insumosActualizados.add(found.key);}
       });
+      let recetasAfectadas=false;
+      insumosActualizados.forEach(k=>{ if(recalcularRecetasPorInsumo(k,false)) recetasAfectadas=true; });
+      if(recetasAfectadas) _repintarRecetasTrasRecalculo();
       renderInsumos();
       showAlert('upload-alert', upd>0?'success':'error',
         upd>0?'✓ '+upd+' insumo'+(upd!==1?'s':'')+' actualizado'+(upd!==1?'s':'')+'.'
              :'No se encontraron coincidencias. Verificá el formato del Excel.');
+      if(upd>0) sbSave(true);
     }catch(err){showAlert('upload-alert','error','Error al leer el archivo: '+err.message);}
   };
   r.readAsArrayBuffer(f);
@@ -4056,14 +4136,25 @@ function refrescarVistaComandaTrasSync(){
 function refrescarVistaActual(){
   try{
     const activeContent=document.querySelector('.content.active');
-    if(!activeContent) return;
-    const name=activeContent.id.replace(/^tab-/,'');
-    if(name==='comanda_periodos'){ refrescarVistaComandaTrasSync(); return; }
-    ({insumos:renderInsumos,subproductos:renderSubproductos,platos:renderPlatos,
-      costeo:renderCosteoTable,proveedores:renderProveedores,precio:renderPrecioFinal,
-      comanda_clientes:renderClientes})[name]?.();
+    if(activeContent){
+      const name=activeContent.id.replace(/^tab-/,'');
+      if(name==='comanda_periodos'){ refrescarVistaComandaTrasSync(); }
+      else{
+        ({insumos:renderInsumos,subproductos:renderSubproductos,platos:renderPlatos,
+          costeo:renderCosteoTable,proveedores:renderProveedores,precio:renderPrecioFinal,
+          comanda_clientes:renderClientes})[name]?.();
+      }
+    }
   }catch(err){
     console.error('Sync remoto: no se pudo refrescar la vista actual', err);
+  }
+  // El modal de subproducto/plato es un overlay independiente de la pestaña
+  // activa: si quedó abierto, también se refresca con los datos que acaban
+  // de llegar (por ejemplo, otro usuario cambió el precio de un insumo).
+  try{
+    refrescarModalesAbiertosSiCorresponde();
+  }catch(err){
+    console.error('Sync remoto: no se pudo refrescar el modal abierto', err);
   }
 }
 
