@@ -106,6 +106,10 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 /* MODAL: scrollable overlay, modal itself NOT scrollable — so fixed-position dropdowns inside don't get clipped */
 .modal-ov{position:fixed;inset:0;background:rgba(30,10,46,.65);z-index:1000;display:none;align-items:flex-start;justify-content:center;padding:20px 12px 40px;overflow-y:auto}
 .modal-ov.open{display:flex}
+/* Se abre desde adentro de otros modales (Stock, ambigüedad, importar recetas):
+   necesita quedar siempre por encima de cualquiera de ellos, sin importar el
+   orden en el DOM. */
+#modal-alta-insumo-rapida{z-index:1100}
 .modal{background:var(--surface);border-radius:14px;padding:24px;max-width:880px;width:100%;box-shadow:0 24px 80px rgba(30,10,46,.5);border:1px solid var(--border)}
 .modal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:14px}
 .modal-title{font-size:16px;font-weight:700;color:var(--text);font-family:'Playfair Display',serif}
