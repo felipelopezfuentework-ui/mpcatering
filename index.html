@@ -540,7 +540,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div id="sub-list"></div>
     <label class="btn btn-primary mp-fab-excel" style="cursor:pointer" title="Cargar recetas desde Excel">
       📊 Cargar desde Excel
-      <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event)">
+      <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event,'sub')">
     </label>
   </div>
 </div>
@@ -565,7 +565,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div id="plato-list"></div>
     <label class="btn btn-primary mp-fab-excel" style="cursor:pointer" title="Cargar recetas desde Excel">
       📊 Cargar desde Excel
-      <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event)">
+      <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event,'plato')">
     </label>
   </div>
 </div>
@@ -1280,12 +1280,12 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   </div>
 </div>
 
-<!-- ═══ MODAL ALTA RÁPIDA DE INSUMO (DESDE CONTEO DE STOCK) ══════════ -->
-<div class="modal-ov" id="modal-alta-insumo-stock">
+<!-- ═══ MODAL ALTA RÁPIDA DE INSUMO (reusado desde Stock e Importar recetas) ═══ -->
+<div class="modal-ov" id="modal-alta-insumo-rapida">
   <div class="modal" style="max-width:480px;width:94vw">
     <div class="modal-hd">
       <span class="modal-title">➕ Agregar insumo</span>
-      <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarAltaInsumoStock()">✕ Cerrar</button>
+      <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarAltaInsumoRapida()">✕ Cerrar</button>
     </div>
     <div class="form-row">
       <div class="form-field" style="flex:1 1 100%">
@@ -1310,8 +1310,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       </div>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
-      <button class="btn btn-outline" onclick="cerrarAltaInsumoStock()">Cancelar</button>
-      <button class="btn btn-primary" onclick="confirmarAltaInsumoStock()">✓ Crear e incorporar al conteo</button>
+      <button class="btn btn-outline" onclick="cerrarAltaInsumoRapida()">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarAltaInsumoRapida()">✓ Crear insumo</button>
     </div>
   </div>
 </div>
@@ -2561,6 +2561,39 @@ function addInsumo(overrides){
   insPage=0;document.getElementById('ins-search').value='';renderInsumos();sbSave(true);
   return nuevo;
 }
+
+// ── Alta rápida de insumo vía modal (reusada desde Stock e Importar
+// recetas, para no duplicar el formulario): abrirAltaInsumoRapida recibe un
+// prefill opcional ({nombre,formato}) y un callback al que se le pasa el
+// insumo recién creado por addInsumo() apenas se confirma.
+let _altaInsumoRapidaCallback=null;
+function abrirAltaInsumoRapida(prefill,onCrear){
+  _altaInsumoRapidaCallback=onCrear;
+  document.getElementById('alta-ins-nombre').value=(prefill&&prefill.nombre)||'';
+  document.getElementById('alta-ins-costo').value='';
+  document.getElementById('alta-ins-formato').value=(prefill&&prefill.formato)||'';
+  const provSel=document.getElementById('alta-ins-proveedor');
+  provSel.innerHTML='<option value="">— Sin proveedor —</option>'+DB.proveedores.map(p=>`<option value="${escH(p.proveedor)}">${escH(p.proveedor)}</option>`).join('');
+  document.getElementById('modal-alta-insumo-rapida').classList.add('open');
+}
+function cerrarAltaInsumoRapida(){
+  _altaInsumoRapidaCallback=null;
+  cerrarModal('modal-alta-insumo-rapida');
+}
+function confirmarAltaInsumoRapida(){
+  if(!_altaInsumoRapidaCallback)return;
+  const nombre=(document.getElementById('alta-ins-nombre').value||'').trim();
+  if(!nombre){alert('El nombre no puede estar vacío.');return;}
+  const costo=parseFloat(document.getElementById('alta-ins-costo').value)||0;
+  const proveedor=document.getElementById('alta-ins-proveedor').value||'';
+  const formato=(document.getElementById('alta-ins-formato').value||'').trim();
+  const nuevo=addInsumo({nombre,costo,proveedor,formato});
+  const cb=_altaInsumoRapidaCallback;
+  _altaInsumoRapidaCallback=null;
+  cerrarModal('modal-alta-insumo-rapida');
+  cb(nuevo);
+}
+
 function handleXLSX(e){
   const f=e.target.files[0];if(!f)return;
   e.target.value=''; // allow re-import same file
@@ -2844,39 +2877,18 @@ function resolverNoEncontradoMapear(idx,insumoId){
   renderConteoPreview();
 }
 
-// ── Alta rápida de insumo desde una fila "no encontrado" ────────────
-let _altaInsumoStockIdx=null;
+// ── Alta rápida de insumo desde una fila "no encontrado" del conteo ─
 function abrirAltaInsumoDesdeStock(idx){
   const r=_conteoParseado.revision[idx];
   if(!r||r.tipo!=='no_encontrado')return;
-  _altaInsumoStockIdx=idx;
-  document.getElementById('alta-ins-nombre').value=r.nombreExcel;
-  document.getElementById('alta-ins-costo').value='';
-  document.getElementById('alta-ins-formato').value=(r.parsedPreview&&r.parsedPreview.ok)?r.parsedPreview.unidad:'';
-  const provSel=document.getElementById('alta-ins-proveedor');
-  provSel.innerHTML='<option value="">— Sin proveedor —</option>'+DB.proveedores.map(p=>`<option value="${escH(p.proveedor)}">${escH(p.proveedor)}</option>`).join('');
-  document.getElementById('modal-alta-insumo-stock').classList.add('open');
-}
-function cerrarAltaInsumoStock(){
-  _altaInsumoStockIdx=null;
-  cerrarModal('modal-alta-insumo-stock');
-}
-function confirmarAltaInsumoStock(){
-  if(_altaInsumoStockIdx==null)return;
-  const idx=_altaInsumoStockIdx;
-  const r=_conteoParseado.revision[idx];
-  if(!r){cerrarAltaInsumoStock();return;}
-  const nombre=(document.getElementById('alta-ins-nombre').value||'').trim();
-  if(!nombre){alert('El nombre no puede estar vacío.');return;}
-  const costo=parseFloat(document.getElementById('alta-ins-costo').value)||0;
-  const proveedor=document.getElementById('alta-ins-proveedor').value||'';
-  const formato=(document.getElementById('alta-ins-formato').value||'').trim();
-  const nuevo=addInsumo({nombre,costo,proveedor,formato});
-  _altaInsumoStockIdx=null;
-  cerrarModal('modal-alta-insumo-stock');
-  _conteoParseado.revision.splice(idx,1);
-  agregarItemDesdeFila(_conteoParseado.items,_conteoParseado.revision,nuevo,r.nombreExcel,r.textoOriginal,r.observaciones);
-  renderConteoPreview();
+  abrirAltaInsumoRapida(
+    {nombre:r.nombreExcel,formato:(r.parsedPreview&&r.parsedPreview.ok)?r.parsedPreview.unidad:''},
+    nuevo=>{
+      _conteoParseado.revision.splice(idx,1);
+      agregarItemDesdeFila(_conteoParseado.items,_conteoParseado.revision,nuevo,r.nombreExcel,r.textoOriginal,r.observaciones);
+      renderConteoPreview();
+    }
+  );
 }
 
 // ── Validación de ajustes automáticos (por ahora, sólo conversión g→kg) ──
@@ -3899,7 +3911,7 @@ function delPlato(plato){
 let importRecetas=[];
 let importAmbiguous=[]; // [{ri,ii}] índices de ingredientes ambiguos pendientes de resolver
 
-function handleImportRecetasFile(e){
+function handleImportRecetasFile(e,origen){
   const f=e.target.files[0];if(!f)return;
   e.target.value='';
   const r=new FileReader();
@@ -3908,7 +3920,7 @@ function handleImportRecetasFile(e){
       const wb=XLSX.read(ev.target.result,{type:'array'});
       const sheetNames=wb.SheetNames.filter(n=>n.trim().toLowerCase()!=='solapa ejemplo');
       if(!sheetNames.length){alert('El Excel no tiene hojas de recetas (solo la hoja de ejemplo).');return;}
-      importRecetas=sheetNames.map(sn=>parseRecetaSheet(wb.Sheets[sn],sn)).filter(r=>r);
+      importRecetas=sheetNames.map(sn=>parseRecetaSheet(wb.Sheets[sn],sn,origen)).filter(r=>r);
       if(!importRecetas.length){alert('No se pudo leer ninguna receta del Excel. Revisá el formato de las hojas.');return;}
       iniciarFlujoImport();
     }catch(err){alert('Error al leer el archivo: '+err.message);}
@@ -3935,7 +3947,7 @@ function contieneFrase(b,a){
   return pad(b).includes(pad(a));
 }
 
-function parseRecetaSheet(ws,sheetName){
+function parseRecetaSheet(ws,sheetName,origen){
   const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
   if(!rows.length)return null;
   // Nombre: celda F1. Si F1 contiene una etiqueta (plantillas viejas con "Nombre de Plato" en F1
@@ -4003,7 +4015,7 @@ function parseRecetaSheet(ws,sheetName){
   if(!ingredientes.length)return null;
   const totalKg=ingredientes.reduce((s,x)=>s+x.peso,0);
   const pesoPorcionKg=porciones>0?(totalKg/porciones):0;
-  return{sheetName,nombre,tipo:'plato',porciones,pesoPorcionG:Math.round(pesoPorcionKg*1000*100)/100,ingredientes,procedimiento,nota_chef:notaChef};
+  return{sheetName,nombre,tipo:origen==='sub'?'sub':'plato',porciones,pesoPorcionG:Math.round(pesoPorcionKg*1000*100)/100,ingredientes,procedimiento,nota_chef:notaChef};
 }
 
 function abrirModalAmbiguedad(){
@@ -4028,10 +4040,28 @@ function renderImportAmbiguous(){
           <input type="radio" name="amb-${idx}" value="__none__" ${chosen==='__none__'?'checked':''} onchange="ambSetChoice(${idx},'__none__')">
           Ninguno de estos — cargar como texto libre
         </label>
+        <button class="btn btn-outline" style="font-size:11px;padding:5px 10px;align-self:flex-start" onclick="abrirAltaInsumoDesdeAmbiguedad(${idx})">➕ Agregar insumo</button>
       </div>
     </div>`;
   }).join('');
   updateContinuarAmbiguoState();
+}
+
+function abrirAltaInsumoDesdeAmbiguedad(idx){
+  const{ri,ii}=importAmbiguous[idx];
+  const ing=importRecetas[ri].ingredientes[ii];
+  if(!ing)return;
+  abrirAltaInsumoRapida(
+    {nombre:ing.nombreExcel},
+    nuevo=>{
+      // El insumo nuevo pasa a ser la opción elegida para esta fila, igual que
+      // si el usuario hubiera tildado una de las candidatas existentes: se
+      // aplica recién al confirmar toda la ambigüedad (mismo flujo que ambSetChoice).
+      if(!ing.candidatos.some(c=>c.key===nuevo.key))ing.candidatos.push(nuevo);
+      ambSetChoice(idx,nuevo.key);
+      renderImportAmbiguous();
+    }
+  );
 }
 
 function ambSetChoice(idx,val){
@@ -4090,10 +4120,7 @@ function renderImportPreview(){
         </div>
         <div class="form-field">
           <label style="font-size:10px;color:var(--text3)">Tipo</label>
-          <select style="width:150px" onchange="impSetTipo(${idx},this.value)">
-            <option value="plato" ${isPlato?'selected':''}>🍴 Plato</option>
-            <option value="sub" ${!isPlato?'selected':''}>🧩 Subproducto</option>
-          </select>
+          <input type="text" value="${isPlato?'🍴 Plato':'🧩 Subproducto'}" style="width:150px;background:var(--surface);color:var(--text3)" readonly>
         </div>
         ${isPlato?`
         <div class="form-field">
@@ -4112,12 +4139,13 @@ function renderImportPreview(){
       </div>
       <div class="tw" style="overflow-x:auto"><table style="min-width:500px">
         <thead><tr><th>Ingrediente</th><th class="num">Peso (kg)</th><th class="num">Rinde (kg)</th><th class="num">% Merma</th><th>Estado</th></tr></thead>
-        <tbody>${rec.ingredientes.map(ing=>`<tr>
+        <tbody>${rec.ingredientes.map((ing,ii)=>`<tr>
           <td>${escH(ing.nombreExcel)}</td>
           <td class="num">${fmtN(ing.peso,4)}</td>
           <td class="num">${ing.rinde!==null?fmtN(ing.rinde,4):'—'}</td>
           <td class="num">${ing.merma?fmtN(ing.merma,1)+'%':'—'}</td>
-          <td>${ing.matched?'<span style="color:var(--green)">✅ Encontrado'+(ing.resuelto?' (elegido)':'')+'</span>':'<span style="color:var(--red)">❌ No encontrado (se carga como texto)</span>'}</td>
+          <td>${ing.matched?'<span style="color:var(--green)">✅ Encontrado'+(ing.resuelto?' (elegido)':'')+'</span>':`<span style="color:var(--red)">❌ No encontrado (se carga como texto)</span>
+            <button class="btn btn-outline" style="font-size:10px;padding:3px 7px;margin-left:6px" onclick="abrirAltaInsumoDesdeImport(${idx},${ii})">➕ Agregar insumo</button>`}</td>
         </tr>`).join('')}</tbody>
       </table></div>
       ${rec.nota_chef?`<div style="margin-top:8px;font-size:11px;color:var(--text3)"><strong>Nota del chef:</strong> ${escH(rec.nota_chef)}</div>`:''}
@@ -4126,8 +4154,21 @@ function renderImportPreview(){
 }
 
 function impSetNombre(idx,v){importRecetas[idx].nombre=v;}
-function impSetTipo(idx,v){importRecetas[idx].tipo=v;renderImportPreview();}
 function impSetPeso(idx,v){importRecetas[idx].pesoPorcionG=parseFloat(v)||0;}
+
+function abrirAltaInsumoDesdeImport(ri,ii){
+  const ing=importRecetas[ri]?.ingredientes[ii];
+  if(!ing)return;
+  abrirAltaInsumoRapida(
+    {nombre:ing.nombreExcel},
+    nuevo=>{
+      ing.comp=nuevo.key;
+      ing.matched=true;
+      ing.resuelto=true;
+      renderImportPreview();
+    }
+  );
+}
 
 function confirmarImportExcel(){
   if(!importRecetas.length)return;
