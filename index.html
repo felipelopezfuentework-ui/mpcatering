@@ -4155,13 +4155,32 @@ function renderImportPreview(){
           <td class="num">${fmtN(ing.peso,4)}</td>
           <td class="num">${ing.rinde!==null?fmtN(ing.rinde,4):'—'}</td>
           <td class="num">${ing.merma?fmtN(ing.merma,1)+'%':'—'}</td>
-          <td>${ing.matched?'<span style="color:var(--green)">✅ Encontrado'+(ing.resuelto?' (elegido)':'')+'</span>':`<span style="color:var(--red)">❌ No encontrado (se carga como texto)</span>
-            <button class="btn btn-outline" style="font-size:10px;padding:3px 7px;margin-left:6px" onclick="abrirAltaInsumoDesdeImport(${idx},${ii})">➕ Agregar insumo</button>`}</td>
+          <td>${ing.matched?'<span style="color:var(--green)">✅ Encontrado'+(ing.resuelto?' (elegido)':'')+'</span>':`
+            <div style="display:flex;flex-direction:column;gap:4px;min-width:210px">
+              <span style="color:var(--red)">❌ No encontrado (se carga como texto)</span>
+              <input type="text" class="dd-input" id="imp-dd-${idx}-${ii}" placeholder="🔍 Buscar insumo…" autocomplete="off" style="width:100%">
+              <button class="btn btn-outline" style="font-size:10px;padding:3px 7px;align-self:flex-start" onclick="abrirAltaInsumoDesdeImport(${idx},${ii})">➕ Agregar insumo</button>
+            </div>`}</td>
         </tr>`).join('')}</tbody>
       </table></div>
       ${rec.nota_chef?`<div style="margin-top:8px;font-size:11px;color:var(--text3)"><strong>Nota del chef:</strong> ${escH(rec.nota_chef)}</div>`:''}
     </div>`;
   }).join('');
+  // Dropdown buscable de "Buscar insumo" (segunda capa, además del alta rápida)
+  // para cada ingrediente no encontrado: deja mapearlo a mano a cualquier
+  // insumo del maestro, por si el sistema no lo detectó solo.
+  importRecetas.forEach((rec,ri)=>{
+    rec.ingredientes.forEach((ing,ii)=>{
+      if(ing.matched)return;
+      const inp=document.getElementById('imp-dd-'+ri+'-'+ii);
+      if(!inp)return;
+      attachDD(inp,
+        ()=>DB.insumos.map(i=>({val:String(i._id),label:i.nombre})),
+        ()=>'',
+        val=>resolverIngredienteMapeo(ri,ii,val)
+      );
+    });
+  });
   actualizarBtnConfirmarImport();
 }
 
@@ -4235,6 +4254,16 @@ function abrirAltaInsumoDesdeImport(ri,ii){
       renderImportPreview();
     }
   );
+}
+
+function resolverIngredienteMapeo(ri,ii,insumoId){
+  const ing=importRecetas[ri]?.ingredientes[ii];
+  const insumo=DB.insumos.find(x=>x._id===parseInt(insumoId,10));
+  if(!ing||!insumo)return;
+  ing.comp=insumo.key;
+  ing.matched=true;
+  ing.resuelto=true;
+  renderImportPreview();
 }
 
 function confirmarImportExcel(){
