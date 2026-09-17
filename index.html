@@ -64,6 +64,8 @@ input,select{background:var(--surface2);border:1px solid var(--border);border-ra
 input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(92,45,110,.15)}
 .btn{padding:9px 18px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
 .btn-primary{background:var(--mp-violet);color:#fff}
+/* Sigue siendo clickeable (para poder avisar qué falta al tocarlo), sólo se ve atenuado */
+.btn-import-incompleto{opacity:.55}
 .btn-primary:hover{background:var(--mp-plum);transform:translateY(-1px);box-shadow:0 4px 14px rgba(61,26,82,.4)}
 .btn-gold{background:linear-gradient(135deg,#c8a951,#b8941a);color:#1e0a2e;font-weight:700}
 .btn-gold:hover{background:linear-gradient(135deg,#d4b55e,#c8a951);transform:translateY(-1px)}
@@ -4117,11 +4119,11 @@ function renderImportPreview(){
     '<span style="color:var(--red)">❌ '+(totalIng-totalMatch)+' no encontrado'+((totalIng-totalMatch)!==1?'s':'')+'</span>';
   body.innerHTML=importRecetas.map((rec,idx)=>{
     const isPlato=rec.tipo!=='sub';
-    return `<div class="card" style="margin-bottom:14px;background:var(--surface2)">
-      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+    return `<div class="card" id="imp-card-${idx}" style="margin-bottom:14px;background:var(--surface2)">
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:2px">
         <div class="form-field" style="flex:1;min-width:220px">
           <label style="font-size:10px;color:var(--text3)">Nombre <span style="opacity:.7">(hoja: ${escH(rec.sheetName)})</span></label>
-          <input type="text" value="${escH(rec.nombre)}" style="width:100%" oninput="impSetNombre(${idx},this.value)">
+          <input type="text" id="imp-nombre-${idx}" value="${escH(rec.nombre)}" style="width:100%" oninput="impSetNombre(${idx},this.value)">
         </div>
         <div class="form-field">
           <label style="font-size:10px;color:var(--text3)">Tipo</label>
@@ -4136,6 +4138,10 @@ function renderImportPreview(){
           <label style="font-size:10px;color:var(--text3)">Peso/porción (g)</label>
           <input type="number" step="1" id="imp-peso-${idx}" value="${rec.pesoPorcionG||''}" style="width:100px" onchange="impSetPeso(${idx},this.value)">
         </div>`:''}
+      </div>
+      <div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:10px;font-size:10px;color:var(--red);font-weight:600">
+        <span id="imp-nombre-warn-${idx}"></span>
+        ${isPlato?`<span id="imp-porciones-warn-${idx}"></span><span id="imp-peso-warn-${idx}"></span>`:''}
       </div>
       <div style="margin-bottom:8px;font-size:11px;color:var(--text3);display:flex;flex-wrap:wrap;gap:10px">
         <span><span style="color:var(--green)">✅ ${rec.ingredientes.filter(i=>i.matched).length} encontrado${rec.ingredientes.filter(i=>i.matched).length!==1?'s':''}</span> · <span style="color:var(--red)">❌ ${rec.ingredientes.filter(i=>!i.matched).length} no encontrado${rec.ingredientes.filter(i=>!i.matched).length!==1?'s':''}</span></span>
@@ -4159,29 +4165,48 @@ function renderImportPreview(){
   actualizarBtnConfirmarImport();
 }
 
-// Recalcula si "Confirmar importación" puede habilitarse y el resumen de lo
-// que falta. No re-renderiza import-preview-body (para no perder el foco de
-// los inputs mientras se escribe): sólo toca el botón y el resumen.
+// Qué le falta a una receta para poder importarse. Única fuente de verdad,
+// la usan tanto el resaltado en vivo (actualizarBtnConfirmarImport) como el
+// mensaje al tocar "Confirmar importación" (confirmarImportExcel), para que
+// nunca queden desalineados.
+function evaluarRecetaImport(rec){
+  const nombreVacio=!(rec.nombre||'').trim();
+  const esPlato=rec.tipo!=='sub';
+  const faltaPorciones=esPlato&&(parseFloat(rec.porciones)||0)<=0;
+  const faltaPeso=esPlato&&(parseFloat(rec.pesoPorcionG)||0)<=0;
+  const sinMatch=rec.ingredientes.filter(i=>!i.matched).length;
+  return{nombreVacio,faltaPorciones,faltaPeso,sinMatch};
+}
+
+// Resalta en rojo, campo por campo, lo que falta completar en cada receta
+// (borde + leyenda al lado) y arma el resumen agregado arriba del botón. No
+// re-renderiza import-preview-body (para no perder el foco de los inputs
+// mientras se escribe): sólo toca esos elementos puntuales.
 function actualizarBtnConfirmarImport(){
   const btn=document.getElementById('btn-confirmar-import');
   const resumenEl=document.getElementById('import-faltantes');
-  if(!btn)return;
   let sinNombre=0,sinPorcionesOPeso=0,ingredientesSinInsumo=0;
-  importRecetas.forEach(rec=>{
-    if(!(rec.nombre||'').trim())sinNombre++;
-    if(rec.tipo!=='sub'){
-      const porciones=parseFloat(rec.porciones)||0;
-      const peso=parseFloat(rec.pesoPorcionG)||0;
-      if(porciones<=0||peso<=0)sinPorcionesOPeso++;
-    }
-    ingredientesSinInsumo+=rec.ingredientes.filter(i=>!i.matched).length;
+  importRecetas.forEach((rec,idx)=>{
+    const{nombreVacio,faltaPorciones,faltaPeso,sinMatch}=evaluarRecetaImport(rec);
+    if(nombreVacio)sinNombre++;
+    if(faltaPorciones||faltaPeso)sinPorcionesOPeso++;
+    ingredientesSinInsumo+=sinMatch;
+    const marcar=(inputId,warnId,falta,mensaje)=>{
+      const input=document.getElementById(inputId);
+      const warn=document.getElementById(warnId);
+      if(input)input.style.borderColor=falta?'var(--red)':'';
+      if(warn)warn.textContent=falta?('⚠️ '+mensaje):'';
+    };
+    marcar('imp-nombre-'+idx,'imp-nombre-warn-'+idx,nombreVacio,'Falta el nombre de la receta');
+    marcar('imp-porciones-'+idx,'imp-porciones-warn-'+idx,faltaPorciones,'Falta cargar las porciones');
+    marcar('imp-peso-'+idx,'imp-peso-warn-'+idx,faltaPeso,'Falta cargar el peso por porción');
   });
   const partes=[];
   if(sinPorcionesOPeso)partes.push(sinPorcionesOPeso+' plato'+(sinPorcionesOPeso!==1?'s':'')+' sin porciones y/o peso por porción');
   if(ingredientesSinInsumo)partes.push(ingredientesSinInsumo+' ingrediente'+(ingredientesSinInsumo!==1?'s':'')+' sin insumo asignado');
   if(sinNombre)partes.push(sinNombre+' receta'+(sinNombre!==1?'s':'')+' sin nombre');
   if(resumenEl)resumenEl.innerHTML=partes.length?('⚠️ Falta completar: '+partes.join(' · ')):'';
-  btn.disabled=partes.length>0;
+  if(btn)btn.classList.toggle('btn-import-incompleto',partes.length>0);
 }
 
 function impSetNombre(idx,v){importRecetas[idx].nombre=v;actualizarBtnConfirmarImport();}
@@ -4214,6 +4239,20 @@ function abrirAltaInsumoDesdeImport(ri,ii){
 
 function confirmarImportExcel(){
   if(!importRecetas.length)return;
+  actualizarBtnConfirmarImport();
+  const faltantes=[];
+  importRecetas.forEach(rec=>{
+    const{nombreVacio,faltaPorciones,faltaPeso,sinMatch}=evaluarRecetaImport(rec);
+    const etiqueta=nombreVacio?('la hoja "'+rec.sheetName+'"'):('"'+rec.nombre.trim()+'"');
+    if(nombreVacio)faltantes.push('Falta el nombre de la receta de '+etiqueta+'.');
+    if(faltaPorciones)faltantes.push('Falta cargar las porciones de '+etiqueta+'.');
+    if(faltaPeso)faltantes.push('Falta cargar el peso por porción de '+etiqueta+'.');
+    if(sinMatch)faltantes.push(sinMatch+' insumo'+(sinMatch!==1?'s':'')+' sin asignar en '+etiqueta+'.');
+  });
+  if(faltantes.length){
+    alert('Todavía falta completar antes de poder importar:\n\n- '+faltantes.join('\n- '));
+    return;
+  }
   let nPlatos=0,nSubs=0;
   importRecetas.forEach(rec=>{
     const rawName=(rec.nombre||'').trim().toUpperCase();
