@@ -1280,6 +1280,42 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   </div>
 </div>
 
+<!-- ═══ MODAL ALTA RÁPIDA DE INSUMO (DESDE CONTEO DE STOCK) ══════════ -->
+<div class="modal-ov" id="modal-alta-insumo-stock">
+  <div class="modal" style="max-width:480px;width:94vw">
+    <div class="modal-hd">
+      <span class="modal-title">➕ Agregar insumo</span>
+      <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarAltaInsumoStock()">✕ Cerrar</button>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:1 1 100%">
+        <label>Nombre</label>
+        <input type="text" id="alta-ins-nombre" placeholder="Nombre del insumo" style="width:100%">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:1">
+        <label>Costo</label>
+        <input type="number" step="0.01" min="0" id="alta-ins-costo" placeholder="0" style="width:100%">
+      </div>
+      <div class="form-field" style="flex:1">
+        <label>Formato</label>
+        <input type="text" id="alta-ins-formato" placeholder="Ej: Bolsa 5kg" style="width:100%">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:1 1 100%">
+        <label>Proveedor</label>
+        <select id="alta-ins-proveedor" style="width:100%"></select>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+      <button class="btn btn-outline" onclick="cerrarAltaInsumoStock()">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarAltaInsumoStock()">✓ Crear e incorporar al conteo</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ MODAL IMPORTAR RECETAS DESDE EXCEL ══════════════════════════ -->
 <div class="modal-ov" id="modal-import-excel">
   <div class="modal" style="max-width:1100px;width:98vw;max-height:90vh;overflow-y:auto">
@@ -2511,11 +2547,19 @@ function updInsKgFormato(id,val){
 }
 function delIns(id){if(confirm('¿Eliminar insumo?')){DB.insumos=DB.insumos.filter(x=>x._id!==id);renderInsumos();sbSave(true);}}
 let _insumoNuevoId=null; // _id del insumo recién agregado, para resaltar su fila en el próximo render
-function addInsumo(){
+// overrides opcional ({nombre,costo,proveedor,formato}) — lo usa también el
+// alta rápida de insumo desde el conteo de stock (mismo alta, mismos campos,
+// mismo sbSave), sin duplicar esta función.
+function addInsumo(overrides){
   const nuevoId=Date.now();
-  DB.insumos.unshift({_id:nuevoId,key:'INSUMO - NUEVO INSUMO',nombre:'NUEVO INSUMO',costo:0,proveedor:'',formato:'',precio_formato:0,formato_kg:0});
+  const nombre=(overrides&&overrides.nombre)||'NUEVO INSUMO';
+  const nuevo={_id:nuevoId,key:'INSUMO - '+nombre.toUpperCase(),nombre,
+    costo:(overrides&&overrides.costo)||0,proveedor:(overrides&&overrides.proveedor)||'',
+    formato:(overrides&&overrides.formato)||'',precio_formato:0,formato_kg:0};
+  DB.insumos.unshift(nuevo);
   _insumoNuevoId=nuevoId;
   insPage=0;document.getElementById('ins-search').value='';renderInsumos();sbSave(true);
+  return nuevo;
 }
 function handleXLSX(e){
   const f=e.target.files[0];if(!f)return;
@@ -2648,6 +2692,7 @@ function cerrarModalConteo(){
 }
 
 const UNIDADES_KG=['kg','kgs','kilo','kilos'];
+const UNIDADES_GRAMOS=['g','gr','gramos'];
 function _normUnidad(u){
   return String(u||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\.$/,'');
 }
@@ -2667,6 +2712,23 @@ function parseCantidadStock(raw){
   const cantidad=parseFloat(m[1].replace(',','.'));
   if(isNaN(cantidad))return{ok:false,texto};
   return{ok:true,cantidad,unidad:m[2],texto};
+}
+
+// Único ajuste automático hoy: gramos → kg (÷1000), porque es la unidad que
+// se puede convertir sin ambigüedad. El resto de las unidades no numéricas
+// (unid, pack, lt, ml, caja, etc.) no se convierten: quedan con la alerta de
+// "unidad no es kg" en vez de un ajuste automático.
+function interpretarCantidad(cantidad,unidad){
+  const u=_normUnidad(unidad);
+  if(UNIDADES_GRAMOS.includes(u)){
+    const cantidadFinal=cantidad/1000;
+    return{
+      cantidadFinal,unidadFinal:'kg',convertido:true,
+      notaConversion:'Convertido: '+fmtN(cantidad,2)+' '+unidad+' → '+fmtN(cantidadFinal,3)+' kg',
+      alertaUnidad:false
+    };
+  }
+  return{cantidadFinal:cantidad,unidadFinal:unidad,convertido:false,notaConversion:null,alertaUnidad:!esUnidadKg(unidad)};
 }
 
 function handleConteoXLSX(e){
@@ -2698,6 +2760,31 @@ function handleConteoXLSX(e){
   r.readAsArrayBuffer(f);
 }
 
+// Arma el ítem final de un insumo ya identificado (matcheado en la planilla,
+// mapeado a mano o recién dado de alta): parsea la cantidad, aplica la
+// conversión g→kg si corresponde y calcula diferencia/alertas. Si el texto
+// de cantidad no es interpretable, la fila pasa a revisión manual en vez de
+// entrar al conteo. Se reusa tanto en el primer pasada de la planilla como
+// al resolver una fila de "no encontrado" (mapear a insumo existente o
+// crear uno nuevo), para no duplicar esta lógica.
+function agregarItemDesdeFila(items,revision,insumo,nombreExcel,cantidadTexto,observaciones){
+  const parsed=parseCantidadStock(cantidadTexto);
+  if(!parsed.ok){
+    revision.push({tipo:'no_parseable',nombreExcel,textoOriginal:parsed.texto,motivo:'Cantidad no interpretable',observaciones});
+    return;
+  }
+  const interpretado=interpretarCantidad(parsed.cantidad,parsed.unidad);
+  const cantidadAnterior=stockActualDe(insumo._id);
+  const diferencia=interpretado.cantidadFinal-cantidadAnterior;
+  const alertaDiferencia=cantidadAnterior>0&&Math.abs(diferencia)/cantidadAnterior>=UMBRAL_ALERTA_DIFERENCIA;
+  items.push({
+    insumoId:insumo._id,nombre:insumo.nombre,cantidadAnterior,cantidadContada:interpretado.cantidadFinal,diferencia,
+    alertaDiferencia,alertaUnidad:interpretado.alertaUnidad,unidad:interpretado.unidadFinal,
+    convertidoDeGramos:interpretado.convertido,ajusteValidado:!interpretado.convertido,notaConversion:interpretado.notaConversion,
+    observaciones
+  });
+}
+
 function procesarConteoRows(dataRows){
   // Primera pasada: contar ocurrencias por nombre normalizado, para detectar duplicados.
   const nombreCount={};
@@ -2719,31 +2806,88 @@ function procesarConteoRows(dataRows){
     const insumo=DB.insumos.find(x=>normTxt(x.nombre)===key);
     if(insumo)seenInsumoIds.add(insumo._id);
     if(nombreCount[key]>1){
-      revision.push({nombreExcel,textoOriginal:cantidadTexto,motivo:'Duplicado: aparece '+nombreCount[key]+' veces en la planilla',observaciones});
+      revision.push({tipo:'duplicado',nombreExcel,textoOriginal:cantidadTexto,motivo:'Duplicado: aparece '+nombreCount[key]+' veces en la planilla',observaciones});
       return;
     }
     if(!insumo){
-      revision.push({nombreExcel,textoOriginal:cantidadTexto,motivo:'No encontrado en el maestro de insumos',observaciones});
+      // Se deja pre-parseada para prellenar el formato en el alta rápida, sin sumarla al conteo todavía.
+      const parsedPreview=parseCantidadStock(cantidadTexto);
+      revision.push({tipo:'no_encontrado',nombreExcel,textoOriginal:cantidadTexto,motivo:'No encontrado en el maestro de insumos',observaciones,parsedPreview});
       return;
     }
-    const parsed=parseCantidadStock(cantidadTexto);
-    if(!parsed.ok){
-      revision.push({nombreExcel,textoOriginal:parsed.texto,motivo:'Cantidad no interpretable',observaciones});
-      return;
-    }
-    const cantidadAnterior=stockActualDe(insumo._id);
-    const diferencia=parsed.cantidad-cantidadAnterior;
-    const alertaDiferencia=cantidadAnterior>0&&Math.abs(diferencia)/cantidadAnterior>=UMBRAL_ALERTA_DIFERENCIA;
-    const alertaUnidad=!esUnidadKg(parsed.unidad);
-    items.push({insumoId:insumo._id,nombre:insumo.nombre,cantidadAnterior,cantidadContada:parsed.cantidad,diferencia,alertaDiferencia,alertaUnidad,unidad:parsed.unidad,observaciones});
+    agregarItemDesdeFila(items,revision,insumo,nombreExcel,cantidadTexto,observaciones);
   });
   // Insumos existentes que no se mencionaron en ninguna fila de la planilla: sin cambio.
   DB.insumos.forEach(x=>{
     if(seenInsumoIds.has(x._id))return;
     const cantidadAnterior=stockActualDe(x._id);
-    items.push({insumoId:x._id,nombre:x.nombre,cantidadAnterior,cantidadContada:cantidadAnterior,diferencia:0,alertaDiferencia:false,alertaUnidad:false,unidad:'',observaciones:'',sinCambio:true});
+    items.push({insumoId:x._id,nombre:x.nombre,cantidadAnterior,cantidadContada:cantidadAnterior,diferencia:0,alertaDiferencia:false,alertaUnidad:false,unidad:'',convertidoDeGramos:false,ajusteValidado:true,notaConversion:null,observaciones:'',sinCambio:true});
   });
   _conteoParseado={items,revision};
+  renderConteoPreview();
+}
+
+// ── Resolución de filas "no encontrado" (mapear / crear / ignorar) ──
+function resolverNoEncontradoIgnorar(idx){
+  const r=_conteoParseado.revision[idx];
+  if(!r||r.tipo!=='no_encontrado')return;
+  _conteoParseado.revision.splice(idx,1);
+  renderConteoPreview();
+}
+function resolverNoEncontradoMapear(idx,insumoId){
+  const r=_conteoParseado.revision[idx];
+  if(!r||r.tipo!=='no_encontrado')return;
+  const insumo=DB.insumos.find(x=>x._id===insumoId);
+  if(!insumo)return;
+  _conteoParseado.revision.splice(idx,1);
+  agregarItemDesdeFila(_conteoParseado.items,_conteoParseado.revision,insumo,r.nombreExcel,r.textoOriginal,r.observaciones);
+  renderConteoPreview();
+}
+
+// ── Alta rápida de insumo desde una fila "no encontrado" ────────────
+let _altaInsumoStockIdx=null;
+function abrirAltaInsumoDesdeStock(idx){
+  const r=_conteoParseado.revision[idx];
+  if(!r||r.tipo!=='no_encontrado')return;
+  _altaInsumoStockIdx=idx;
+  document.getElementById('alta-ins-nombre').value=r.nombreExcel;
+  document.getElementById('alta-ins-costo').value='';
+  document.getElementById('alta-ins-formato').value=(r.parsedPreview&&r.parsedPreview.ok)?r.parsedPreview.unidad:'';
+  const provSel=document.getElementById('alta-ins-proveedor');
+  provSel.innerHTML='<option value="">— Sin proveedor —</option>'+DB.proveedores.map(p=>`<option value="${escH(p.proveedor)}">${escH(p.proveedor)}</option>`).join('');
+  document.getElementById('modal-alta-insumo-stock').classList.add('open');
+}
+function cerrarAltaInsumoStock(){
+  _altaInsumoStockIdx=null;
+  cerrarModal('modal-alta-insumo-stock');
+}
+function confirmarAltaInsumoStock(){
+  if(_altaInsumoStockIdx==null)return;
+  const idx=_altaInsumoStockIdx;
+  const r=_conteoParseado.revision[idx];
+  if(!r){cerrarAltaInsumoStock();return;}
+  const nombre=(document.getElementById('alta-ins-nombre').value||'').trim();
+  if(!nombre){alert('El nombre no puede estar vacío.');return;}
+  const costo=parseFloat(document.getElementById('alta-ins-costo').value)||0;
+  const proveedor=document.getElementById('alta-ins-proveedor').value||'';
+  const formato=(document.getElementById('alta-ins-formato').value||'').trim();
+  const nuevo=addInsumo({nombre,costo,proveedor,formato});
+  _altaInsumoStockIdx=null;
+  cerrarModal('modal-alta-insumo-stock');
+  _conteoParseado.revision.splice(idx,1);
+  agregarItemDesdeFila(_conteoParseado.items,_conteoParseado.revision,nuevo,r.nombreExcel,r.textoOriginal,r.observaciones);
+  renderConteoPreview();
+}
+
+// ── Validación de ajustes automáticos (por ahora, sólo conversión g→kg) ──
+function validarAjusteItem(idx,checked){
+  const it=_conteoParseado.items[idx];
+  if(!it)return;
+  it.ajusteValidado=checked;
+  updateBtnConfirmarConteo();
+}
+function validarTodosLosAjustes(){
+  _conteoParseado.items.forEach(it=>{if(it.convertidoDeGramos)it.ajusteValidado=true;});
   renderConteoPreview();
 }
 
@@ -2756,16 +2900,29 @@ function renderConteoPreview(){
   const conAlertaUnidad=items.filter(i=>i.alertaUnidad);
   const conAlerta=items.filter(i=>i.alertaDiferencia||i.alertaUnidad);
   const conDiferencia=items.filter(i=>i.diferencia!==0);
-  const ordenados=[...items].sort((a,b)=>((b.alertaDiferencia||b.alertaUnidad)-(a.alertaDiferencia||a.alertaUnidad))||(Math.abs(b.diferencia)-Math.abs(a.diferencia)));
+  const conAjuste=items.filter(i=>i.convertidoDeGramos);
+  const ajustesPendientes=conAjuste.filter(i=>!i.ajusteValidado);
+  const pendientesNoEncontrado=revision.filter(r=>r.tipo==='no_encontrado');
+  const ordenIdx=items.map((_,i)=>i).sort((a,b)=>{
+    const A=items[a],B=items[b];
+    return ((B.alertaDiferencia||B.alertaUnidad)-(A.alertaDiferencia||A.alertaUnidad))||(Math.abs(B.diferencia)-Math.abs(A.diferencia));
+  });
   let html=`<div style="font-size:12px;color:var(--text3);margin-bottom:14px">
     ${_conteoNombreArchivo?`Archivo: <strong>${escH(_conteoNombreArchivo)}</strong> · `:''}${items.length} insumos procesados · <span style="color:var(--green)">${conDiferencia.length} con diferencia</span>
     ${conAlertaDif.length?` · <span style="color:var(--red)">⚠️ ${conAlertaDif.length} con diferencia ≥ ${Math.round(UMBRAL_ALERTA_DIFERENCIA*100)}%</span>`:''}
     ${conAlertaUnidad.length?` · <span style="color:var(--yellow)">⚠️ ${conAlertaUnidad.length} con unidad distinta a kg</span>`:''}
-    ${revision.length?` · <span style="color:var(--yellow)">${revision.length} para revisión manual</span>`:''}
+    ${conAjuste.length?` · <span style="color:var(--yellow)">🔄 ${conAjuste.length} con ajuste automático (g→kg)</span>`:''}
+    ${pendientesNoEncontrado.length?` · <span style="color:var(--red)">${pendientesNoEncontrado.length} sin match, pendientes de resolución</span>`:''}
   </div>`;
+  if(conAjuste.length){
+    html+=`<div style="margin-bottom:10px">
+      <button class="btn btn-outline" onclick="validarTodosLosAjustes()">✓ Validar todos los ajustes (${conAjuste.length})</button>
+    </div>`;
+  }
   html+=`<div class="tw" style="margin-bottom:16px;max-height:320px;overflow-y:auto"><table>
-    <thead><tr><th>Insumo</th><th class="num">Cant. anterior</th><th class="num">Cant. contada</th><th class="num">Diferencia</th></tr></thead>
-    <tbody>${ordenados.map(it=>{
+    <thead><tr><th>Insumo</th><th class="num">Cant. anterior</th><th class="num">Cant. contada</th><th class="num">Diferencia</th><th>Ajuste automático</th></tr></thead>
+    <tbody>${ordenIdx.map(idx=>{
+      const it=items[idx];
       const bg=it.alertaDiferencia?'background:rgba(192,57,43,.1)':it.alertaUnidad?'background:rgba(160,112,16,.1)':'';
       return `<tr${bg?` style="${bg}"`:''}>
       <td style="font-weight:600">${escH(it.nombre)}${it.sinCambio?' <span style="font-size:10px;color:var(--text3)">(no aparece en la planilla)</span>':''}
@@ -2775,20 +2932,31 @@ function renderConteoPreview(){
       <td class="num">${fmtN(it.cantidadAnterior,2)}</td>
       <td class="num">${fmtN(it.cantidadContada,2)}</td>
       <td class="num" style="${it.alertaDiferencia?'color:var(--red);font-weight:700':''}">${it.diferencia>0?'+':''}${fmtN(it.diferencia,2)}${it.alertaDiferencia?' ⚠️':''}</td>
+      <td>${it.convertidoDeGramos?`<div style="font-size:11px;color:var(--text2);margin-bottom:4px">🔄 ${escH(it.notaConversion)}</div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;color:${it.ajusteValidado?'var(--green)':'var(--yellow)'}">
+          <input type="checkbox" ${it.ajusteValidado?'checked':''} onchange="validarAjusteItem(${idx},this.checked)"> ${it.ajusteValidado?'Validado':'Validar'}
+        </label>`:'—'}</td>
     </tr>`;
     }).join('')}</tbody>
   </table></div>`;
   if(revision.length){
     html+=`<div class="card" style="background:var(--surface2);margin-bottom:16px">
       <div class="card-title" style="font-size:13px">⚠️ Filas para revisión manual <span class="badge badge-blue">${revision.length}</span></div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:8px">No se van a guardar automáticamente. Revisalas y, si corresponde, corregí la planilla o cargá el insumo a mano.</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:8px">Las filas "No encontrado" tienen que resolverse (mapear, dar de alta o ignorar) antes de poder confirmar el conteo. Duplicados y cantidades no interpretables quedan afuera del conteo, no bloquean la confirmación.</div>
       <div class="tw"><table>
-        <thead><tr><th>Producto (planilla)</th><th>Motivo</th><th>Texto original</th><th>Observaciones</th></tr></thead>
-        <tbody>${revision.map(n=>`<tr>
+        <thead><tr><th>Producto (planilla)</th><th>Motivo</th><th>Texto original</th><th>Observaciones</th><th>Resolución</th></tr></thead>
+        <tbody>${revision.map((n,idx)=>`<tr>
           <td style="font-weight:600">${escH(n.nombreExcel)}</td>
           <td style="color:var(--yellow)">${escH(n.motivo)}</td>
           <td>${escH(n.textoOriginal)||'—'}</td>
           <td style="font-style:italic;color:var(--text3)">${escH(n.observaciones)||''}</td>
+          <td>${n.tipo==='no_encontrado'?`<div style="display:flex;flex-direction:column;gap:6px;min-width:220px">
+            <input type="text" class="dd-input" id="revdd${idx}" placeholder="Mapear a insumo existente…" autocomplete="off" style="width:100%">
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-outline" style="flex:1;font-size:11px;padding:5px 8px" onclick="abrirAltaInsumoDesdeStock(${idx})">➕ Agregar insumo</button>
+              <button class="btn btn-outline" style="font-size:11px;padding:5px 8px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="resolverNoEncontradoIgnorar(${idx})">Ignorar</button>
+            </div>
+          </div>`:'—'}</td>
         </tr>`).join('')}</tbody>
       </table></div>
     </div>`;
@@ -2800,6 +2968,17 @@ function renderConteoPreview(){
     </label>`;
   }
   box.innerHTML=html;
+  // Dropdown de mapeo a insumo existente para cada fila "no encontrado" pendiente.
+  revision.forEach((r,idx)=>{
+    if(r.tipo!=='no_encontrado')return;
+    const inp=document.getElementById('revdd'+idx);
+    if(!inp)return;
+    attachDD(inp,
+      ()=>DB.insumos.map(i=>({val:String(i._id),label:i.nombre})),
+      ()=>'',
+      val=>resolverNoEncontradoMapear(idx,parseInt(val,10))
+    );
+  });
   updateBtnConfirmarConteo();
 }
 
@@ -2807,9 +2986,12 @@ function updateBtnConfirmarConteo(){
   const btn=document.getElementById('btn-confirmar-conteo');
   if(!_conteoParseado){btn.style.display='none';return;}
   btn.style.display='inline-flex';
+  const hayNoEncontradosPendientes=_conteoParseado.revision.some(r=>r.tipo==='no_encontrado');
+  const hayAjustesSinValidar=_conteoParseado.items.some(i=>i.convertidoDeGramos&&!i.ajusteValidado);
   const hayAlertas=_conteoParseado.items.some(i=>i.alertaDiferencia||i.alertaUnidad);
   const checkbox=document.getElementById('conteo-confirma-alertas');
-  btn.disabled=hayAlertas&&!(checkbox&&checkbox.checked);
+  const alertasOk=!hayAlertas||(checkbox&&checkbox.checked);
+  btn.disabled=hayNoEncontradosPendientes||hayAjustesSinValidar||!alertasOk;
 }
 
 function confirmarConteo(){
