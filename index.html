@@ -433,6 +433,9 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <button type="button" class="modulo-select-btn" onclick="cambiarModulo('comanda')">
         <span class="pico">📋</span>Fichas Técnicas
       </button>
+      <button type="button" class="modulo-select-btn" onclick="cambiarModulo('stock')">
+        <span class="pico">📊</span>Stock
+      </button>
     </div>
     <button type="button" class="modulo-select-logout" onclick="cerrarSesion()">Salir</button>
   </div>
@@ -464,6 +467,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
           <button class="btn btn-outline" style="color:var(--text2)" onclick="cambiarModulo('produccion')">🍳 Producción</button>
           <button class="btn btn-outline" style="color:var(--text2)" onclick="cambiarModulo('cotizacion')">🧾 Cotización</button>
           <button class="btn btn-outline" style="color:var(--text2)" onclick="cambiarModulo('comanda')">📋 Fichas Técnicas</button>
+          <button class="btn btn-outline" style="color:var(--text2)" onclick="cambiarModulo('stock')">📊 Stock</button>
         </div>
       </div>
       <button class="btn-logout" onclick="volverASeleccionModulo()">Cambiar de módulo</button>
@@ -489,6 +493,10 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 <div class="tabs" id="tabs-comanda" style="display:none">
   <div class="tab active" onclick="switchTab('comanda_periodos')">📋 Períodos</div>
   <div class="tab" onclick="switchTab('comanda_clientes')">🧑‍💼 Clientes</div>
+</div>
+<!-- Tabs Stock -->
+<div class="tabs" id="tabs-stock" style="display:none">
+  <div class="tab active" onclick="switchTab('stock')">📊 Stock</div>
 </div>
 
 <!-- ═══ 1. INSUMOS ══════════════════════════════════════════════ -->
@@ -640,7 +648,27 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   </div>
 </div>
 
+<!-- ═══ STOCK ═══════════════════════════════════════════════════ -->
+<div class="content" id="tab-stock">
+  <div class="card">
+    <div class="card-title">📊 Stock Actual <span class="badge badge-gold" id="stock-total-valorizado">$ 0,00</span></div>
+    <div id="stock-alert" class="alert"></div>
+    <div class="toolbar">
+      <div class="sbox"><input type="text" id="stock-search" placeholder="Buscar insumo…" oninput="stockPage=0;renderStockActual()"></div>
+      <button class="btn btn-primary" onclick="abrirModalConteo()">⬆ Cargar conteo semanal</button>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>#</th><th>Insumo</th><th class="num">Cantidad actual</th><th class="num">Costo unitario</th><th class="num">Valor</th></tr></thead>
+      <tbody id="stock-tbody"></tbody>
+    </table></div>
+    <div class="pag" id="stock-pag"></div>
+  </div>
 
+  <div class="card">
+    <div class="card-title">🕒 Historial de Movimientos <span class="badge badge-blue" id="stock-hist-count">0</span></div>
+    <div id="stock-hist-list"></div>
+  </div>
+</div>
 
 <!-- ═══ 6. PRECIO FINAL ══════════════════════════════════════════ -->
 <div class="content" id="tab-precio">
@@ -1223,6 +1251,31 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   </div>
 </div>
 
+<!-- ═══ MODAL CARGAR CONTEO SEMANAL DE STOCK ═════════════════════════ -->
+<div class="modal-ov" id="modal-conteo-stock">
+  <div class="modal" style="max-width:900px;width:96vw;max-height:88vh;overflow-y:auto">
+    <div class="modal-hd">
+      <span class="modal-title">📦 Cargar conteo semanal</span>
+      <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModalConteo()">✕ Cerrar</button>
+    </div>
+    <div id="conteo-step-upload">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:14px">
+        Subí el archivo <strong>InventarioMPCatering.xlsx</strong> (vive en la carpeta del proyecto y se pisa cada semana con el nuevo inventario).
+      </div>
+      <label class="btn btn-primary" style="cursor:pointer;display:inline-flex">
+        📁 Elegir archivo
+        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleConteoXLSX(event)">
+      </label>
+      <div id="conteo-upload-alert" class="alert"></div>
+    </div>
+    <div id="conteo-step-preview" style="display:none"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+      <button class="btn btn-outline" onclick="cerrarModalConteo()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-confirmar-conteo" style="display:none" onclick="confirmarConteo()">Confirmar conteo →</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ MODAL IMPORTAR RECETAS DESDE EXCEL ══════════════════════════ -->
 <div class="modal-ov" id="modal-import-excel">
   <div class="modal" style="max-width:1100px;width:98vw;max-height:90vh;overflow-y:auto">
@@ -1261,6 +1314,11 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 </div>
 
 <script>
+// Umbral (fracción, valor absoluto) a partir del cual una diferencia de
+// conteo de stock ("cantidadContada" - "cantidadAnterior") se resalta como
+// alerta. 0.20 = 20%. Ajustar acá para cambiarlo en toda la app.
+const UMBRAL_ALERTA_DIFERENCIA=0.20;
+
 // ══════════════════════════════════════════════════════════════════
 //  DATA
 // ══════════════════════════════════════════════════════════════════
@@ -2048,7 +2106,8 @@ let DB={
   procedimientos: {},
   subs_config: {},
   maestro_bebidas: [],
-  maestro_clientes: []
+  maestro_clientes: [],
+  stock: {conteos: []}
 };
 
 let insPage=0;
@@ -2073,7 +2132,8 @@ const escH=(s)=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 const TABS_PROD=['insumos','subproductos','platos','proveedores'];
 const TABS_COT=['costeo','precio'];
 const TABS_COM=['comanda_periodos','comanda_clientes'];
-const TABS=[...TABS_PROD,...TABS_COT,...TABS_COM];
+const TABS_STOCK=['stock'];
+const TABS=[...TABS_PROD,...TABS_COT,...TABS_COM,...TABS_STOCK];
 
 function switchTab(name){
   ddClose();
@@ -2082,8 +2142,9 @@ function switchTab(name){
   const isProd=TABS_PROD.includes(name);
   const isCot=TABS_COT.includes(name);
   const isCom=TABS_COM.includes(name);
-  const barId=isProd?'tabs-produccion':isCot?'tabs-cotizacion':'tabs-comanda';
-  const arr=isProd?TABS_PROD:isCot?TABS_COT:TABS_COM;
+  const isStock=TABS_STOCK.includes(name);
+  const barId=isProd?'tabs-produccion':isCot?'tabs-cotizacion':isCom?'tabs-comanda':'tabs-stock';
+  const arr=isProd?TABS_PROD:isCot?TABS_COT:isCom?TABS_COM:TABS_STOCK;
   const tabsInBar=document.getElementById(barId).querySelectorAll('.tab');
   const idx=arr.indexOf(name);
   if(tabsInBar[idx])tabsInBar[idx].classList.add('active');
@@ -2091,7 +2152,8 @@ function switchTab(name){
   if(contentEl)contentEl.classList.add('active');
   ({insumos:renderInsumos,subproductos:renderSubproductos,platos:renderPlatos,
     costeo:renderCosteoTable,proveedores:renderProveedores,precio:renderPrecioFinal,
-    comanda_periodos:renderComandaPeriodos,comanda_clientes:renderClientes})[name]?.();
+    comanda_periodos:renderComandaPeriodos,comanda_clientes:renderClientes,
+    stock:renderStockTab})[name]?.();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -2498,6 +2560,265 @@ function handleXLSX(e){
     }catch(err){showAlert('upload-alert','error','Error al leer el archivo: '+err.message);}
   };
   r.readAsArrayBuffer(f);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  STOCK
+// ══════════════════════════════════════════════════════════════════
+let stockPage=0;
+const STOCK_PER=50;
+
+// Stock actual de un insumo = cantidadContada del último conteo en que
+// aparece (recorriendo DB.stock.conteos en orden cronológico); 0 si nunca
+// se contó. Nunca se guarda un costo en el conteo: la valorización siempre
+// usa el costo vigente del insumo en DB.insumos.
+function stockActualDe(insumoId){
+  const conteos=DB.stock.conteos;
+  for(let i=conteos.length-1;i>=0;i--){
+    const item=conteos[i].items.find(it=>it.insumoId===insumoId);
+    if(item)return item.cantidadContada;
+  }
+  return 0;
+}
+
+function renderStockTab(){
+  renderStockActual();
+  renderStockHistorial();
+}
+
+function renderStockActual(){
+  const totalValorizado=DB.insumos.reduce((s,x)=>s+stockActualDe(x._id)*(parseFloat(x.costo)||0),0);
+  const totalEl=document.getElementById('stock-total-valorizado');
+  if(totalEl)totalEl.textContent=fmt(totalValorizado);
+  const q=(document.getElementById('stock-search')?.value||'').toLowerCase();
+  const f=DB.insumos.filter(x=>x.nombre.toLowerCase().includes(q));
+  const pages=Math.ceil(f.length/STOCK_PER)||1;
+  if(stockPage>=pages)stockPage=0;
+  const sl=f.slice(stockPage*STOCK_PER,(stockPage+1)*STOCK_PER);
+  document.getElementById('stock-tbody').innerHTML=sl.map((x,i)=>{
+    const cant=stockActualDe(x._id);
+    const costo=parseFloat(x.costo)||0;
+    const valor=cant*costo;
+    return `<tr>
+      <td style="color:var(--text3)">${stockPage*STOCK_PER+i+1}</td>
+      <td style="font-weight:600">${escH(x.nombre)}</td>
+      <td class="num">${fmtN(cant,2)}</td>
+      <td class="num">${fmt(costo)}</td>
+      <td class="num">${fmt(valor)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('stock-pag').innerHTML=`
+    <button class="btn btn-outline" onclick="stockPage--;renderStockActual()" ${stockPage===0?'disabled':''}>‹</button>
+    <span class="pag-info">Pág ${stockPage+1}/${pages} · ${f.length} insumos</span>
+    <button class="btn btn-outline" onclick="stockPage++;renderStockActual()" ${stockPage>=pages-1?'disabled':''}>›</button>`;
+}
+
+// ── Carga de conteo semanal desde Excel ─────────────────────────────
+let _conteoParseado=null; // {items:[{insumoId,nombre,cantidadAnterior,cantidadContada,diferencia,alerta,sinCambio}], noMatch:[{nombreExcel,cantidad}]}
+
+function abrirModalConteo(){
+  _conteoParseado=null;
+  document.getElementById('conteo-step-upload').style.display='block';
+  const preview=document.getElementById('conteo-step-preview');
+  preview.style.display='none';
+  preview.innerHTML='';
+  document.getElementById('btn-confirmar-conteo').style.display='none';
+  const alertEl=document.getElementById('conteo-upload-alert');
+  alertEl.className='alert';alertEl.textContent='';
+  document.getElementById('modal-conteo-stock').classList.add('open');
+}
+function cerrarModalConteo(){
+  _conteoParseado=null;
+  cerrarModal('modal-conteo-stock');
+}
+
+// Headers tolerados para cada columna (normalizados: minúsculas, sin espacios).
+const CONTEO_HEADERS_NOMBRE=['insumo','producto','item'];
+const CONTEO_HEADERS_CANTIDAD=['cantidad','cantidadcontada','stock'];
+function _normHeader(h){return String(h||'').trim().toLowerCase().replace(/\s+/g,'');}
+
+function handleConteoXLSX(e){
+  const f=e.target.files[0];if(!f)return;
+  e.target.value='';
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      if(!rows.length){
+        showAlert('conteo-upload-alert','error','El archivo no tiene filas de datos.');
+        return;
+      }
+      const headers=Object.keys(rows[0]);
+      const colNombre=headers.find(h=>CONTEO_HEADERS_NOMBRE.includes(_normHeader(h)));
+      const colCantidad=headers.find(h=>CONTEO_HEADERS_CANTIDAD.includes(_normHeader(h)));
+      if(!colNombre||!colCantidad){
+        showAlert('conteo-upload-alert','error','No se encontraron las columnas esperadas. La planilla necesita una columna de insumo (Insumo/Producto/Item) y una de cantidad (Cantidad/Cantidad Contada/Stock).');
+        return;
+      }
+      procesarConteoRows(rows,colNombre,colCantidad);
+    }catch(err){
+      showAlert('conteo-upload-alert','error','Error al leer el archivo: '+err.message);
+    }
+  };
+  r.readAsArrayBuffer(f);
+}
+
+function procesarConteoRows(rows,colNombre,colCantidad){
+  const matchedIds=new Set();
+  const items=[];
+  const noMatch=[];
+  rows.forEach(row=>{
+    const nombreExcel=String(row[colNombre]||'').trim();
+    if(!nombreExcel)return;
+    const cantidad=parseFloat(row[colCantidad]);
+    if(isNaN(cantidad))return;
+    const insumo=DB.insumos.find(x=>normTxt(x.nombre)===normTxt(nombreExcel));
+    if(!insumo){noMatch.push({nombreExcel,cantidad});return;}
+    if(matchedIds.has(insumo._id))return; // fila duplicada en la planilla: se ignora
+    matchedIds.add(insumo._id);
+    const cantidadAnterior=stockActualDe(insumo._id);
+    const diferencia=cantidad-cantidadAnterior;
+    const alerta=cantidadAnterior>0&&Math.abs(diferencia)/cantidadAnterior>=UMBRAL_ALERTA_DIFERENCIA;
+    items.push({insumoId:insumo._id,nombre:insumo.nombre,cantidadAnterior,cantidadContada:cantidad,diferencia,alerta});
+  });
+  // Insumos existentes que no aparecen en la planilla: sin cambio.
+  DB.insumos.forEach(x=>{
+    if(matchedIds.has(x._id))return;
+    const cantidadAnterior=stockActualDe(x._id);
+    items.push({insumoId:x._id,nombre:x.nombre,cantidadAnterior,cantidadContada:cantidadAnterior,diferencia:0,alerta:false,sinCambio:true});
+  });
+  _conteoParseado={items,noMatch};
+  renderConteoPreview();
+}
+
+function renderConteoPreview(){
+  document.getElementById('conteo-step-upload').style.display='none';
+  const box=document.getElementById('conteo-step-preview');
+  box.style.display='block';
+  const {items,noMatch}=_conteoParseado;
+  const conAlerta=items.filter(i=>i.alerta);
+  const conDiferencia=items.filter(i=>i.diferencia!==0);
+  const ordenados=[...items].sort((a,b)=>(b.alerta-a.alerta)||(Math.abs(b.diferencia)-Math.abs(a.diferencia)));
+  let html=`<div style="font-size:12px;color:var(--text3);margin-bottom:14px">
+    ${items.length} insumos procesados · <span style="color:var(--green)">${conDiferencia.length} con diferencia</span>
+    ${conAlerta.length?` · <span style="color:var(--red)">⚠️ ${conAlerta.length} con diferencia ≥ ${Math.round(UMBRAL_ALERTA_DIFERENCIA*100)}%</span>`:''}
+    ${noMatch.length?` · <span style="color:var(--yellow)">${noMatch.length} sin match</span>`:''}
+  </div>`;
+  html+=`<div class="tw" style="margin-bottom:16px;max-height:320px;overflow-y:auto"><table>
+    <thead><tr><th>Insumo</th><th class="num">Cant. anterior</th><th class="num">Cant. contada</th><th class="num">Diferencia</th></tr></thead>
+    <tbody>${ordenados.map(it=>`<tr${it.alerta?' style="background:rgba(192,57,43,.1)"':''}>
+      <td style="font-weight:600">${escH(it.nombre)}${it.sinCambio?' <span style="font-size:10px;color:var(--text3)">(no aparece en la planilla)</span>':''}</td>
+      <td class="num">${fmtN(it.cantidadAnterior,2)}</td>
+      <td class="num">${fmtN(it.cantidadContada,2)}</td>
+      <td class="num" style="${it.alerta?'color:var(--red);font-weight:700':''}">${it.diferencia>0?'+':''}${fmtN(it.diferencia,2)}${it.alerta?' ⚠️':''}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+  if(noMatch.length){
+    html+=`<div class="card" style="background:var(--surface2);margin-bottom:16px">
+      <div class="card-title" style="font-size:13px">⚠️ Filas sin match — revisión manual <span class="badge badge-blue">${noMatch.length}</span></div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:8px">No coinciden con ningún insumo del maestro. No se van a guardar; revisalas y corregí el nombre en la planilla o en el maestro de insumos si corresponde.</div>
+      <ul style="margin:0;padding-left:18px;font-size:12px">${noMatch.map(n=>`<li>${escH(n.nombreExcel)} — ${fmtN(n.cantidad,2)}</li>`).join('')}</ul>
+    </div>`;
+  }
+  if(conAlerta.length){
+    html+=`<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--red);cursor:pointer;margin-bottom:8px">
+      <input type="checkbox" id="conteo-confirma-alertas" onchange="updateBtnConfirmarConteo()">
+      Confirmo las ${conAlerta.length} diferencia${conAlerta.length!==1?'s':''} grande${conAlerta.length!==1?'s':''} resaltada${conAlerta.length!==1?'s':''} arriba.
+    </label>`;
+  }
+  box.innerHTML=html;
+  updateBtnConfirmarConteo();
+}
+
+function updateBtnConfirmarConteo(){
+  const btn=document.getElementById('btn-confirmar-conteo');
+  if(!_conteoParseado){btn.style.display='none';return;}
+  btn.style.display='inline-flex';
+  const hayAlertas=_conteoParseado.items.some(i=>i.alerta);
+  const checkbox=document.getElementById('conteo-confirma-alertas');
+  btn.disabled=hayAlertas&&!(checkbox&&checkbox.checked);
+}
+
+function confirmarConteo(){
+  if(!_conteoParseado)return;
+  const usuario=(fbAuth.currentUser&&fbAuth.currentUser.email)||'';
+  const nuevoConteo={
+    id:Date.now(),
+    fecha:new Date().toISOString(),
+    usuario,
+    items:_conteoParseado.items.map(it=>({
+      insumoId:it.insumoId,
+      cantidadAnterior:it.cantidadAnterior,
+      cantidadContada:it.cantidadContada,
+      diferencia:it.diferencia
+    }))
+  };
+  DB.stock.conteos.push(nuevoConteo);
+  _conteoParseado=null;
+  cerrarModal('modal-conteo-stock');
+  renderStockTab();
+  sbSave(true);
+}
+
+// ── Historial de movimientos ─────────────────────────────────────────
+let _stockHistExpandido=new Set();
+function toggleStockHistDetalle(id){
+  if(_stockHistExpandido.has(id))_stockHistExpandido.delete(id);
+  else _stockHistExpandido.add(id);
+  renderStockHistorial();
+}
+function renderStockHistorial(){
+  const list=document.getElementById('stock-hist-list');
+  const conteos=[...DB.stock.conteos].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+  document.getElementById('stock-hist-count').textContent=conteos.length;
+  if(!conteos.length){
+    list.innerHTML='<div class="empty">Todavía no se cargó ningún conteo.</div>';
+    return;
+  }
+  list.innerHTML=conteos.map(c=>{
+    const conDiferencia=c.items.filter(it=>it.diferencia!==0);
+    const valorMovimiento=c.items.reduce((s,it)=>{
+      const insumo=DB.insumos.find(x=>x._id===it.insumoId);
+      const costo=insumo?parseFloat(insumo.costo)||0:0;
+      return s+it.diferencia*costo;
+    },0);
+    const expandido=_stockHistExpandido.has(c.id);
+    const fechaFmt=new Date(c.fecha).toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'});
+    let html=`<div class="card" style="background:var(--surface2);margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:14px;cursor:pointer" onclick="toggleStockHistDetalle(${c.id})">
+        <div style="flex:1">
+          <div style="font-weight:700">${escH(fechaFmt)}</div>
+          <div style="font-size:11px;color:var(--text3)">${escH(c.usuario||'—')}</div>
+        </div>
+        <div style="font-size:12px;color:var(--text3)">${conDiferencia.length} insumo${conDiferencia.length!==1?'s':''} con diferencia</div>
+        <div class="num" style="font-weight:700;color:${valorMovimiento<0?'var(--red)':'var(--green)'}">${valorMovimiento>0?'+':''}${fmt(valorMovimiento)}</div>
+        <span style="font-size:11px;color:var(--text3)">${expandido?'▲':'▼'}</span>
+      </div>`;
+    if(expandido){
+      const filas=c.items.filter(it=>it.diferencia!==0);
+      html+=`<div class="tw" style="margin-top:12px"><table>
+        <thead><tr><th>Insumo</th><th class="num">Cant. anterior</th><th class="num">Cant. contada</th><th class="num">Diferencia</th><th class="num">Valor</th></tr></thead>
+        <tbody>${filas.length?filas.map(it=>{
+          const insumo=DB.insumos.find(x=>x._id===it.insumoId);
+          const costo=insumo?parseFloat(insumo.costo)||0:0;
+          const valor=it.diferencia*costo;
+          const cantidadAnterior=parseFloat(it.cantidadAnterior)||0;
+          const alerta=cantidadAnterior>0&&Math.abs(it.diferencia)/cantidadAnterior>=UMBRAL_ALERTA_DIFERENCIA;
+          return `<tr${alerta?' style="background:rgba(192,57,43,.1)"':''}>
+            <td style="font-weight:600">${escH(insumo?insumo.nombre:'(insumo eliminado)')}</td>
+            <td class="num">${fmtN(it.cantidadAnterior,2)}</td>
+            <td class="num">${fmtN(it.cantidadContada,2)}</td>
+            <td class="num" style="${alerta?'color:var(--red);font-weight:700':''}">${it.diferencia>0?'+':''}${fmtN(it.diferencia,2)}${alerta?' ⚠️':''}</td>
+            <td class="num">${fmt(valor)}</td>
+          </tr>`;
+        }).join(''):'<tr><td colspan="5" style="color:var(--text3)">Sin diferencias en este conteo.</td></tr>'}</tbody>
+      </table></div>`;
+    }
+    html+='</div>';
+    return html;
+  }).join('');
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -4011,7 +4332,7 @@ function refrescarVistaActual(){
       else{
         ({insumos:renderInsumos,subproductos:renderSubproductos,platos:renderPlatos,
           costeo:renderCosteoTable,proveedores:renderProveedores,precio:renderPrecioFinal,
-          comanda_clientes:renderClientes})[name]?.();
+          comanda_clientes:renderClientes,stock:renderStockTab})[name]?.();
       }
     }
   }catch(err){
@@ -4046,6 +4367,7 @@ function aplicarActualizacionRemota(p){
   if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
   if(!DB.maestro_clientes)DB.maestro_clientes=[];
   if(!DB.comanda)DB.comanda={periodos:[],eventos:{}};
+  if(!DB.stock)DB.stock={conteos:[]};
   try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
   marcarSincronizado();
   if(perfilActivo) refrescarVistaActual();
@@ -4171,6 +4493,7 @@ function importarJSON(e){
       if(!DB.maestro_subs)DB.maestro_subs=[];
       if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
       if(!DB.maestro_clientes)DB.maestro_clientes=[];
+      if(!DB.stock)DB.stock={conteos:[]};
       sbSave(true);
       renderInsumos();
       alert('✓ Datos importados correctamente.\n\n'+parsed.insumos.length+' insumos · '+nSubs+' subproductos · '+nPlatos+' platos · '+(parsed.proveedores?.length||0)+' proveedores');
@@ -4289,7 +4612,8 @@ function cambiarModulo(perfil){
   document.getElementById('tabs-produccion').style.display = perfil==='produccion' ? 'flex' : 'none';
   document.getElementById('tabs-cotizacion').style.display = perfil==='cotizacion' ? 'flex' : 'none';
   document.getElementById('tabs-comanda').style.display = perfil==='comanda' ? 'flex' : 'none';
-  const labels={produccion:'🍳 Producción', cotizacion:'🧾 Cotización', comanda:'📋 Fichas Técnicas'};
+  document.getElementById('tabs-stock').style.display = perfil==='stock' ? 'flex' : 'none';
+  const labels={produccion:'🍳 Producción', cotizacion:'🧾 Cotización', comanda:'📋 Fichas Técnicas', stock:'📊 Stock'};
   const badge=document.getElementById('header-perfil');
   if(badge)badge.textContent=(labels[perfil]||perfil)+' ▾';
   const menu=document.getElementById('modulo-menu');
@@ -4301,6 +4625,8 @@ function cambiarModulo(perfil){
   } else if(perfil==='comanda'){
     switchTab('comanda_periodos');
     renderComandaPeriodos();
+  } else if(perfil==='stock'){
+    switchTab('stock');
   }
 }
 
@@ -4324,6 +4650,7 @@ function volverASeleccionModulo(){
   document.getElementById('tabs-produccion').style.display='none';
   document.getElementById('tabs-cotizacion').style.display='none';
   document.getElementById('tabs-comanda').style.display='none';
+  document.getElementById('tabs-stock').style.display='none';
   document.querySelectorAll('.content').forEach(el=>el.classList.remove('active'));
   const emailEl=document.getElementById('modulo-select-email');
   if(emailEl){
@@ -4343,6 +4670,7 @@ function cerrarSesion(){
   document.getElementById('tabs-produccion').style.display='none';
   document.getElementById('tabs-cotizacion').style.display='none';
   document.getElementById('tabs-comanda').style.display='none';
+  document.getElementById('tabs-stock').style.display='none';
   const err=document.getElementById('login-error');
   if(err){err.style.display='none';err.textContent='';}
   // Ocultar todos los contenidos
@@ -4517,6 +4845,7 @@ function limpiarInsumosRevisarEliminar(){
   if(!DB.comanda) DB.comanda={periodos:[],eventos:{}};
   if(!DB.maestro_bebidas) DB.maestro_bebidas=[];
   if(!DB.maestro_clientes) DB.maestro_clientes=[];
+  if(!DB.stock) DB.stock={conteos:[]};
   limpiarInsumosRevisarEliminar();
 })();
 
@@ -4720,6 +5049,7 @@ const COMANDA_TEMPLATE = [
 // ── DB Comanda ────────────────────────────────────────────────────
 if(!DB.comanda) DB.comanda = {periodos:[], eventos:{}};
 if(!DB.maestro_clientes) DB.maestro_clientes = [];
+if(!DB.stock) DB.stock = {conteos:[]};
 
 // ── Estado ────────────────────────────────────────────────────────
 let comandaPeriodoActual = null;
