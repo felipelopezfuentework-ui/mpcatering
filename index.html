@@ -1332,9 +1332,10 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     </div>
     <div id="import-summary" style="font-size:12px;color:var(--text3);margin-bottom:14px"></div>
     <div id="import-preview-body"></div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+    <div id="import-faltantes" style="font-size:12px;color:var(--yellow);margin-top:16px"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;border-top:1px solid var(--border);padding-top:16px">
       <button class="btn btn-outline" onclick="cerrarModal('modal-import-excel')">Cancelar</button>
-      <button class="btn btn-primary" onclick="confirmarImportExcel()">✓ Confirmar importación</button>
+      <button class="btn btn-primary" id="btn-confirmar-import" onclick="confirmarImportExcel()">✓ Confirmar importación</button>
     </div>
   </div>
 </div>
@@ -4019,7 +4020,7 @@ function parseRecetaSheet(ws,sheetName,origen){
   if(!ingredientes.length)return null;
   const totalKg=ingredientes.reduce((s,x)=>s+x.peso,0);
   const pesoPorcionKg=porciones>0?(totalKg/porciones):0;
-  return{sheetName,nombre,tipo:origen==='sub'?'sub':'plato',porciones,pesoPorcionG:Math.round(pesoPorcionKg*1000*100)/100,ingredientes,procedimiento,nota_chef:notaChef};
+  return{sheetName,nombre,tipo:origen==='sub'?'sub':'plato',porciones,pesoPorcionG:Math.round(pesoPorcionKg*1000*100)/100,totalKg,ingredientes,procedimiento,nota_chef:notaChef};
 }
 
 function abrirModalAmbiguedad(){
@@ -4129,11 +4130,11 @@ function renderImportPreview(){
         ${isPlato?`
         <div class="form-field">
           <label style="font-size:10px;color:var(--text3)">Porciones</label>
-          <input type="number" value="${rec.porciones||''}" style="width:90px;background:var(--surface);color:var(--text3)" readonly>
+          <input type="number" id="imp-porciones-${idx}" value="${rec.porciones||''}" style="width:90px" onchange="impSetPorciones(${idx},this.value)">
         </div>
         <div class="form-field">
           <label style="font-size:10px;color:var(--text3)">Peso/porción (g)</label>
-          <input type="number" step="1" value="${rec.pesoPorcionG||''}" style="width:100px" oninput="impSetPeso(${idx},this.value)">
+          <input type="number" step="1" id="imp-peso-${idx}" value="${rec.pesoPorcionG||''}" style="width:100px" onchange="impSetPeso(${idx},this.value)">
         </div>`:''}
       </div>
       <div style="margin-bottom:8px;font-size:11px;color:var(--text3);display:flex;flex-wrap:wrap;gap:10px">
@@ -4155,10 +4156,47 @@ function renderImportPreview(){
       ${rec.nota_chef?`<div style="margin-top:8px;font-size:11px;color:var(--text3)"><strong>Nota del chef:</strong> ${escH(rec.nota_chef)}</div>`:''}
     </div>`;
   }).join('');
+  actualizarBtnConfirmarImport();
 }
 
-function impSetNombre(idx,v){importRecetas[idx].nombre=v;}
-function impSetPeso(idx,v){importRecetas[idx].pesoPorcionG=parseFloat(v)||0;}
+// Recalcula si "Confirmar importación" puede habilitarse y el resumen de lo
+// que falta. No re-renderiza import-preview-body (para no perder el foco de
+// los inputs mientras se escribe): sólo toca el botón y el resumen.
+function actualizarBtnConfirmarImport(){
+  const btn=document.getElementById('btn-confirmar-import');
+  const resumenEl=document.getElementById('import-faltantes');
+  if(!btn)return;
+  let sinNombre=0,sinPorcionesOPeso=0,ingredientesSinInsumo=0;
+  importRecetas.forEach(rec=>{
+    if(!(rec.nombre||'').trim())sinNombre++;
+    if(rec.tipo!=='sub'){
+      const porciones=parseFloat(rec.porciones)||0;
+      const peso=parseFloat(rec.pesoPorcionG)||0;
+      if(porciones<=0||peso<=0)sinPorcionesOPeso++;
+    }
+    ingredientesSinInsumo+=rec.ingredientes.filter(i=>!i.matched).length;
+  });
+  const partes=[];
+  if(sinPorcionesOPeso)partes.push(sinPorcionesOPeso+' plato'+(sinPorcionesOPeso!==1?'s':'')+' sin porciones y/o peso por porción');
+  if(ingredientesSinInsumo)partes.push(ingredientesSinInsumo+' ingrediente'+(ingredientesSinInsumo!==1?'s':'')+' sin insumo asignado');
+  if(sinNombre)partes.push(sinNombre+' receta'+(sinNombre!==1?'s':'')+' sin nombre');
+  if(resumenEl)resumenEl.innerHTML=partes.length?('⚠️ Falta completar: '+partes.join(' · ')):'';
+  btn.disabled=partes.length>0;
+}
+
+function impSetNombre(idx,v){importRecetas[idx].nombre=v;actualizarBtnConfirmarImport();}
+function impSetPeso(idx,v){
+  const rec=importRecetas[idx];
+  rec.pesoPorcionG=parseFloat(v)||0;
+  if(rec.pesoPorcionG>0&&rec.totalKg>0)rec.porciones=Math.round(rec.totalKg/(rec.pesoPorcionG/1000));
+  renderImportPreview();
+}
+function impSetPorciones(idx,v){
+  const rec=importRecetas[idx];
+  rec.porciones=parseFloat(v)||0;
+  if(rec.porciones>0&&rec.totalKg>0)rec.pesoPorcionG=Math.round(rec.totalKg/rec.porciones*1000*100)/100;
+  renderImportPreview();
+}
 
 function abrirAltaInsumoDesdeImport(ri,ii){
   const ing=importRecetas[ri]?.ingredientes[ii];
