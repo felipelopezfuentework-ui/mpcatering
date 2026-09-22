@@ -1022,7 +1022,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <span class="modal-title" id="modal-sub-title">Nuevo Subproducto</span>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" style="padding:4px 13px;font-size:11.5px;gap:5px" onclick="descargarRecetaPDF('sub')">📄 PDF Receta</button>
-        <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-sub')">✕ Cerrar</button>
+        <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModalSub()">✕ Cerrar</button>
       </div>
     </div>
     <div class="recipe-section">
@@ -1137,7 +1137,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <span class="modal-title" id="modal-plato-title">Nuevo Plato</span>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" style="padding:4px 13px;font-size:11.5px;gap:5px" onclick="descargarRecetaPDF('plato')">📄 PDF Receta</button>
-        <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-plato')">✕ Cerrar</button>
+        <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModalPlato()">✕ Cerrar</button>
       </div>
     </div>
     <div class="recipe-section">
@@ -4551,6 +4551,13 @@ function delMaestroSub(i){DB.maestro_subs.splice(i,1);renderMaestros();sbSave(tr
 //  UTILS
 // ══════════════════════════════════════════════════════════════════
 function cerrarModal(id){ddClose();document.getElementById(id).classList.remove('open');}
+// Botón "✕ Cerrar" de las recetas: si se estaba editando una receta ya
+// existente, guarda los cambios (ej: cantidad de un ingrediente) antes de
+// cerrar, en vez de descartarlos en silencio. Si es una receta nueva sin
+// guardar todavía, cierra sin guardar (no hay nada persistido que perder).
+// El botón "Cancelar" sigue descartando siempre, para quien quiera salir sin guardar.
+function cerrarModalPlato(){editPlatoOld?guardarPlato():cerrarModal('modal-plato');}
+function cerrarModalSub(){editSubOld?guardarSub():cerrarModal('modal-sub');}
 function showAlert(id,type,msg){const el=document.getElementById(id);if(!el)return;el.className='alert alert-'+type+' show';el.textContent=msg;setTimeout(()=>el.classList.remove('show'),4000);}
 // ══════════════════════════════════════════════════════════════════
 //  FIREBASE FIRESTORE SYNC
