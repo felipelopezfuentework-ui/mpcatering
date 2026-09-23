@@ -3057,8 +3057,9 @@ function updateBtnConfirmarConteo(){
 function confirmarConteo(){
   if(!_conteoParseado)return;
   const usuario=(fbAuth.currentUser&&fbAuth.currentUser.email)||'';
+  const id=Date.now();
   const nuevoConteo={
-    id:Date.now(),
+    id,
     fecha:new Date().toISOString(),
     usuario,
     items:_conteoParseado.items.map(it=>({
@@ -3068,11 +3069,12 @@ function confirmarConteo(){
       diferencia:it.diferencia
     }))
   };
-  DB.stock.conteos.push(nuevoConteo);
   _conteoParseado=null;
   cerrarModal('modal-conteo-stock');
-  renderStockTab();
-  sbSave(true);
+  // El listener de stock_conteos actualiza DB.stock.conteos y refresca la
+  // vista apenas confirme el servidor -no hace falta tocar DB a mano acá.
+  FB_COL_STOCK.doc(String(id)).set({...nuevoConteo, updated_at:new Date().toISOString()})
+    .catch(e=>alert('Error al guardar el conteo: '+e.message));
 }
 
 // ── Historial de movimientos ─────────────────────────────────────────
@@ -4654,6 +4656,11 @@ const FB_COL_SUBPRODUCTOS=fbDb.collection('subproductos');
 const FB_COL_PLATOS=fbDb.collection('platos');
 const FB_COL_MAESTRO_SUBS=fbDb.collection('maestro_subs');
 const FB_COL_MAESTRO_PLATOS=fbDb.collection('maestro_platos');
+// Fase 4 (última): Stock. Es un historial de conteos append-only -nunca se
+// edita ni se borra un conteo ya confirmado- así que un documento por
+// conteo alcanza y sobra: dos personas confirmando un conteo casi al mismo
+// tiempo pasan a ser dos documentos distintos, sin ningún choque posible.
+const FB_COL_STOCK=fbDb.collection('stock_conteos');
 
 // ══════════════════════════════════════════════════════════════════
 //  FIREBASE AUTHENTICATION (login con Google)
@@ -4758,18 +4765,18 @@ document.addEventListener('click',()=>{
 
 async function sbSave(silent=false){
   try{
-    // DB.comanda, DB.maestro_clientes, DB.insumos, DB.proveedores,
-    // DB.subproductos, DB.recetas_platos, DB.subs_config, DB.platos_config,
-    // DB.procedimientos, DB.maestro_subs y DB.maestro_platos ya NO viven en
-    // este documento — son un espejo en memoria alimentado por sus propios
-    // listeners (ver iniciarListenersComanda/iniciarListenersInsumosProveedores/
-    // iniciarListenersRecetas). Si se incluyeran acá, un guardado disparado
-    // por cualquier otro módulo escribiría ese espejo -parcial, según qué
-    // tenga cargado esta pestaña- encima del resto de la base, en vez de
-    // ignorarlo. Solo queda acá: maestro_bebidas y stock (fase 4 pendiente).
+    // Todo lo migrado (comanda, clientes, insumos, proveedores,
+    // subproductos, platos, sus config/procedimientos/maestros, y stock) ya
+    // NO vive en este documento — es un espejo en memoria alimentado por
+    // sus propios listeners (ver iniciarListenersComanda/
+    // iniciarListenersInsumosProveedores/iniciarListenersRecetas/
+    // iniciarListenerStock). Si se incluyera acá, un guardado disparado por
+    // cualquier otro módulo escribiría ese espejo -parcial, según qué tenga
+    // cargado esta pestaña- encima del resto de la base, en vez de
+    // ignorarlo. Solo queda acá: maestro_bebidas.
     const {comanda, maestro_clientes, insumos, proveedores,
       subproductos, recetas_platos, subs_config, platos_config,
-      procedimientos, maestro_subs, maestro_platos, ...restoDB}=DB;
+      procedimientos, maestro_subs, maestro_platos, stock, ...restoDB}=DB;
     const payload=convertirArraysAnidados(restoDB);
     await FB_DOC.set({payload,updated_at:new Date().toISOString()});
     // Backup local
@@ -4872,6 +4879,7 @@ function aplicarActualizacionRemota(p){
     subs_config:subsConfigPrevio, platos_config:platosConfigPrevio,
     procedimientos:procedimientosPrevios,
     maestro_subs:maestroSubsPrevio, maestro_platos:maestroPlatosPrevio,
+    stock:stockPrevio,
     ...dbSinComanda
   }=DB;
   try{
@@ -4889,8 +4897,8 @@ function aplicarActualizacionRemota(p){
   DB.procedimientos=procedimientosPrevios||{};
   DB.maestro_subs=maestroSubsPrevio||[];
   DB.maestro_platos=maestroPlatosPrevio||[];
+  DB.stock=stockPrevio||{conteos:[]};
   if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
-  if(!DB.stock)DB.stock={conteos:[]};
   try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
   marcarSincronizado();
   if(perfilActivo) refrescarVistaActual();
@@ -4919,12 +4927,11 @@ function sbListen(){
       try{
         if(doc.exists && doc.data().payload){
           const p=reconvertirArraysAnidados(doc.data().payload);
-          // Casi todo lo que vivía acá ya migró a su propia colección
-          // (insumos, proveedores, comanda, subproductos, platos...). Lo
-          // único que queda en este documento es maestro_bebidas y stock
-          // (fase 4 pendiente) — se valida con eso, sin un número mínimo
-          // fijo, solo para descartar un documento vacío/corrupto.
-          if(Array.isArray(p.maestro_bebidas) && p.stock && Array.isArray(p.stock.conteos)){
+          // Todo lo que vivía acá ya migró a su propia colección (insumos,
+          // proveedores, comanda, subproductos, platos, stock...). Lo único
+          // que queda en este documento es maestro_bebidas — se valida con
+          // eso, solo para descartar un documento vacío/corrupto.
+          if(Array.isArray(p.maestro_bebidas)){
             aplicarActualizacionRemota(p);
             ok=true;
           }
@@ -5066,6 +5073,23 @@ function iniciarListenersRecetas(){
 function detenerListenersRecetas(){
   [_unsubSubproductos,_unsubPlatos,_unsubMaestroSubs,_unsubMaestroPlatos].forEach(u=>{try{u&&u();}catch(e){}});
   _unsubSubproductos=_unsubPlatos=_unsubMaestroSubs=_unsubMaestroPlatos=null;
+}
+
+// ── Fase 4: Stock ──────────────────────────────────────────────────────
+let _unsubStock=null;
+function iniciarListenerStock(){
+  _unsubStock=FB_COL_STOCK.onSnapshot((snap)=>{
+    // stockActualDe() recorre el array de atrás para adelante asumiendo que
+    // el último elemento es el conteo más reciente (igual que el push() de
+    // antes) — Firestore no garantiza orden sin orderBy(), así que hay que
+    // ordenar acá por fecha ascendente para mantener ese mismo supuesto.
+    if(!DB.stock) DB.stock={conteos:[]};
+    DB.stock.conteos=snap.docs.map(d=>({...d.data()})).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+    refrescarVistaSiCorresponde();
+  }, (err)=>console.error('Error al sincronizar stock:', err));
+}
+function detenerListenerStock(){
+  if(_unsubStock){ _unsubStock(); _unsubStock=null; }
 }
 
 async function guardarSubproductoDoc(nombre){
@@ -5277,21 +5301,23 @@ function importarJSON(e){
       const nSubs=[...new Set((parsed.subproductos||[]).map(x=>x.subproducto))].length;
       const nPlatos=[...new Set((parsed.recetas_platos||[]).map(x=>x.plato))].length;
       if(!confirm('¿Importar datos del JSON? Esto va a reemplazar todos los datos actuales.\n\nInsumos: '+parsed.insumos.length+' | Subproductos: '+nSubs+' | Platos: '+nPlatos)){return;}
-      // Fichas Técnicas/Comanda (DB.comanda, DB.maestro_clientes) ya NO se
-      // importan desde este archivo -viven en sus propias colecciones,
-      // sincronizadas en vivo- así que se preservan tal cual estaban en vez
-      // de reemplazarse por lo que traiga el JSON (que podría estar viejo).
-      const comandaActual=DB.comanda, clientesActuales=DB.maestro_clientes;
+      // Fichas Técnicas/Comanda (DB.comanda, DB.maestro_clientes) y Stock
+      // (DB.stock, un historial real de conteos físicos) ya NO se importan
+      // desde este archivo -comanda vive en sus propias colecciones
+      // sincronizadas en vivo, y stock es un registro histórico que un
+      // backup viejo destruiría- así que ambos se preservan tal cual
+      // estaban en vez de reemplazarse por lo que traiga el JSON.
+      const comandaActual=DB.comanda, clientesActuales=DB.maestro_clientes, stockActual=DB.stock;
       DB=parsed;
       DB.comanda=comandaActual||{periodos:[],eventos:{}};
       DB.maestro_clientes=clientesActuales||[];
+      DB.stock=stockActual||{conteos:[]};
       if(!DB.platos_config)DB.platos_config={};
       if(!DB.subs_config)DB.subs_config={};
       if(!DB.procedimientos)DB.procedimientos={};
       if(!DB.maestro_platos)DB.maestro_platos=[];
       if(!DB.maestro_subs)DB.maestro_subs=[];
       if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
-      if(!DB.stock)DB.stock={conteos:[]};
       sbSave(true);
       renderInsumos();
       // Insumos y Proveedores sí se reemplazan de verdad (a diferencia de
@@ -5477,6 +5503,7 @@ function entrarComo(){
   iniciarListenersComanda();
   iniciarListenersInsumosProveedores();
   iniciarListenersRecetas();
+  iniciarListenerStock();
 }
 
 // Botón "Cambiar de módulo" del encabezado: vuelve a #modulo-select-screen
@@ -5503,6 +5530,7 @@ function cerrarSesion(){
   detenerListenersComanda();
   detenerListenersInsumosProveedores();
   detenerListenersRecetas();
+  detenerListenerStock();
   perfilActivo=null;
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('modulo-select-screen').style.display='none';
