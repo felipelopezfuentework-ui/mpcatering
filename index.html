@@ -982,7 +982,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="exportarEventoPDF()">📄 PDF Completo</button>
         <button class="btn btn-outline" style="color:var(--mp-mid);border-color:rgba(92,45,110,.4)" onclick="exportarPestañaPDF()">📄 PDF Pestaña</button>
-        <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-evento-detalle')">✕ Cerrar</button>
+        <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModalEvento()">✕ Cerrar</button>
       </div>
       <div style="font-size:10px;color:var(--text3);margin-top:6px;white-space:nowrap">🔴 Fondo rojo = campo editable vacío &nbsp;&nbsp;|&nbsp;&nbsp; 🟣 Fondo violeta = campo que se edita desde otra solapa o desde el Maestro de Clientes</div>
     </div>
@@ -4578,6 +4578,13 @@ const FB_CONFIG={
 firebase.initializeApp(FB_CONFIG);
 const fbDb=firebase.firestore();
 const FB_DOC=fbDb.collection('mp_data').doc('main');
+// Colecciones de Fichas Técnicas/Comanda (migración a un documento por
+// registro, ver plan de migración): cada período, evento y cliente vive en
+// su propio documento, en vez de estar todos adentro de FB_DOC. Así dos
+// personas editando registros distintos nunca pueden pisarse entre sí.
+const FB_COL_PERIODOS=fbDb.collection('comanda_periodos');
+const FB_COL_EVENTOS=fbDb.collection('comanda_eventos');
+const FB_COL_CLIENTES=fbDb.collection('maestro_clientes');
 
 // ══════════════════════════════════════════════════════════════════
 //  FIREBASE AUTHENTICATION (login con Google)
@@ -4682,7 +4689,14 @@ document.addEventListener('click',()=>{
 
 async function sbSave(silent=false){
   try{
-    const payload=convertirArraysAnidados(DB);
+    // DB.comanda y DB.maestro_clientes ya NO viven en este documento — son
+    // un espejo en memoria alimentado por los listeners de comanda_periodos/
+    // comanda_eventos/maestro_clientes (ver iniciarListenersComanda). Si se
+    // incluyeran acá, un guardado disparado por cualquier otro módulo (ej.
+    // Insumos) escribiría ese espejo -parcial, según qué tenga abierto esta
+    // pestaña- encima del resto de la base, en vez de ignorarlo.
+    const {comanda, maestro_clientes, ...restoDB}=DB;
+    const payload=convertirArraysAnidados(restoDB);
     await FB_DOC.set({payload,updated_at:new Date().toISOString()});
     // Backup local
     try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
@@ -4772,18 +4786,23 @@ function aplicarActualizacionRemota(p){
     snapshotRemotoPendiente=p;
     return;
   }
+  // DB.comanda/DB.maestro_clientes ya no forman parte de este documento (ver
+  // sbSave): p nunca los trae. Se comparan/reemplazan sin esas dos claves
+  // para no perder el espejo en memoria que alimentan los listeners de
+  // comanda_periodos/comanda_eventos/maestro_clientes.
+  const {comanda:comandaPrevia, maestro_clientes:clientesPrevios, ...dbSinComanda}=DB;
   try{
-    if(JSON.stringify(p)===JSON.stringify(DB)) return; // sin cambios reales, evita re-render innecesario
+    if(JSON.stringify(p)===JSON.stringify(dbSinComanda)) return; // sin cambios reales, evita re-render innecesario
   }catch(e){}
   DB=p;
+  DB.comanda=comandaPrevia||{periodos:[],eventos:{}};
+  DB.maestro_clientes=clientesPrevios||[];
   if(!DB.platos_config)DB.platos_config={};
   if(!DB.subs_config)DB.subs_config={};
   if(!DB.procedimientos)DB.procedimientos={};
   if(!DB.maestro_platos)DB.maestro_platos=[];
   if(!DB.maestro_subs)DB.maestro_subs=[];
   if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
-  if(!DB.maestro_clientes)DB.maestro_clientes=[];
-  if(!DB.comanda)DB.comanda={periodos:[],eventos:{}};
   if(!DB.stock)DB.stock={conteos:[]};
   try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
   marcarSincronizado();
@@ -4828,20 +4847,75 @@ function sbListen(){
   });
 }
 
+// ── Sincronización en tiempo real de Fichas Técnicas/Comanda ─────────────
+// Independiente del listener de FB_DOC de arriba: comanda_periodos,
+// comanda_eventos y maestro_clientes son documentos propios, uno por
+// registro. Se escuchan siempre que hay sesión iniciada -para este negocio
+// son, en total, decenas/cientos de documentos chicos, no miles- así que no
+// hace falta ir armando/desarmando listeners acotados por pantalla: cada
+// evento/período/cliente ya es su propio documento, que es lo que evita que
+// se pisen entre sí, sin importar si el listener es "amplio" o "acotado".
+let _unsubComandaPeriodos=null, _unsubComandaEventos=null, _unsubComandaClientes=null;
+
+function iniciarListenersComanda(){
+  if(!DB.comanda) DB.comanda={periodos:[],eventos:{}};
+  if(!DB.maestro_clientes) DB.maestro_clientes=[];
+  _unsubComandaPeriodos=FB_COL_PERIODOS.onSnapshot((snap)=>{
+    DB.comanda.periodos=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>b.anio-a.anio||b.mes-a.mes);
+    refrescarVistaComandaSiCorresponde();
+  }, (err)=>console.error('Error al sincronizar comanda_periodos:', err));
+  _unsubComandaEventos=FB_COL_EVENTOS.onSnapshot((snap)=>{
+    const porPeriodo={};
+    snap.docs.forEach(d=>{
+      const data=d.data();
+      const ev={id:d.id, nombre:data.nombre, creado:data.creado, datos:reconvertirArraysAnidados(data.datos||{})};
+      (porPeriodo[data.periodo_id]=porPeriodo[data.periodo_id]||[]).push(ev);
+    });
+    DB.comanda.eventos=porPeriodo;
+    refrescarVistaComandaSiCorresponde();
+  }, (err)=>console.error('Error al sincronizar comanda_eventos:', err));
+  _unsubComandaClientes=FB_COL_CLIENTES.onSnapshot((snap)=>{
+    DB.maestro_clientes=snap.docs.map(d=>({cliente_id:d.id,...d.data()}));
+    refrescarVistaComandaSiCorresponde();
+  }, (err)=>console.error('Error al sincronizar maestro_clientes:', err));
+}
+function detenerListenersComanda(){
+  [_unsubComandaPeriodos,_unsubComandaEventos,_unsubComandaClientes].forEach(u=>{try{u&&u();}catch(e){}});
+  _unsubComandaPeriodos=_unsubComandaEventos=_unsubComandaClientes=null;
+}
+// Igual que con el listener de FB_DOC: si el usuario está escribiendo en un
+// campo, no lo interrumpimos re-renderizando la vista debajo suyo (el campo
+// en sí ya quedó actualizado en DB por el snapshot; solo se pospone el
+// refresco visual hasta que termine de editar, vía el listener de focusout
+// existente que ya llama a programarGuardadoAutomatico en ese momento).
+function refrescarVistaComandaSiCorresponde(){
+  try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
+  if(perfilActivo && camposEditandoActivos===0) refrescarVistaActual();
+}
+
 // Guardado inmediato al terminar de editar un campo (blur/change), con un
 // pequeño debounce para agrupar varios campos editados en rápida sucesión
 // (por ejemplo, Tab a través de varios inputs) en un solo guardado.
 let _guardadoAutoTimer=null;
-function programarGuardadoAutomatico(){
+// Campos dentro de la ficha de evento (Fichas Técnicas/Comanda) ya no viven
+// en FB_DOC -sbSave() los excluye a propósito (ver comentario ahí)- así que
+// el autoguardado genérico tiene que enrutarlos a guardarEventoActual() en
+// vez de a sbSave(), o quedarían editados en memoria pero sin persistir
+// nunca. El resto de los módulos sigue exactamente igual que antes.
+function programarGuardadoAutomatico(el){
   clearTimeout(_guardadoAutoTimer);
-  _guardadoAutoTimer=setTimeout(()=>sbSave(true), 400);
+  const esCampoDeEvento = el && el.closest && el.closest('#modal-evento-detalle');
+  _guardadoAutoTimer=setTimeout(()=>{
+    esCampoDeEvento ? guardarEventoActual() : sbSave(true);
+  }, 400);
 }
 
 // 'change' cubre selects/checkboxes/radios, que a veces confirman el valor
 // sin perder el foco inmediatamente después.
 document.addEventListener('change', (e)=>{
   if(!esCampoEditable(e.target)) return;
-  if(perfilActivo) programarGuardadoAutomatico();
+  if(perfilActivo) programarGuardadoAutomatico(e.target);
 }, true);
 // Mueve el foco al siguiente campo editable visible, en el orden del DOM.
 function moverFocoAlSiguienteCampo(actual){
@@ -4867,7 +4941,7 @@ document.addEventListener('keydown', (e)=>{
   if(e.target && e.target.tagName==='TEXTAREA') return; // dejar que inserte salto de línea nativo
   if(!esCampoEditable(e.target)) return;
   e.preventDefault();
-  sbSave(true);
+  e.target.closest('#modal-evento-detalle') ? guardarEventoActual() : sbSave(true);
   moverFocoAlSiguienteCampo(e.target);
 }, true);
 document.addEventListener('focusin', (e)=>{
@@ -4876,7 +4950,7 @@ document.addEventListener('focusin', (e)=>{
 document.addEventListener('focusout', (e)=>{
   if(!esCampoEditable(e.target)) return;
   camposEditandoActivos=Math.max(0, camposEditandoActivos-1);
-  if(perfilActivo) programarGuardadoAutomatico();
+  if(perfilActivo) programarGuardadoAutomatico(e.target);
   // Se pospone al siguiente tick para no pisar el foco cuando el usuario
   // pasa de un campo a otro (Tab): el focusin del nuevo campo llega justo después.
   setTimeout(()=>{
@@ -4902,14 +4976,20 @@ function importarJSON(e){
       const nSubs=[...new Set((parsed.subproductos||[]).map(x=>x.subproducto))].length;
       const nPlatos=[...new Set((parsed.recetas_platos||[]).map(x=>x.plato))].length;
       if(!confirm('¿Importar datos del JSON? Esto va a reemplazar todos los datos actuales.\n\nInsumos: '+parsed.insumos.length+' | Subproductos: '+nSubs+' | Platos: '+nPlatos)){return;}
+      // Fichas Técnicas/Comanda (DB.comanda, DB.maestro_clientes) ya NO se
+      // importan desde este archivo -viven en sus propias colecciones,
+      // sincronizadas en vivo- así que se preservan tal cual estaban en vez
+      // de reemplazarse por lo que traiga el JSON (que podría estar viejo).
+      const comandaActual=DB.comanda, clientesActuales=DB.maestro_clientes;
       DB=parsed;
+      DB.comanda=comandaActual||{periodos:[],eventos:{}};
+      DB.maestro_clientes=clientesActuales||[];
       if(!DB.platos_config)DB.platos_config={};
       if(!DB.subs_config)DB.subs_config={};
       if(!DB.procedimientos)DB.procedimientos={};
       if(!DB.maestro_platos)DB.maestro_platos=[];
       if(!DB.maestro_subs)DB.maestro_subs=[];
       if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
-      if(!DB.maestro_clientes)DB.maestro_clientes=[];
       if(!DB.stock)DB.stock={conteos:[]};
       sbSave(true);
       renderInsumos();
@@ -4921,13 +5001,25 @@ function importarJSON(e){
   reader.readAsText(file);
 }
 
+// El evento se guarda campo a campo (autoguardado, no "borrador"), pero con
+// un debounce de 400ms: cerrar justo después de escribir algo -por el botón
+// ✕ o clickeando afuera- podía cerrar antes de que ese guardado pendiente
+// llegara a dispararse. cerrarModalEvento() lo fuerza antes de cerrar.
+function cerrarModalEvento(){
+  clearTimeout(_guardadoAutoTimer);
+  const pId=comandaPeriodoActual, eId=comandaEventoActual;
+  cerrarModal('modal-evento-detalle');
+  guardarEventoActual(pId, eId);
+}
+
 // Close on overlay click
 // Modales de "borrador" (la edición no se autoguarda campo a campo, solo al
 // tocar su botón "Guardar"): clickear afuera del modal antes pasaba por el
 // cierre genérico de abajo, que descartaba en silencio lo editado de un
-// registro ya existente. Estos tres pasan por su función seguraCierre, que
-// guarda si corresponde (ver cerrarModalPlato/cerrarModalSub/cerrarModalCliente).
-const CIERRE_SEGURO_MODAL={'modal-plato':cerrarModalPlato,'modal-sub':cerrarModalSub,'modal-cliente':cerrarModalCliente};
+// registro ya existente. Estos pasan por su función de cierre seguro, que
+// guarda si corresponde (ver cerrarModalPlato/cerrarModalSub/cerrarModalCliente/
+// cerrarModalEvento).
+const CIERRE_SEGURO_MODAL={'modal-plato':cerrarModalPlato,'modal-sub':cerrarModalSub,'modal-cliente':cerrarModalCliente,'modal-evento-detalle':cerrarModalEvento};
 document.querySelectorAll('.modal-ov').forEach(el=>el.addEventListener('click',e=>{
   if(e.target!==el) return;
   const cierreSeguro=CIERRE_SEGURO_MODAL[el.id];
@@ -5069,6 +5161,7 @@ function entrarComo(){
     emailEl.textContent=(u&&u.email)||'';
   }
   document.getElementById('modulo-select-screen').style.display='flex';
+  iniciarListenersComanda();
 }
 
 // Botón "Cambiar de módulo" del encabezado: vuelve a #modulo-select-screen
@@ -5092,6 +5185,7 @@ function volverASeleccionModulo(){
 function cerrarSesion(){
   fbAuth.signOut().catch(e=>console.error('Error al cerrar sesión:',e));
   try{localStorage.removeItem(MP_AUTH_TS_KEY);}catch(e){}
+  detenerListenersComanda();
   perfilActivo=null;
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('modulo-select-screen').style.display='none';
@@ -5485,6 +5579,35 @@ let comandaPeriodoActual = null;
 let comandaEventoActual  = null;
 let comandaSheetActual   = 0;
 
+// Guarda UN evento puntual en comanda_eventos/{eventoId} -reemplaza al viejo
+// sbSave(true) para todo lo que edita un evento. Por defecto usa el evento
+// "abierto" (comandaPeriodoActual/comandaEventoActual, ver abrirEvento), pero
+// admite pasar el id explícito para los casos donde se edita un evento desde
+// la lista del período sin haberlo abierto (renombrar/cambiar fecha inline).
+async function guardarEventoActual(periodoId, eventoId){
+  const pId = periodoId || comandaPeriodoActual;
+  const eId = eventoId || comandaEventoActual;
+  if(!pId || !eId) return;
+  const ev = DB.comanda.eventos[pId]?.find(e=>e.id===eId);
+  if(!ev) return;
+  try{
+    await FB_COL_EVENTOS.doc(ev.id).set({
+      id: ev.id,
+      periodo_id: pId,
+      nombre: ev.nombre,
+      cliente_id: (ev.datos && ev.datos.cliente_id) || null,
+      creado: ev.creado,
+      datos: convertirArraysAnidados(ev.datos||{}),
+      updated_at: new Date().toISOString()
+    });
+    try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
+    marcarSincronizado();
+  }catch(e){
+    marcarErrorSincronizacion(e);
+    console.error('Error al guardar el evento:', e);
+  }
+}
+
 // ── Renderizar períodos ───────────────────────────────────────────
 function renderComandaPeriodos(){
   if(!DB.comanda) DB.comanda={periodos:[],eventos:{}};
@@ -5516,25 +5639,35 @@ function abrirModalPeriodo(){
   document.getElementById('modal-periodo').classList.add('open');
 }
 
-function guardarPeriodo(){
+async function guardarPeriodo(){
   const mes  = parseInt(document.getElementById('periodo-mes').value);
   const anio = parseInt(document.getElementById('periodo-anio').value);
   if(!anio||anio<2020){alert('Ingresá un año válido.');return;}
   const id = `p_${mes}_${anio}`;
   if(DB.comanda.periodos.find(p=>p.id===id)){alert('Ese período ya existe.');return;}
-  DB.comanda.periodos.push({id,mes,anio});
-  DB.comanda.periodos.sort((a,b)=>b.anio-a.anio||b.mes-a.mes);
   cerrarModal('modal-periodo');
-  renderComandaPeriodos();
-  sbSave(true);
+  // El listener de comanda_periodos actualiza DB.comanda.periodos y
+  // refresca la vista solo apenas confirme el servidor -no hace falta
+  // tocar DB a mano acá.
+  try{
+    await FB_COL_PERIODOS.doc(id).set({mes,anio,updated_at:new Date().toISOString()});
+  }catch(e){
+    alert('Error al guardar el período: '+e.message);
+  }
 }
 
-function eliminarPeriodo(id){
+async function eliminarPeriodo(id){
   if(!confirm('¿Eliminar este período y todos sus eventos?'))return;
-  DB.comanda.periodos = DB.comanda.periodos.filter(p=>p.id!==id);
-  delete DB.comanda.eventos[id];
-  renderComandaPeriodos();
-  sbSave(true);
+  // DB.comanda.eventos ya tiene TODOS los eventos (el listener de
+  // comanda_eventos escucha la colección completa), así que no hace falta
+  // una consulta aparte para saber cuáles borrar en cascada.
+  const eventosDelPeriodo = DB.comanda.eventos[id]||[];
+  try{
+    await Promise.all(eventosDelPeriodo.map(ev=>FB_COL_EVENTOS.doc(ev.id).delete()));
+    await FB_COL_PERIODOS.doc(id).delete();
+  }catch(e){
+    alert('Error al eliminar el período: '+e.message);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -5661,22 +5794,17 @@ function guardarCliente(){
     obs_acceso:        document.getElementById('cli-obs-acceso').value.trim(),
     obs_generales:     document.getElementById('cli-obs-generales').value.trim(),
   };
-  if(id){
-    const cli = DB.maestro_clientes.find(c=>c.cliente_id===id);
-    if(cli) Object.assign(cli, datos);
-  } else {
-    DB.maestro_clientes.push({cliente_id: generarClienteId(), ...datos});
-  }
+  const clienteId = id || generarClienteId();
   cerrarModal('modal-cliente');
-  renderClientes();
-  sbSave(true);
+  // El listener de maestro_clientes actualiza DB.maestro_clientes y refresca
+  // la vista apenas confirme el servidor -no hace falta tocar DB a mano acá.
+  FB_COL_CLIENTES.doc(clienteId).set({...datos, updated_at:new Date().toISOString()})
+    .catch(e=>alert('Error al guardar el cliente: '+e.message));
 }
 
 function delCliente(id){
   if(!confirm('¿Eliminar este cliente del maestro? Los eventos ya vinculados no se eliminan.'))return;
-  DB.maestro_clientes = DB.maestro_clientes.filter(c=>c.cliente_id!==id);
-  renderClientes();
-  sbSave(true);
+  FB_COL_CLIENTES.doc(id).delete().catch(e=>alert('Error al eliminar el cliente: '+e.message));
 }
 
 // Historial automático: eventos de Comanda vinculados a este cliente, ya sea
@@ -5749,7 +5877,7 @@ function aplicarClienteAEvento(clienteId){
   ev.datos.localidad = cliente.localidad||'';
   ev.datos.obs_acceso = cliente.obs_acceso||'';
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 // Al abrir un evento ya vinculado a un cliente, refresca los campos autocompletados
@@ -5851,12 +5979,13 @@ function abrirModalNuevoEvento(){
   document.getElementById('modal-evento-nuevo').classList.add('open');
 }
 
-function guardarNuevoEvento(){
+async function guardarNuevoEvento(){
   const nombre = document.getElementById('evento-nombre-input').value.trim();
   if(!nombre){alert('Ingresá un nombre para el evento.');return;}
   const fechaEventoAlta = document.getElementById('fecha_evento_alta').value;
-  if(!DB.comanda.eventos[comandaPeriodoActual]) DB.comanda.eventos[comandaPeriodoActual]=[];
-  const id = 'ev_'+Date.now();
+  // Id con sufijo autogenerado de Firestore (en vez de solo Date.now()): dos
+  // personas creando un evento en el mismo milisegundo ya no pueden colisionar.
+  const id = 'ev_'+FB_COL_EVENTOS.doc().id;
   const fecha = new Date().toLocaleDateString('es-AR');
   // Crear evento con datos vacíos basados en el template
   const datos = {};
@@ -5893,10 +6022,17 @@ function guardarNuevoEvento(){
     });
   });
   datos['fecha'] = fechaEventoAlta || '';
-  DB.comanda.eventos[comandaPeriodoActual].push({id,nombre,creado:fecha,datos});
+  const periodoId = comandaPeriodoActual;
   cerrarModal('modal-evento-nuevo');
-  abrirPeriodo(comandaPeriodoActual);
-  sbSave(true);
+  // Evento nuevo: todavía no hay "evento abierto" (comandaEventoActual), así
+  // que se escribe directo por id en vez de pasar por guardarEventoActual().
+  try{
+    await FB_COL_EVENTOS.doc(id).set({
+      id, periodo_id:periodoId, nombre, cliente_id:null, creado:fecha,
+      datos:convertirArraysAnidados(datos), updated_at:new Date().toISOString()
+    });
+  }catch(e){ alert('Error al crear el evento: '+e.message); return; }
+  abrirPeriodo(periodoId);
 }
 
 function renombrarEvento(periodoId, eventoId, nuevoNombre){
@@ -5913,7 +6049,7 @@ function renombrarEvento(periodoId, eventoId, nuevoNombre){
     const titulo = document.getElementById('modal-evento-titulo');
     if(titulo) titulo.textContent='📋 '+nombre;
   }
-  sbSave(true);
+  guardarEventoActual(periodoId, eventoId);
 }
 function cambiarFechaEvento(periodoId, eventoId, nuevaFecha){
   const ev = DB.comanda.eventos[periodoId]?.find(e=>e.id===eventoId);
@@ -5929,13 +6065,11 @@ function cambiarFechaEvento(periodoId, eventoId, nuevaFecha){
   if(!ev.datos) ev.datos={};
   ev.datos.fecha = nuevaFecha||'';
   abrirPeriodo(periodoId);
-  sbSave(true);
+  guardarEventoActual(periodoId, eventoId);
 }
 function eliminarEvento(periodoId,eventoId){
   if(!confirm('¿Eliminar este evento?'))return;
-  DB.comanda.eventos[periodoId]=DB.comanda.eventos[periodoId].filter(e=>e.id!==eventoId);
-  abrirPeriodo(periodoId);
-  sbSave(true);
+  FB_COL_EVENTOS.doc(eventoId).delete().catch(e=>alert('Error al eliminar el evento: '+e.message));
 }
 
 // ── Abrir evento (editor con tabs del Excel) ──────────────────────
@@ -5946,7 +6080,7 @@ function abrirEvento(periodoId, eventoId){
   if(!ev) return;
   // Si el evento está vinculado a un cliente del maestro (cliente_id), refrescar
   // los campos autocompletados por si sus datos cambiaron desde la última vez.
-  if(sincronizarClienteConMaestro(ev)) sbSave(true);
+  if(sincronizarClienteConMaestro(ev)) guardarEventoActual();
   document.getElementById('modal-evento-titulo').textContent='📋 '+ev.nombre;
   // Construir tabs
   const tabsEl = document.getElementById('evento-sheet-tabs');
@@ -6491,16 +6625,16 @@ function renderEventoSheet(ev, sheetIdx){
               style="width:100%;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
               oninput="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'cantidad',this.value)"></td>
             <td style="text-align:center;padding:2px"><input type="checkbox" ${item.armado?'checked':''}
-              onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'armado',this.checked);sbSave(true)"
+              onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'armado',this.checked);guardarEventoActual()"
               style="accent-color:var(--mp-violet);width:15px;height:15px"></td>
             <td style="text-align:center;padding:2px"><input type="checkbox" ${item.ingreso?'checked':''}
-              onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'ingreso',this.checked);sbSave(true)"
+              onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'ingreso',this.checked);guardarEventoActual()"
               style="accent-color:var(--mp-violet);width:15px;height:15px"></td>
             <td style="text-align:center;padding:2px"><input type="checkbox" ${item.egreso?'checked':''}
-              onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'egreso',this.checked);sbSave(true)"
+              onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'egreso',this.checked);guardarEventoActual()"
               style="accent-color:var(--mp-violet);width:15px;height:15px"></td>
             <td style="text-align:center;padding:2px"><input type="checkbox" ${item.reingreso?'checked':''}
-              onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'reingreso',this.checked);sbSave(true)"
+              onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'reingreso',this.checked);guardarEventoActual()"
               style="accent-color:var(--mp-violet);width:15px;height:15px"></td>
             <td style="padding:2px 2px"><input type="text" value="${escH(item.obs||'')}"
               style="width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
@@ -6757,7 +6891,7 @@ function toggleInvitadosEstado(){
   if(!ev) return;
   ev.datos.invitados_estado = ev.datos.invitados_estado==='confirmado' ? 'a_confirmar' : 'confirmado';
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 // ── Importar desde PDF ────────────────────────────────────────────
@@ -6996,7 +7130,7 @@ function confirmarImportarPDF(){
   cerrarModal('modal-import-pdf');
   // Refrescar la solapa actual para mostrar los datos pre-llenados
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
   showAlert && setTimeout(()=>{
     const alertEl = document.createElement('div');
     alertEl.style.cssText='position:fixed;top:80px;right:20px;z-index:9999;background:rgba(45,122,90,.9);color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;font-weight:600';
@@ -7020,7 +7154,7 @@ function addEventoTablaRow(key, numCols){
   if(!ev.datos[key]) ev.datos[key]=[];
   ev.datos[key].push(new Array(numCols).fill(''));
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 function insertEventoTablaRow(key, rowIndex, colCount){
@@ -7029,7 +7163,7 @@ function insertEventoTablaRow(key, rowIndex, colCount){
   if(!ev.datos[key]) ev.datos[key]=[];
   ev.datos[key].splice(rowIndex+1, 0, new Array(colCount).fill(''));
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 async function pegarMenuPortapapeles(key, numCols){
@@ -7054,7 +7188,7 @@ async function pegarMenuPortapapeles(key, numCols){
     Array.isArray(row) && row.some(v=>String(v||'').trim()!==''));
   ev.datos[key] = [...filasNuevas, ...filasExistentesConContenido];
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 // Igual que pegarMenuPortapapeles pero pega solo dentro de una subsección
@@ -7083,7 +7217,7 @@ async function pegarMenuPortapapelesSeccion(key, secIdx, numCols){
     Array.isArray(row) && row.some(v=>String(v||'').trim()!==''));
   sec.filas = [...filasNuevas, ...filasExistentesConContenido];
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 // ── Drag & drop nativo para reordenar filas de tabla_menu ─────────
@@ -7110,7 +7244,7 @@ function dropFilaTabla(event, key, targetIdx){
   const [movida] = arr.splice(srcIdx,1);
   arr.splice(targetIdx,0,movida);
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 // ── Subsecciones del menú (COMANDA · MENÚ DEL EVENTO) ──────────────
@@ -7224,7 +7358,7 @@ function agregarSeccionMenu(key){
   }
   ev.datos[key+'_secciones'].push({nombre:'Nueva sección', filas:[]});
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 function eliminarSeccionMenu(key, secIdx){
@@ -7237,7 +7371,7 @@ function eliminarSeccionMenu(key, secIdx){
   if(!confirm(`¿Eliminar la sección "${nombre}" y sus ${(sec.filas||[]).length} fila(s)?`)) return;
   secciones.splice(secIdx,1);
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 // Se dispara con cada tecleo del nombre (oninput): no llama a sbSave porque, como
@@ -7259,7 +7393,7 @@ function addFilaSeccion(key, secIdx, numCols){
   if(!sec.filas) sec.filas=[];
   sec.filas.push(new Array(numCols).fill(''));
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 function insertFilaSeccion(key, secIdx, rowIdx, colCount){
@@ -7270,7 +7404,7 @@ function insertFilaSeccion(key, secIdx, rowIdx, colCount){
   if(!sec.filas) sec.filas=[];
   sec.filas.splice(rowIdx+1, 0, new Array(colCount).fill(''));
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 function removeFilaSeccion(key, secIdx, rowIdx){
@@ -7280,7 +7414,7 @@ function removeFilaSeccion(key, secIdx, rowIdx){
   if(!sec || !Array.isArray(sec.filas)) return;
   sec.filas.splice(rowIdx,1);
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 // Igual que updateEventoTabla pero para una fila dentro de una sección: se
@@ -7326,7 +7460,7 @@ function toggleChecklistComidaItem(key, secIdx, filaIdx, checked){
   const itemKey = (sec.nombre||'Sin sección')+'::'+nombrePlato;
   if(!ev.datos[key] || typeof ev.datos[key]!=='object' || Array.isArray(ev.datos[key])) ev.datos[key]={};
   ev.datos[key][itemKey] = checked;
-  sbSave(true);
+  guardarEventoActual();
 }
 
 // Actualiza un campo (cantidad_porciones/vajilla/cantidad_vajilla) de una fila
@@ -7373,7 +7507,7 @@ function addChecklistVajillaItem(key, secIdx){
   if(!sec.items) sec.items=[];
   sec.items.push({nombre:'', cantidad:'', armado:false, ingreso:false, egreso:false, reingreso:false, obs:''});
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 function removeChecklistVajillaItem(key, secIdx, itemIdx){
@@ -7383,7 +7517,7 @@ function removeChecklistVajillaItem(key, secIdx, itemIdx){
   if(!sec || !Array.isArray(sec.items)) return;
   sec.items.splice(itemIdx,1);
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 // Drag & drop entre filas de subsecciones — soporta reordenar dentro de la
@@ -7420,7 +7554,7 @@ function dropFilaSeccion(event, key, targetSecIdx, targetRowIdx){
   if(origen.secIdx===targetSecIdx && origen.rowIdx<targetRowIdx) destIdx--;
   secDestino.filas.splice(destIdx,0,fila);
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 function dropFilaSeccionEnVacio(event, key, targetSecIdx){
   event.preventDefault();
@@ -7440,7 +7574,7 @@ function dropFilaSeccionEnVacio(event, key, targetSecIdx){
   if(!secDestino.filas) secDestino.filas=[];
   secDestino.filas.push(fila);
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 function addEventoTablaRowChecks(key, numCols){
@@ -7452,7 +7586,7 @@ function addEventoTablaRowChecks(key, numCols){
   for(let i=2;i<=5;i++) row[i]=false;
   ev.datos[key].push(row);
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 function removeEventoTablaRow(key, rowIdx){
@@ -7460,7 +7594,7 @@ function removeEventoTablaRow(key, rowIdx){
   if(!ev) return;
   ev.datos[key].splice(rowIdx,1);
   renderEventoSheet(ev, comandaSheetActual);
-  sbSave(true);
+  guardarEventoActual();
 }
 
 function registrarBebida(nombre){
