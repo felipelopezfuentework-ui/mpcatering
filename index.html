@@ -6782,13 +6782,20 @@ function renderEventoSheet(ev, sheetIdx){
       });
       html+=`</div>`;
     } else if(c.tipo==='opciones_bool'){
-      html+=`<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">`;
+      html+=`<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">`;
       c.opciones.forEach(o=>{
         const v = datos[o.k]||false;
-        html+=`<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer">
-          <input type="checkbox" ${v?'checked':''} onchange="updateEventoDato('${o.k}',this.checked)"
-            style="accent-color:var(--mp-violet);width:14px;height:14px"> ${escH(o.l)}
-        </label>`;
+        const obsKey = o.k+'_obs';
+        const obsVal = datos[obsKey]||'';
+        html+=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer;min-width:200px">
+            <input type="checkbox" ${v?'checked':''} onchange="updateEventoDato('${o.k}',this.checked)"
+              style="accent-color:var(--mp-violet);width:14px;height:14px"> ${escH(o.l)}
+          </label>
+          <input type="text" value="${escH(obsVal)}" placeholder="Aclaraciones (opcional)" data-key="${obsKey}"
+            style="flex:1;min-width:160px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 8px;font-size:11.5px;font-family:inherit;outline:none"
+            oninput="updateEventoDato('${obsKey}',this.value)">
+        </div>`;
       });
       html+=`</div>`;
     } else if(c.tipo==='tabla_menu' && c.secciones){
@@ -8070,7 +8077,12 @@ function buildValueItems(ev, item){
   }
   if(item.tipo==='opciones_bool'){
     const active=(item.opciones||[]).filter(o=>ev.datos?.[o.k]);
-    return active.length ? [{label:'Servicios', value:active.map(o=>o.l).join(' · ')}] : [];
+    if(!active.length) return [];
+    const texto=active.map(o=>{
+      const obs=ev.datos?.[o.k+'_obs'];
+      return obs ? `${o.l} (${obs})` : o.l;
+    }).join(' · ');
+    return [{label:'Servicios', value:texto}];
   }
   if(item.tipo==='campo_check'){
     const list=[];
