@@ -4687,7 +4687,12 @@ async function sbSave(silent=false){
         if(updatedAtServidor && updatedAtServidor!==_dbVersionBase){
           const p=reconvertirArraysAnidados(fresco.data().payload);
           aplicarSnapshotAhora(p, updatedAtServidor);
-          if(!silent)alert('Otro cambio se guardó justo antes que el tuyo. Se actualizó la vista con lo más reciente — repetí tu último cambio.');
+          // Este aviso se muestra SIEMPRE, aunque el guardado sea "silencioso":
+          // en la práctica todos los llamados a sbSave() en la app usan silent=true
+          // (para no mostrar "✓ Guardado" en cada tecla), así que si este cartel
+          // dependiera de `silent` nunca se vería y el usuario perdería su último
+          // cambio sin enterarse.
+          alert('Otro cambio se guardó justo antes que el tuyo. Se actualizó la vista con lo más reciente — repetí tu último cambio.');
           return;
         }
       }catch(e){
