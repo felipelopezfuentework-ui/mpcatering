@@ -4681,43 +4681,9 @@ document.addEventListener('click',()=>{
 });
 
 async function sbSave(silent=false){
-  const payload=convertirArraysAnidados(DB);
-  const nuevoUpdatedAt=new Date().toISOString();
-  const baseAlEntrar=_dbVersionBase; // versión de la que parte el DB de ESTA pestaña
-  let conflicto=null;
   try{
-    // Transacción de Firestore: lee y escribe como una única operación atómica
-    // en el servidor (con reintento automático del propio SDK si otra escritura
-    // se cuela justo en el medio). Un get() + set() separados dejarían una
-    // ventana abierta entre chequear y escribir; la transacción la cierra del
-    // todo, así dos guardados que caen casi al mismo milisegundo no pueden
-    // pisarse entre sí sin que se detecte.
-    await fbDb.runTransaction(async (t)=>{
-      conflicto=null; // por si el SDK reintenta la transacción desde cero
-      const snap=await t.get(FB_DOC);
-      const updatedAtServidor=snap.exists?snap.data().updated_at:null;
-      if(baseAlEntrar && updatedAtServidor && updatedAtServidor!==baseAlEntrar){
-        // Otra pestaña/usuario guardó algo que ésta todavía no incorporó a su
-        // DB (por ejemplo porque quedó en snapshotRemotoPendiente mientras se
-        // editaba un campo, o por Enter que guarda sin esperar ese merge).
-        // No escribimos: haríamos desaparecer ese cambio ajeno.
-        conflicto={payload:snap.data().payload, updated_at:updatedAtServidor};
-        return;
-      }
-      t.set(FB_DOC,{payload,updated_at:nuevoUpdatedAt});
-    });
-    if(conflicto){
-      // Igual que en el merge silencioso del focusout: como todo el sistema
-      // comparte un único documento, esto salta con cualquier guardado sin
-      // relación de cualquier otro módulo/usuario, no solo con un choque real
-      // sobre lo mismo que se está editando. Avisar acá interrumpía todo el
-      // tiempo por guardados ajenos sin ninguna relación. Se resuelve en
-      // silencio: se adopta la versión más nueva del servidor y no se escribe
-      // la vieja (eso es lo que realmente importa evitar), sin cartel.
-      aplicarSnapshotAhora(reconvertirArraysAnidados(conflicto.payload), conflicto.updated_at);
-      return;
-    }
-    _dbVersionBase=nuevoUpdatedAt;
+    const payload=convertirArraysAnidados(DB);
+    await FB_DOC.set({payload,updated_at:new Date().toISOString()});
     // Backup local
     try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
     marcarSincronizado();
@@ -4799,24 +4765,16 @@ function refrescarVistaActual(){
   }
 }
 
-// Última marca de tiempo (updated_at) del documento de Firestore que ya está
-// reflejada en el DB local de esta pestaña. sbSave() la compara contra el
-// servidor antes de guardar, para detectar si otro usuario/pestaña guardó
-// algo que acá todavía no se incorporó (ver comentario en sbSave).
-let _dbVersionBase=null;
-
-// Aplica un snapshot al DB local sin pasar por la cola de "usuario editando".
-// La usa tanto aplicarActualizacionRemota() (cuando no hay edición activa)
-// como sbSave() al detectar un conflicto (ahí se fuerza aunque haya un campo
-// con foco, porque el propio intento de guardado ya indica que el usuario
-// terminó esa acción).
-function aplicarSnapshotAhora(p, updatedAt){
-  let sinCambios=false;
+function aplicarActualizacionRemota(p){
+  // Si el usuario está escribiendo en algún campo, no lo interrumpimos: se aplica
+  // apenas termine de editar (ver listener de 'focusout' más abajo).
+  if(camposEditandoActivos>0){
+    snapshotRemotoPendiente=p;
+    return;
+  }
   try{
-    sinCambios=JSON.stringify(p)===JSON.stringify(DB); // sin cambios reales, evita re-render innecesario
+    if(JSON.stringify(p)===JSON.stringify(DB)) return; // sin cambios reales, evita re-render innecesario
   }catch(e){}
-  _dbVersionBase=updatedAt;
-  if(sinCambios) return;
   DB=p;
   if(!DB.platos_config)DB.platos_config={};
   if(!DB.subs_config)DB.subs_config={};
@@ -4830,16 +4788,6 @@ function aplicarSnapshotAhora(p, updatedAt){
   try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
   marcarSincronizado();
   if(perfilActivo) refrescarVistaActual();
-}
-
-function aplicarActualizacionRemota(p, updatedAt){
-  // Si el usuario está escribiendo en algún campo, no lo interrumpimos: se aplica
-  // apenas termine de editar (ver listener de 'focusout' más abajo).
-  if(camposEditandoActivos>0){
-    snapshotRemotoPendiente={payload:p, updated_at:updatedAt};
-    return;
-  }
-  aplicarSnapshotAhora(p, updatedAt);
 }
 
 // Suscribe el listener en tiempo real. Devuelve una promesa que se resuelve
@@ -4866,7 +4814,7 @@ function sbListen(){
         if(doc.exists && doc.data().payload){
           const p=reconvertirArraysAnidados(doc.data().payload);
           if(p.insumos && p.insumos.length>=100){
-            aplicarActualizacionRemota(p, doc.data().updated_at);
+            aplicarActualizacionRemota(p);
             ok=true;
           }
         }
@@ -4931,21 +4879,11 @@ document.addEventListener('focusout', (e)=>{
   if(perfilActivo) programarGuardadoAutomatico();
   // Se pospone al siguiente tick para no pisar el foco cuando el usuario
   // pasa de un campo a otro (Tab): el focusin del nuevo campo llega justo después.
-  //
-  // Se aplica el cambio en espera EN SILENCIO (sin el cartel de conflicto):
-  // como todo el sistema comparte un único documento, "llegó un cambio
-  // remoto mientras este campo tenía foco" casi siempre es de algo sin
-  // ninguna relación con lo que se está editando (cualquiera de las 50+
-  // acciones que autoguardan, de cualquier otro módulo, de cualquier otra
-  // persona). Avisar acá en cada uno de esos casos hace la carga diaria
-  // impracticable para poco beneficio real. La protección que sí importa
-  // (que una pestaña vieja/desconectada no sobreescriba todo el documento)
-  // sigue intacta en la transacción de sbSave(), independiente de esto.
   setTimeout(()=>{
     if(camposEditandoActivos===0 && snapshotRemotoPendiente){
       const pendiente=snapshotRemotoPendiente;
       snapshotRemotoPendiente=null;
-      aplicarActualizacionRemota(pendiente.payload, pendiente.updated_at);
+      aplicarActualizacionRemota(pendiente);
     }
   }, 0);
 }, true);
