@@ -4557,6 +4557,12 @@ function cerrarModal(id){ddClose();document.getElementById(id).classList.remove(
 // El botón "Cancelar" sigue descartando siempre, para quien quiera salir sin guardar.
 function cerrarModalPlato(){editPlatoOld?guardarPlato():cerrarModal('modal-plato');}
 function cerrarModalSub(){editSubOld?guardarSub():cerrarModal('modal-sub');}
+// Mismo criterio que cerrarModalPlato/cerrarModalSub: si se estaba editando un
+// cliente ya existente (el campo oculto cli-edit-id tiene id), guarda antes de
+// cerrar en vez de descartar los cambios en silencio. Si es un cliente nuevo sin
+// guardar todavía, cierra sin guardar. El botón "Cancelar" sigue descartando
+// siempre, a propósito, para quien quiera salir sin guardar.
+function cerrarModalCliente(){document.getElementById('cli-edit-id').value?guardarCliente():cerrarModal('modal-cliente');}
 function showAlert(id,type,msg){const el=document.getElementById(id);if(!el)return;el.className='alert alert-'+type+' show';el.textContent=msg;setTimeout(()=>el.classList.remove('show'),4000);}
 // ══════════════════════════════════════════════════════════════════
 //  FIREBASE FIRESTORE SYNC
@@ -4960,7 +4966,19 @@ function importarJSON(e){
 }
 
 // Close on overlay click
-document.querySelectorAll('.modal-ov').forEach(el=>el.addEventListener('click',e=>{if(e.target===el){ddClose();el.classList.remove('open');}}));
+// Modales de "borrador" (la edición no se autoguarda campo a campo, solo al
+// tocar su botón "Guardar"): clickear afuera del modal antes pasaba por el
+// cierre genérico de abajo, que descartaba en silencio lo editado de un
+// registro ya existente. Estos tres pasan por su función seguraCierre, que
+// guarda si corresponde (ver cerrarModalPlato/cerrarModalSub/cerrarModalCliente).
+const CIERRE_SEGURO_MODAL={'modal-plato':cerrarModalPlato,'modal-sub':cerrarModalSub,'modal-cliente':cerrarModalCliente};
+document.querySelectorAll('.modal-ov').forEach(el=>el.addEventListener('click',e=>{
+  if(e.target!==el) return;
+  const cierreSeguro=CIERRE_SEGURO_MODAL[el.id];
+  if(cierreSeguro){ cierreSeguro(); return; }
+  ddClose();
+  el.classList.remove('open');
+}));
 
 // Aviso al cerrar la app
 let _hayUnsaved = false;
