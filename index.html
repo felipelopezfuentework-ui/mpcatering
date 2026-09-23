@@ -2373,7 +2373,13 @@ window.addEventListener('resize', () => { if(_ddAnchor) ddPosition(); }, { passi
 // ══════════════════════════════════════════════════════════════════
 //  HELPERS
 // ══════════════════════════════════════════════════════════════════
-function updF(arr,id,field,val){const x=arr.find(a=>a._id===id);if(x)x[field]=val.trim();}
+function updF(arr,id,field,val,coleccion){
+  const x=arr.find(a=>a._id===id);
+  if(!x) return;
+  x[field]=val.trim();
+  if(coleccion==='insumos') guardarInsumo(id);
+  else if(coleccion==='proveedores') guardarProveedor(id);
+}
 function getCompPrice(comp){
   if(!comp)return 0;
   if(comp.startsWith('INSUMO - ')){const ins=DB.insumos.find(x=>x.key===comp);return ins?parseFloat(ins.costo)||0:0;}
@@ -2466,18 +2472,26 @@ function renderProveedores(){
   document.getElementById('prov-count').textContent=f.length;
   document.getElementById('prov-tbody').innerHTML=f.map((p,i)=>`<tr>
     <td style="color:var(--text3)">${i+1}</td>
-    <td contenteditable oninput="updF(DB.proveedores,${p._id},'rubro',this.textContent)">${escH(p.rubro||'')}</td>
-    <td contenteditable oninput="updF(DB.proveedores,${p._id},'proveedor',this.textContent)">${escH(p.proveedor)}</td>
-    <td contenteditable oninput="updF(DB.proveedores,${p._id},'razon_social',this.textContent)">${escH(p.razon_social)}</td>
-    <td contenteditable oninput="updF(DB.proveedores,${p._id},'vendedor',this.textContent)">${escH(p.vendedor)}</td>
-    <td contenteditable oninput="updF(DB.proveedores,${p._id},'mail',this.textContent)">${escH(p.mail)}</td>
-    <td contenteditable oninput="updF(DB.proveedores,${p._id},'telefono',this.textContent)">${escH(p.telefono)}</td>
-    <td contenteditable oninput="updF(DB.proveedores,${p._id},'cuit',this.textContent)">${escH(p.cuit||'')}</td>
+    <td contenteditable oninput="updF(DB.proveedores,${p._id},'rubro',this.textContent,'proveedores')">${escH(p.rubro||'')}</td>
+    <td contenteditable oninput="updF(DB.proveedores,${p._id},'proveedor',this.textContent,'proveedores')">${escH(p.proveedor)}</td>
+    <td contenteditable oninput="updF(DB.proveedores,${p._id},'razon_social',this.textContent,'proveedores')">${escH(p.razon_social)}</td>
+    <td contenteditable oninput="updF(DB.proveedores,${p._id},'vendedor',this.textContent,'proveedores')">${escH(p.vendedor)}</td>
+    <td contenteditable oninput="updF(DB.proveedores,${p._id},'mail',this.textContent,'proveedores')">${escH(p.mail)}</td>
+    <td contenteditable oninput="updF(DB.proveedores,${p._id},'telefono',this.textContent,'proveedores')">${escH(p.telefono)}</td>
+    <td contenteditable oninput="updF(DB.proveedores,${p._id},'cuit',this.textContent,'proveedores')">${escH(p.cuit||'')}</td>
     <td><button class="btn btn-danger" onclick="delProv(${p._id})">🗑</button></td>
   </tr>`).join('');
 }
-function delProv(id){if(confirm('¿Eliminar proveedor?')){DB.proveedores=DB.proveedores.filter(x=>x._id!==id);renderProveedores();sbSave(true);}}
-function addProveedor(){DB.proveedores.push({_id:Date.now(),rubro:'',proveedor:'NUEVO',razon_social:'',vendedor:'',mail:'',telefono:'',cuit:''});renderProveedores();showAlert('prov-alert','success','Proveedor agregado.');sbSave(true);}
+function delProv(id){
+  if(!confirm('¿Eliminar proveedor?'))return;
+  FB_COL_PROVEEDORES.doc(String(id)).delete().catch(e=>alert('Error al eliminar el proveedor: '+e.message));
+}
+function addProveedor(){
+  const id=Date.now();
+  FB_COL_PROVEEDORES.doc(String(id)).set({rubro:'',proveedor:'NUEVO',razon_social:'',vendedor:'',mail:'',telefono:'',cuit:'',updated_at:new Date().toISOString()})
+    .then(()=>showAlert('prov-alert','success','Proveedor agregado.'))
+    .catch(e=>alert('Error al agregar el proveedor: '+e.message));
+}
 
 // ══════════════════════════════════════════════════════════════════
 //  INSUMOS
@@ -2500,7 +2514,7 @@ function renderInsumos(){
     <td>
       <input type="text" value="${escH(x.formato||'')}" placeholder="Ej: Bolsa 5kg"
         style="width:110px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
-        oninput="updF(DB.insumos,${x._id},'formato',this.value)">
+        oninput="updF(DB.insumos,${x._id},'formato',this.value,'insumos')">
     </td>
     <td class="num">
       <input type="number" step="0.01" min="0" value="${pkgPrecio||''}" placeholder="0"
@@ -2515,7 +2529,7 @@ function renderInsumos(){
     <td class="num" id="ipk${x._id}" style="color:var(--green);font-weight:700">${fmtN(precioKg,2)}</td>
     <td>
       <select style="background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px;width:100%"
-        onchange="updF(DB.insumos,${x._id},'proveedor',this.value)">
+        onchange="updF(DB.insumos,${x._id},'proveedor',this.value,'insumos')">
         <option value="">— Sin proveedor —</option>
         ${DB.proveedores.map(p=>`<option value="${escH(p.proveedor)}"${p.proveedor===x.proveedor?' selected':''}>${escH(p.proveedor)}</option>`).join('')}
       </select>
@@ -2532,7 +2546,13 @@ function updInsNombre(id,val){
   const x=DB.insumos.find(i=>i._id===id);if(!x)return;
   x.nombre=val.trim();x.key='INSUMO - '+val.trim().toUpperCase();
   const kc=document.getElementById('ikey'+id);if(kc)kc.textContent=x.key;
+  guardarInsumo(id);
 }
+// recalcularRecetasPorInsumo() todavía escribe en DB.subproductos/
+// DB.recetas_platos, que por ahora siguen viviendo en el documento único
+// viejo (fase 3 de la migración, pendiente) — por eso, además de guardar
+// este insumo en su colección nueva, hay que seguir llamando a sbSave(true)
+// cuando la cascada cambió algo, o esos cambios en cascada no persistirían.
 function updInsPrecioFormato(id,val){
   const x=DB.insumos.find(i=>i._id===id);if(!x)return;
   x.precio_formato=parseFloat(val)||0;
@@ -2540,7 +2560,10 @@ function updInsPrecioFormato(id,val){
   x.costo=kg>0?(x.precio_formato/kg):x.precio_formato;
   const el=document.getElementById('ipk'+id);
   if(el)el.textContent=fmtN(x.costo,2);
-  recalcularRecetasPorInsumo(x.key);
+  guardarInsumo(id);
+  // Debounced (no de inmediato): igual que antes, para no disparar un
+  // guardado por cada tecla mientras se escribe el precio.
+  if(recalcularRecetasPorInsumo(x.key)) programarGuardadoAutomatico();
 }
 function updInsKgFormato(id,val){
   const x=DB.insumos.find(i=>i._id===id);if(!x)return;
@@ -2549,13 +2572,19 @@ function updInsKgFormato(id,val){
   x.costo=x.formato_kg>0?(pf/x.formato_kg):pf;
   const el=document.getElementById('ipk'+id);
   if(el)el.textContent=fmtN(x.costo,2);
-  recalcularRecetasPorInsumo(x.key);
+  guardarInsumo(id);
+  if(recalcularRecetasPorInsumo(x.key)) programarGuardadoAutomatico();
 }
-function delIns(id){if(confirm('¿Eliminar insumo?')){DB.insumos=DB.insumos.filter(x=>x._id!==id);renderInsumos();sbSave(true);}}
+function delIns(id){
+  if(!confirm('¿Eliminar insumo?'))return;
+  FB_COL_INSUMOS.doc(String(id)).delete().catch(e=>alert('Error al eliminar el insumo: '+e.message));
+}
 let _insumoNuevoId=null; // _id del insumo recién agregado, para resaltar su fila en el próximo render
 // overrides opcional ({nombre,costo,proveedor,formato}) — lo usa también el
-// alta rápida de insumo desde el conteo de stock (mismo alta, mismos campos,
-// mismo sbSave), sin duplicar esta función.
+// alta rápida de insumo desde el conteo de stock (mismos campos, mismo
+// guardado), sin duplicar esta función. Sigue devolviendo el insumo nuevo
+// de forma sincrónica (varios llamadores dependen de eso), y dispara el
+// guardado en la colección nueva en paralelo, sin esperarlo.
 function addInsumo(overrides){
   const nuevoId=Date.now();
   const nombre=(overrides&&overrides.nombre)||'NUEVO INSUMO';
@@ -2564,7 +2593,10 @@ function addInsumo(overrides){
     formato:(overrides&&overrides.formato)||'',precio_formato:0,formato_kg:0};
   DB.insumos.unshift(nuevo);
   _insumoNuevoId=nuevoId;
-  insPage=0;document.getElementById('ins-search').value='';renderInsumos();sbSave(true);
+  insPage=0;document.getElementById('ins-search').value='';renderInsumos();
+  const {_id, ...datosInsumo}=nuevo;
+  FB_COL_INSUMOS.doc(String(nuevoId)).set({...datosInsumo, updated_at:new Date().toISOString()})
+    .catch(e=>alert('Error al guardar el insumo: '+e.message));
   return nuevo;
 }
 
@@ -2611,6 +2643,7 @@ function handleXLSX(e){
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
       let upd=0;
       const insumosActualizados=new Set();
+      const insumosModificados=[];
       rows.forEach(row=>{
         // Accept rows where col 0 = name/key, col 5 = new price (our Excel format)
         // Also accept simple 2-col format: name, price
@@ -2634,7 +2667,7 @@ function handleXLSX(e){
         }
         if(!nombre||precio===null||isNaN(precio))return;
         const found=DB.insumos.find(x=>x.key===nombre||x.nombre.toUpperCase()===nombre.replace('INSUMO - ',''));
-        if(found){found.costo=precio;upd++;insumosActualizados.add(found.key);}
+        if(found){found.costo=precio;upd++;insumosActualizados.add(found.key);insumosModificados.push(found);}
       });
       let recetasAfectadas=false;
       insumosActualizados.forEach(k=>{ if(recalcularRecetasPorInsumo(k,false)) recetasAfectadas=true; });
@@ -2643,7 +2676,14 @@ function handleXLSX(e){
       showAlert('upload-alert', upd>0?'success':'error',
         upd>0?'✓ '+upd+' insumo'+(upd!==1?'s':'')+' actualizado'+(upd!==1?'s':'')+'.'
              :'No se encontraron coincidencias. Verificá el formato del Excel.');
-      if(upd>0) sbSave(true);
+      // Cada insumo tocado se guarda en su documento propio; si la cascada
+      // llegó a afectar subproductos/platos (todavía en el documento único
+      // viejo, fase 3 pendiente), eso se sigue persistiendo con sbSave(true).
+      insumosModificados.forEach(x=>{
+        const {_id, ...datosInsumo}=x;
+        FB_COL_INSUMOS.doc(String(_id)).set({...datosInsumo, updated_at:new Date().toISOString()}).catch(err=>console.error('Error al guardar insumo importado:', err));
+      });
+      if(recetasAfectadas) sbSave(true);
     }catch(err){showAlert('upload-alert','error','Error al leer el archivo: '+err.message);}
   };
   r.readAsArrayBuffer(f);
@@ -4585,6 +4625,9 @@ const FB_DOC=fbDb.collection('mp_data').doc('main');
 const FB_COL_PERIODOS=fbDb.collection('comanda_periodos');
 const FB_COL_EVENTOS=fbDb.collection('comanda_eventos');
 const FB_COL_CLIENTES=fbDb.collection('maestro_clientes');
+// Fase 2 de la migración: Insumos y Proveedores, mismo criterio.
+const FB_COL_INSUMOS=fbDb.collection('insumos');
+const FB_COL_PROVEEDORES=fbDb.collection('proveedores');
 
 // ══════════════════════════════════════════════════════════════════
 //  FIREBASE AUTHENTICATION (login con Google)
@@ -4689,13 +4732,14 @@ document.addEventListener('click',()=>{
 
 async function sbSave(silent=false){
   try{
-    // DB.comanda y DB.maestro_clientes ya NO viven en este documento — son
-    // un espejo en memoria alimentado por los listeners de comanda_periodos/
-    // comanda_eventos/maestro_clientes (ver iniciarListenersComanda). Si se
-    // incluyeran acá, un guardado disparado por cualquier otro módulo (ej.
-    // Insumos) escribiría ese espejo -parcial, según qué tenga abierto esta
-    // pestaña- encima del resto de la base, en vez de ignorarlo.
-    const {comanda, maestro_clientes, ...restoDB}=DB;
+    // DB.comanda, DB.maestro_clientes, DB.insumos y DB.proveedores ya NO
+    // viven en este documento — son un espejo en memoria alimentado por sus
+    // propios listeners (ver iniciarListenersComanda/
+    // iniciarListenersInsumosProveedores). Si se incluyeran acá, un
+    // guardado disparado por cualquier otro módulo escribiría ese espejo
+    // -parcial, según qué tenga cargado esta pestaña- encima del resto de
+    // la base, en vez de ignorarlo.
+    const {comanda, maestro_clientes, insumos, proveedores, ...restoDB}=DB;
     const payload=convertirArraysAnidados(restoDB);
     await FB_DOC.set({payload,updated_at:new Date().toISOString()});
     // Backup local
@@ -4786,17 +4830,19 @@ function aplicarActualizacionRemota(p){
     snapshotRemotoPendiente=p;
     return;
   }
-  // DB.comanda/DB.maestro_clientes ya no forman parte de este documento (ver
-  // sbSave): p nunca los trae. Se comparan/reemplazan sin esas dos claves
-  // para no perder el espejo en memoria que alimentan los listeners de
-  // comanda_periodos/comanda_eventos/maestro_clientes.
-  const {comanda:comandaPrevia, maestro_clientes:clientesPrevios, ...dbSinComanda}=DB;
+  // DB.comanda/DB.maestro_clientes/DB.insumos/DB.proveedores ya no forman
+  // parte de este documento (ver sbSave): p nunca los trae. Se comparan/
+  // reemplazan sin esas claves para no perder el espejo en memoria que
+  // alimentan sus propios listeners.
+  const {comanda:comandaPrevia, maestro_clientes:clientesPrevios, insumos:insumosPrevios, proveedores:proveedoresPrevios, ...dbSinComanda}=DB;
   try{
     if(JSON.stringify(p)===JSON.stringify(dbSinComanda)) return; // sin cambios reales, evita re-render innecesario
   }catch(e){}
   DB=p;
   DB.comanda=comandaPrevia||{periodos:[],eventos:{}};
   DB.maestro_clientes=clientesPrevios||[];
+  DB.insumos=insumosPrevios||[];
+  DB.proveedores=proveedoresPrevios||[];
   if(!DB.platos_config)DB.platos_config={};
   if(!DB.subs_config)DB.subs_config={};
   if(!DB.procedimientos)DB.procedimientos={};
@@ -4832,7 +4878,14 @@ function sbListen(){
       try{
         if(doc.exists && doc.data().payload){
           const p=reconvertirArraysAnidados(doc.data().payload);
-          if(p.insumos && p.insumos.length>=100){
+          // Antes se validaba con p.insumos.length>=100, pero insumos ya no
+          // viaja en este documento (tiene su propia colección, ver
+          // sbSave). Se valida con la forma de subproductos/recetas_platos
+          // en su lugar -siguen viviendo acá hasta la fase 3 de la
+          // migración- sin un número mínimo fijo (no sabemos de antemano
+          // cuántas filas tiene este negocio), solo para descartar un
+          // documento vacío/corrupto antes de aplicarlo.
+          if(Array.isArray(p.recetas_platos) && Array.isArray(p.subproductos)){
             aplicarActualizacionRemota(p);
             ok=true;
           }
@@ -4863,7 +4916,7 @@ function iniciarListenersComanda(){
   _unsubComandaPeriodos=FB_COL_PERIODOS.onSnapshot((snap)=>{
     DB.comanda.periodos=snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>b.anio-a.anio||b.mes-a.mes);
-    refrescarVistaComandaSiCorresponde();
+    refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar comanda_periodos:', err));
   _unsubComandaEventos=FB_COL_EVENTOS.onSnapshot((snap)=>{
     const porPeriodo={};
@@ -4873,23 +4926,80 @@ function iniciarListenersComanda(){
       (porPeriodo[data.periodo_id]=porPeriodo[data.periodo_id]||[]).push(ev);
     });
     DB.comanda.eventos=porPeriodo;
-    refrescarVistaComandaSiCorresponde();
+    refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar comanda_eventos:', err));
   _unsubComandaClientes=FB_COL_CLIENTES.onSnapshot((snap)=>{
     DB.maestro_clientes=snap.docs.map(d=>({cliente_id:d.id,...d.data()}));
-    refrescarVistaComandaSiCorresponde();
+    refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar maestro_clientes:', err));
 }
 function detenerListenersComanda(){
   [_unsubComandaPeriodos,_unsubComandaEventos,_unsubComandaClientes].forEach(u=>{try{u&&u();}catch(e){}});
   _unsubComandaPeriodos=_unsubComandaEventos=_unsubComandaClientes=null;
 }
+
+// ── Fase 2: Insumos y Proveedores, mismo patrón ───────────────────────────
+// El _id histórico de cada insumo/proveedor es numérico (Date.now() o el
+// índice de siembra original) y el resto del código lo usa así en todos
+// lados (comparaciones ===, embebido como número literal en el HTML de los
+// onclick). Se usa String(_id) como id de documento en Firestore, y se
+// reconvierte a Number(d.id) al leer, para no tener que tocar ese código.
+let _unsubInsumos=null, _unsubProveedores=null;
+let _limpiezaInsumosYaCorrida=false;
+function iniciarListenersInsumosProveedores(){
+  _limpiezaInsumosYaCorrida=false;
+  _unsubInsumos=FB_COL_INSUMOS.onSnapshot((snap)=>{
+    DB.insumos=snap.docs.map(d=>({...d.data(), _id:Number(d.id)}));
+    // Antes corría una sola vez al cargar la página, contra datos todavía
+    // sin sincronizar; ahora corre en el primer snapshot real de la
+    // colección de insumos (ver limpiarInsumosRevisarEliminar).
+    if(!_limpiezaInsumosYaCorrida){ _limpiezaInsumosYaCorrida=true; limpiarInsumosRevisarEliminar(); }
+    refrescarVistaSiCorresponde();
+  }, (err)=>console.error('Error al sincronizar insumos:', err));
+  _unsubProveedores=FB_COL_PROVEEDORES.onSnapshot((snap)=>{
+    DB.proveedores=snap.docs.map(d=>({...d.data(), _id:Number(d.id)}));
+    refrescarVistaSiCorresponde();
+  }, (err)=>console.error('Error al sincronizar proveedores:', err));
+}
+function detenerListenersInsumosProveedores(){
+  [_unsubInsumos,_unsubProveedores].forEach(u=>{try{u&&u();}catch(e){}});
+  _unsubInsumos=_unsubProveedores=null;
+}
+
+// Guardado con debounce por fila (insumo/proveedor), uno independiente por
+// _id -así escribir en la fila del insumo A no cancela un guardado
+// pendiente de la fila del insumo B.
+let _guardadoInsumoTimers={}, _guardadoProveedorTimers={};
+function guardarInsumo(id){
+  clearTimeout(_guardadoInsumoTimers[id]);
+  _guardadoInsumoTimers[id]=setTimeout(async ()=>{
+    const x=DB.insumos.find(i=>i._id===id);
+    if(!x) return;
+    try{
+      await FB_COL_INSUMOS.doc(String(id)).set({...x, _id:undefined, updated_at:new Date().toISOString()});
+      try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
+      marcarSincronizado();
+    }catch(e){ marcarErrorSincronizacion(e); console.error('Error al guardar insumo:', e); }
+  }, 400);
+}
+function guardarProveedor(id){
+  clearTimeout(_guardadoProveedorTimers[id]);
+  _guardadoProveedorTimers[id]=setTimeout(async ()=>{
+    const x=DB.proveedores.find(p=>p._id===id);
+    if(!x) return;
+    try{
+      await FB_COL_PROVEEDORES.doc(String(id)).set({...x, _id:undefined, updated_at:new Date().toISOString()});
+      try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
+      marcarSincronizado();
+    }catch(e){ marcarErrorSincronizacion(e); console.error('Error al guardar proveedor:', e); }
+  }, 400);
+}
 // Igual que con el listener de FB_DOC: si el usuario está escribiendo en un
 // campo, no lo interrumpimos re-renderizando la vista debajo suyo (el campo
 // en sí ya quedó actualizado en DB por el snapshot; solo se pospone el
 // refresco visual hasta que termine de editar, vía el listener de focusout
 // existente que ya llama a programarGuardadoAutomatico en ese momento).
-function refrescarVistaComandaSiCorresponde(){
+function refrescarVistaSiCorresponde(){
   try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
   if(perfilActivo && camposEditandoActivos===0) refrescarVistaActual();
 }
@@ -4962,6 +5072,27 @@ document.addEventListener('focusout', (e)=>{
   }, 0);
 }, true);
 
+// Reemplaza el contenido completo de una colección (insumos/proveedores)
+// por un array en memoria con _id: borra los documentos que ya no están
+// en el array, y escribe/sobreescribe el resto. Usada solo por
+// importarJSON(), que es la única función pensada para reemplazar TODO
+// -a diferencia de cualquier otro guardado, que toca un registro puntual.
+async function reemplazarColeccionCompleta(col, items){
+  try{
+    const idsNuevos=new Set(items.map(x=>String(x._id)));
+    const snap=await col.get();
+    const aBorrar=snap.docs.filter(d=>!idsNuevos.has(d.id));
+    await Promise.all(aBorrar.map(d=>d.ref.delete()));
+    await Promise.all(items.map(x=>{
+      const {_id, ...datos}=x;
+      return col.doc(String(_id)).set({...datos, updated_at:new Date().toISOString()});
+    }));
+  }catch(e){
+    console.error('Error al reemplazar la colección tras importar JSON:', e);
+    alert('El JSON se importó, pero hubo un error sincronizando insumos/proveedores con la nube: '+e.message);
+  }
+}
+
 function importarJSON(e){
   const file=e.target.files[0];
   if(!file)return;
@@ -4993,6 +5124,12 @@ function importarJSON(e){
       if(!DB.stock)DB.stock={conteos:[]};
       sbSave(true);
       renderInsumos();
+      // Insumos y Proveedores sí se reemplazan de verdad (a diferencia de
+      // Comanda arriba): además de quedar en DB, hay que reflejar el
+      // reemplazo completo en sus colecciones -borrar los que ya no están
+      // en el archivo, escribir los que sí- ya no alcanza con sbSave(true).
+      reemplazarColeccionCompleta(FB_COL_INSUMOS, DB.insumos);
+      reemplazarColeccionCompleta(FB_COL_PROVEEDORES, DB.proveedores);
       alert('✓ Datos importados correctamente.\n\n'+parsed.insumos.length+' insumos · '+nSubs+' subproductos · '+nPlatos+' platos · '+(parsed.proveedores?.length||0)+' proveedores');
     }catch(err){
       alert('Error al leer el archivo JSON: '+err.message);
@@ -5162,6 +5299,7 @@ function entrarComo(){
   }
   document.getElementById('modulo-select-screen').style.display='flex';
   iniciarListenersComanda();
+  iniciarListenersInsumosProveedores();
 }
 
 // Botón "Cambiar de módulo" del encabezado: vuelve a #modulo-select-screen
@@ -5186,6 +5324,7 @@ function cerrarSesion(){
   fbAuth.signOut().catch(e=>console.error('Error al cerrar sesión:',e));
   try{localStorage.removeItem(MP_AUTH_TS_KEY);}catch(e){}
   detenerListenersComanda();
+  detenerListenersInsumosProveedores();
   perfilActivo=null;
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('modulo-select-screen').style.display='none';
@@ -5347,9 +5486,10 @@ const INSUMOS_REVISAR_ELIMINAR=[
 ];
 function limpiarInsumosRevisarEliminar(){
   const aEliminar=new Set(INSUMOS_REVISAR_ELIMINAR.map(normTxt));
-  const antes=DB.insumos.length;
-  DB.insumos=DB.insumos.filter(x=>!aEliminar.has(normTxt(x.nombre)));
-  if(DB.insumos.length!==antes) sbSave(true);
+  const coincidencias=DB.insumos.filter(x=>aEliminar.has(normTxt(x.nombre)));
+  coincidencias.forEach(x=>{
+    FB_COL_INSUMOS.doc(String(x._id)).delete().catch(e=>console.error('Error al limpiar insumo:', e));
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -5369,7 +5509,9 @@ function limpiarInsumosRevisarEliminar(){
   if(!DB.maestro_bebidas) DB.maestro_bebidas=[];
   if(!DB.maestro_clientes) DB.maestro_clientes=[];
   if(!DB.stock) DB.stock={conteos:[]};
-  limpiarInsumosRevisarEliminar();
+  // limpiarInsumosRevisarEliminar() ya no corre acá: ahora corre una vez,
+  // sobre datos reales, en el primer snapshot de la colección de insumos
+  // (ver iniciarListenersInsumosProveedores).
 })();
 
 // ══════════════════════════════════════════════════════════════════
