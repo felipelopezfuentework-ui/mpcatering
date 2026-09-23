@@ -5492,6 +5492,15 @@ function cambiarModulo(perfil){
 
 // Login exitoso (popup o sesión restaurada): no entra directo a Producción,
 // primero deja elegir el módulo en #modulo-select-screen.
+// entrarComo() se puede disparar dos veces seguidas: una vez directo desde
+// iniciarSesionGoogle() al resolver el popup, y otra desde
+// fbAuth.onAuthStateChanged (que se dispara solo, casi al mismo tiempo, y
+// no lo evita porque su guarda es perfilActivo -que recién se setea cuando
+// el usuario elige un módulo, después de este punto). Sin este flag, cada
+// iniciarListenersX() de acá abajo se ejecutaría dos veces, dejando el
+// primer set de listeners "huérfano" (sin forma de cancelarlo en
+// cerrarSesion, que solo conoce la referencia del segundo).
+let _listenersYaIniciados=false;
 function entrarComo(){
   document.getElementById('login-screen').style.display='none';
   const emailEl=document.getElementById('modulo-select-email');
@@ -5500,6 +5509,8 @@ function entrarComo(){
     emailEl.textContent=(u&&u.email)||'';
   }
   document.getElementById('modulo-select-screen').style.display='flex';
+  if(_listenersYaIniciados) return;
+  _listenersYaIniciados=true;
   iniciarListenersComanda();
   iniciarListenersInsumosProveedores();
   iniciarListenersRecetas();
@@ -5531,6 +5542,7 @@ function cerrarSesion(){
   detenerListenersInsumosProveedores();
   detenerListenersRecetas();
   detenerListenerStock();
+  _listenersYaIniciados=false;
   perfilActivo=null;
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('modulo-select-screen').style.display='none';
@@ -7945,6 +7957,13 @@ function removeEventoTablaRow(key, rowIdx){
   guardarEventoActual();
 }
 
+// maestro_bebidas es lo único que sigue viviendo en el documento único
+// (FB_DOC) — pero este campo está dentro de #modal-evento-detalle, así que
+// el router genérico de autoguardado (programarGuardadoAutomatico) lo
+// enruta siempre a guardarEventoActual(), que nunca llama a sbSave() y por
+// lo tanto nunca persistía esta lista. Se guarda acá mismo, con su propio
+// debounce (se llama en cada tecla mientras se escribe una bebida nueva).
+let _guardadoBebidasTimer=null;
 function registrarBebida(nombre){
   const n=(nombre||'').trim();
   if(!n||n.length<2) return;
@@ -7952,6 +7971,8 @@ function registrarBebida(nombre){
   if(!DB.maestro_bebidas.includes(n)){
     DB.maestro_bebidas.push(n);
     DB.maestro_bebidas.sort();
+    clearTimeout(_guardadoBebidasTimer);
+    _guardadoBebidasTimer=setTimeout(()=>sbSave(true), 400);
   }
 }
 // ── Exportar evento a PDF ─────────────────────────────────────────
