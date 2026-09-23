@@ -4928,17 +4928,25 @@ document.addEventListener('focusout', (e)=>{
   if(!esCampoEditable(e.target)) return;
   camposEditandoActivos=Math.max(0, camposEditandoActivos-1);
   if(perfilActivo) programarGuardadoAutomatico();
-  // Si mientras se editaba este campo llegó un cambio remoto, quedó "en espera"
-  // (ver aplicarActualizacionRemota) para no interrumpir la edición en curso.
-  // ANTES acá se aplicaba ese cambio en espera a ciegas apenas se salía del
-  // campo (DB=p completo) — lo que pisaba en SILENCIO, sin ningún aviso, lo
-  // que se acababa de escribir. Era más grave que el caso de Enter, que al
-  // menos avisa: acá no había ninguna señal de que algo se perdió.
-  // Ahora simplemente se descarta la espera: el guardado que se programó
-  // arriba (programarGuardadoAutomatico, 400ms) va a encontrar ese mismo
-  // desfasaje solo, a través de la transacción de sbSave(), y ahí sí avisa
-  // correctamente si hace falta repetir algo — mismo criterio que Enter.
-  setTimeout(()=>{ snapshotRemotoPendiente=null; }, 0);
+  // Se pospone al siguiente tick para no pisar el foco cuando el usuario
+  // pasa de un campo a otro (Tab): el focusin del nuevo campo llega justo después.
+  //
+  // Se aplica el cambio en espera EN SILENCIO (sin el cartel de conflicto):
+  // como todo el sistema comparte un único documento, "llegó un cambio
+  // remoto mientras este campo tenía foco" casi siempre es de algo sin
+  // ninguna relación con lo que se está editando (cualquiera de las 50+
+  // acciones que autoguardan, de cualquier otro módulo, de cualquier otra
+  // persona). Avisar acá en cada uno de esos casos hace la carga diaria
+  // impracticable para poco beneficio real. La protección que sí importa
+  // (que una pestaña vieja/desconectada no sobreescriba todo el documento)
+  // sigue intacta en la transacción de sbSave(), independiente de esto.
+  setTimeout(()=>{
+    if(camposEditandoActivos===0 && snapshotRemotoPendiente){
+      const pendiente=snapshotRemotoPendiente;
+      snapshotRemotoPendiente=null;
+      aplicarActualizacionRemota(pendiente.payload, pendiente.updated_at);
+    }
+  }, 0);
 }, true);
 
 function importarJSON(e){
