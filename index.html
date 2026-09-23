@@ -791,6 +791,12 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     </div>
     <div class="form-row">
       <div class="form-field" style="flex:1">
+        <label>Domicilio legal (facturación)</label>
+        <input type="text" id="cli-domicilio-legal" placeholder="Domicilio fiscal de la razón social" style="width:100%">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="flex:1">
         <label>CUIT</label>
         <input type="text" id="cli-cuit" style="width:100%">
       </div>
@@ -5766,7 +5772,9 @@ const COMANDA_TEMPLATE = [
       ]},
       {tipo:'campo', label:'Descripción', key:'descripcion', inputType:'textarea'},
       {tipo:'campo', label:'Contacto', key:'contacto', readonlyClienteMaestro:true},
+      {tipo:'campo_selector_contacto', label:'Contacto referente de este evento', key:'contacto_referente_slot'},
       {tipo:'campo', label:'Contacto durante el evento', key:'contacto_evento', readonlyClienteMaestro:true},
+      {tipo:'campo_cliente_fiscal', label:'Datos de facturación (razón social y domicilio legal)'},
       {tipo:'seccion', label:'SERVICIOS A PROVEER por MPC'},
       {tipo:'opciones_bool', opciones:[
         {k:'svc_equip_cocina',l:'Equipamiento de cocina'},
@@ -5784,9 +5792,15 @@ const COMANDA_TEMPLATE = [
       {tipo:'campo', label:'Dietas especiales — Detalle', key:'dietas_especiales', inputType:'textarea'},
       {tipo:'campo', label:'Observaciones', key:'obs_invitados', inputType:'textarea'},
       {tipo:'seccion', label:'LOCACIÓN y LOGÍSTICA'},
-      {tipo:'campo', label:'Locación/Dirección del evento', key:'direccion_evento', readonlyClienteMaestro:true},
-      {tipo:'campo', label:'Localidad', key:'localidad', readonlyClienteMaestro:true},
-      {tipo:'campo', label:'Observaciones de acceso/logística', key:'obs_acceso', readonlyClienteMaestro:true},
+      // Se completan solas al elegir el cliente (su locación habitual, ver
+      // aplicarClienteAEvento), pero quedan editables para este evento en
+      // particular sin afectar al maestro del cliente -por eso ya no son
+      // readonlyClienteMaestro (a diferencia de contacto/contacto_evento, que
+      // sí siguen atados al maestro). Ver también sincronizarClienteConMaestro,
+      // que ya no las re-sincroniza para no pisar un cambio puntual.
+      {tipo:'campo', label:'Locación/Dirección del evento', key:'direccion_evento'},
+      {tipo:'campo', label:'Localidad', key:'localidad'},
+      {tipo:'campo', label:'Observaciones de acceso/logística', key:'obs_acceso'},
       {tipo:'campo', label:'Locación (tipo de establecimiento)', key:'locacion', sugerencias:['Casa particular','Oficina','Salón']},
       {tipo:'campo', label:'Ubicación', key:'ubicacion'},
       {tipo:'campo', label:'Dirección de ingreso de proveedores', key:'dir_ingreso'},
@@ -6104,6 +6118,7 @@ function abrirModalCliente(id){
   document.getElementById('modal-cliente-title').textContent = cliente ? 'Editar Cliente' : 'Nuevo Cliente';
   document.getElementById('cli-nombre-cliente').value     = cliente?.nombre_cliente||'';
   document.getElementById('cli-razon-social').value      = cliente?.razon_social||'';
+  document.getElementById('cli-domicilio-legal').value    = cliente?.domicilio_legal||'';
   document.getElementById('cli-cuit').value               = cliente?.cuit||'';
   document.getElementById('cli-tipo').value                = cliente?.tipo_cliente||'';
   document.getElementById('cli-contacto1-nombre').value    = cliente?.contacto1_nombre||cliente?.contacto_nombre||'';
@@ -6143,6 +6158,7 @@ function guardarCliente(){
   const datos = {
     nombre_cliente,
     razon_social:      document.getElementById('cli-razon-social').value.trim(),
+    domicilio_legal:   document.getElementById('cli-domicilio-legal').value.trim(),
     cuit:              document.getElementById('cli-cuit').value.trim(),
     tipo_cliente:      document.getElementById('cli-tipo').value,
     contacto1_nombre:  document.getElementById('cli-contacto1-nombre').value.trim(),
@@ -6234,14 +6250,38 @@ function aplicarClienteAEvento(clienteId){
   if(!cliente) return;
   const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
   if(!ev) return;
-  ev.datos.cliente_id = cliente.cliente_id;
-  ev.datos.contacto = cliente.nombre_cliente||cliente.razon_social||'';
-  ev.datos.contacto_evento = cliente.contacto1_nombre||'';
-  ev.datos.telefono = cliente.contacto1_telefono||'';
-  ev.datos.email_cliente = cliente.contacto1_email||'';
-  ev.datos.direccion_evento = cliente.direccion_evento||'';
-  ev.datos.localidad = cliente.localidad||'';
-  ev.datos.obs_acceso = cliente.obs_acceso||'';
+  // Se pasa por updateEventoDato() en vez de asignar ev.datos directo, para
+  // que cada campo dispare su espejo de CAMPOS_COMPARTIDOS igual que si el
+  // usuario lo hubiera tipeado a mano (ej. direccion_evento -> com_direccion
+  // en la solapa Comanda).
+  updateEventoDato('cliente_id', cliente.cliente_id);
+  updateEventoDato('contacto', cliente.nombre_cliente||cliente.razon_social||'');
+  updateEventoDato('contacto_referente_slot', '1');
+  updateEventoDato('contacto_evento', cliente.contacto1_nombre||'');
+  updateEventoDato('telefono', cliente.contacto1_telefono||'');
+  updateEventoDato('email_cliente', cliente.contacto1_email||'');
+  // Locación habitual del cliente como valor por defecto: queda editable
+  // para este evento en particular sin afectar al maestro (ver comentario
+  // en COMANDA_TEMPLATE).
+  updateEventoDato('direccion_evento', cliente.direccion_evento||'');
+  updateEventoDato('localidad', cliente.localidad||'');
+  updateEventoDato('obs_acceso', cliente.obs_acceso||'');
+  renderEventoSheet(ev, comandaSheetActual);
+  guardarEventoActual();
+}
+
+// Cambia cuál de los 2 contactos del cliente (ya cargados en el Maestro de
+// Clientes) es el referente de ESTE evento en particular -ver el selector
+// "campo_selector_contacto" en COMANDA_TEMPLATE.
+function aplicarContactoReferente(slot){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const cliente = (DB.maestro_clientes||[]).find(c=>c.cliente_id===ev.datos.cliente_id);
+  if(!cliente) return;
+  updateEventoDato('contacto_referente_slot', slot);
+  updateEventoDato('contacto_evento', (slot==='2'?cliente.contacto2_nombre:cliente.contacto1_nombre)||'');
+  updateEventoDato('telefono', (slot==='2'?cliente.contacto2_telefono:cliente.contacto1_telefono)||'');
+  updateEventoDato('email_cliente', (slot==='2'?cliente.contacto2_email:cliente.contacto1_email)||'');
   renderEventoSheet(ev, comandaSheetActual);
   guardarEventoActual();
 }
@@ -6254,18 +6294,21 @@ function sincronizarClienteConMaestro(ev){
   if(!clienteId) return false;
   const cliente = (DB.maestro_clientes||[]).find(c=>c.cliente_id===clienteId);
   if(!cliente) return false;
+  // El contacto referente respeta lo elegido con el selector (contacto 1 o
+  // 2, ver aplicarContactoReferente) en vez de asumir siempre el contacto 1.
+  const slot = ev.datos?.contacto_referente_slot==='2' ? '2' : '1';
   const campos = {
     contacto: cliente.nombre_cliente||cliente.razon_social||'',
-    contacto_evento: cliente.contacto1_nombre||'',
-    telefono: cliente.contacto1_telefono||'',
-    email_cliente: cliente.contacto1_email||'',
-    direccion_evento: cliente.direccion_evento||'',
-    localidad: cliente.localidad||'',
-    obs_acceso: cliente.obs_acceso||''
+    contacto_evento: (slot==='2'?cliente.contacto2_nombre:cliente.contacto1_nombre)||'',
+    telefono: (slot==='2'?cliente.contacto2_telefono:cliente.contacto1_telefono)||'',
+    email_cliente: (slot==='2'?cliente.contacto2_email:cliente.contacto1_email)||''
+    // direccion_evento/localidad/obs_acceso NO se resincronizan más: son
+    // editables por evento (ver COMANDA_TEMPLATE) y no deben pisarse solas
+    // con un cambio hecho puntualmente para este evento.
   };
   let cambio=false;
   Object.entries(campos).forEach(([k,v])=>{
-    if((ev.datos[k]||'')!==v){ ev.datos[k]=v; cambio=true; }
+    if((ev.datos[k]||'')!==v){ updateEventoDato(k,v); cambio=true; }
   });
   return cambio;
 }
@@ -6578,6 +6621,32 @@ function renderEventoSheet(ev, sheetIdx){
         <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
         <input type="text" value="${escH(val)}" readonly
           style="width:100%;max-width:500px;background:rgba(92,45,110,.07);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;cursor:default;font-weight:600">
+      </div>`;
+    } else if(c.tipo==='campo_selector_contacto'){
+      const clienteSel = (DB.maestro_clientes||[]).find(cl=>cl.cliente_id===datos.cliente_id);
+      const opcionesContacto=[];
+      if(clienteSel?.contacto1_nombre) opcionesContacto.push({val:'1',label:'Contacto 1: '+clienteSel.contacto1_nombre});
+      if(clienteSel?.contacto2_nombre) opcionesContacto.push({val:'2',label:'Contacto 2: '+clienteSel.contacto2_nombre});
+      const slotVal = datos[c.key]||'1';
+      html+=`<div class="form-field form-field-compacto" style="margin-bottom:14px">
+        <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
+        <select data-key="${c.key}" onchange="aplicarContactoReferente(this.value)" ${opcionesContacto.length?'':'disabled'}
+          style="width:100%;max-width:500px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 9px;font-size:12px;font-family:inherit;outline:none">
+          ${opcionesContacto.length
+            ? opcionesContacto.map(o=>`<option value="${o.val}" ${slotVal===o.val?'selected':''}>${escH(o.label)}</option>`).join('')
+            : '<option value="">— Sin contactos cargados en el cliente —</option>'}
+        </select>
+      </div>`;
+    } else if(c.tipo==='campo_cliente_fiscal'){
+      const clienteFiscal = (DB.maestro_clientes||[]).find(cl=>cl.cliente_id===datos.cliente_id);
+      const razon = clienteFiscal?.razon_social || clienteFiscal?.nombre_cliente || '';
+      const domicilio = clienteFiscal?.domicilio_legal || '';
+      const valFiscal = [razon, domicilio].filter(Boolean).join(' — ') || '(sin datos de facturación cargados en el cliente)';
+      html+=`<div class="form-field form-field-compacto" style="margin-bottom:14px">
+        <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
+        <input type="text" value="${escH(valFiscal)}" readonly
+          style="width:100%;max-width:500px;background:rgba(150,150,150,.14);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;cursor:not-allowed">
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;font-style:italic">Se edita desde el Maestro de Clientes</div>
       </div>`;
     } else if(c.tipo==='invitados_confirmacion'){
       const adultos = datos.cant_adultos||'';
@@ -7192,7 +7261,12 @@ const CAMPOS_COMPARTIDOS = {
   'personal_total':['com_personal_total','fm_personal_total'],
   'personal_obs':['com_personal_obs','fm_personal_obs'],
   'locacion':       ['com_locacion','eva_locacion','fm_locacion'],
-  'ubicacion':      ['com_direccion','fm_ubicacion'],
+  // 'com_direccion' (solapa Comanda) antes venía de 'ubicacion' (un campo de
+  // texto libre sin relación con el cliente) — por eso nunca mostraba la
+  // locación real del evento. Ahora viene de 'direccion_evento', que es la
+  // que se completa con el cliente y se puede editar por evento.
+  'ubicacion':      ['fm_ubicacion'],
+  'direccion_evento': ['com_direccion'],
   'cant_adultos':   ['com_inv_adultos','fm_adultos'],
   'cant_jovenes':   ['com_inv_jovenes','fm_jovenes'],
   'cant_menores':   ['com_inv_menores','fm_menores'],
