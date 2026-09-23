@@ -4928,15 +4928,17 @@ document.addEventListener('focusout', (e)=>{
   if(!esCampoEditable(e.target)) return;
   camposEditandoActivos=Math.max(0, camposEditandoActivos-1);
   if(perfilActivo) programarGuardadoAutomatico();
-  // Se pospone al siguiente tick para no pisar el foco cuando el usuario
-  // pasa de un campo a otro (Tab): el focusin del nuevo campo llega justo después.
-  setTimeout(()=>{
-    if(camposEditandoActivos===0 && snapshotRemotoPendiente){
-      const pendiente=snapshotRemotoPendiente;
-      snapshotRemotoPendiente=null;
-      aplicarActualizacionRemota(pendiente.payload, pendiente.updated_at);
-    }
-  }, 0);
+  // Si mientras se editaba este campo llegó un cambio remoto, quedó "en espera"
+  // (ver aplicarActualizacionRemota) para no interrumpir la edición en curso.
+  // ANTES acá se aplicaba ese cambio en espera a ciegas apenas se salía del
+  // campo (DB=p completo) — lo que pisaba en SILENCIO, sin ningún aviso, lo
+  // que se acababa de escribir. Era más grave que el caso de Enter, que al
+  // menos avisa: acá no había ninguna señal de que algo se perdió.
+  // Ahora simplemente se descarta la espera: el guardado que se programó
+  // arriba (programarGuardadoAutomatico, 400ms) va a encontrar ese mismo
+  // desfasaje solo, a través de la transacción de sbSave(), y ahí sí avisa
+  // correctamente si hace falta repetir algo — mismo criterio que Enter.
+  setTimeout(()=>{ snapshotRemotoPendiente=null; }, 0);
 }, true);
 
 function importarJSON(e){
