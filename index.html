@@ -4976,7 +4976,12 @@ function guardarInsumo(id){
     const x=DB.insumos.find(i=>i._id===id);
     if(!x) return;
     try{
-      await FB_COL_INSUMOS.doc(String(id)).set({...x, _id:undefined, updated_at:new Date().toISOString()});
+      // OJO: asignar _id:undefined NO lo saca del objeto (queda como
+      // propiedad con valor undefined), y Firestore rechaza escribir
+      // undefined por defecto -esto hacía fallar el guardado en silencio.
+      // Hay que desestructurar para omitirlo de verdad.
+      const {_id, ...datosInsumo}=x;
+      await FB_COL_INSUMOS.doc(String(id)).set({...datosInsumo, updated_at:new Date().toISOString()});
       try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
       marcarSincronizado();
     }catch(e){ marcarErrorSincronizacion(e); console.error('Error al guardar insumo:', e); }
@@ -4988,7 +4993,8 @@ function guardarProveedor(id){
     const x=DB.proveedores.find(p=>p._id===id);
     if(!x) return;
     try{
-      await FB_COL_PROVEEDORES.doc(String(id)).set({...x, _id:undefined, updated_at:new Date().toISOString()});
+      const {_id, ...datosProveedor}=x;
+      await FB_COL_PROVEEDORES.doc(String(id)).set({...datosProveedor, updated_at:new Date().toISOString()});
       try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
       marcarSincronizado();
     }catch(e){ marcarErrorSincronizacion(e); console.error('Error al guardar proveedor:', e); }
