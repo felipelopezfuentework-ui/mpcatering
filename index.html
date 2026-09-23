@@ -2410,14 +2410,21 @@ function recalcularRecetasPorInsumo(insumoKey,render=true){
   });
   // 2) Platos que usan el insumo directamente, o un subproducto recién
   //    recalculado arriba (cascada: el costo del sub ya cambió).
+  const platosAfectados=new Set();
   DB.recetas_platos.forEach(r=>{
     if(r.componente!==insumoKey && !subsAfectados.has(r.componente)) return;
     const pk=getCompPrice(r.componente);
     const merma=parseFloat(r.merma)||0;
     const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(parseFloat(r.kgs)||0,merma,pk);
     r.kgBruto=kgBruto;r.costoMerma=costoMerma;r.precio_kg=pkConMerma;r.costo_receta=costoTotal;
+    platosAfectados.add(r.plato);
     huboCambios=true;
   });
+  // Los subproductos/platos afectados viven en sus propias colecciones
+  // (documento por receta): se persiste cada uno individualmente, en vez
+  // del sbSave(true) que antes guardaba todo el documento único.
+  subsAfectados.forEach(nombre=>guardarSubproductoDoc(nombre));
+  platosAfectados.forEach(nombre=>guardarPlatoDoc(nombre));
   if(huboCambios && render) _repintarRecetasTrasRecalculo();
   return huboCambios;
 }
@@ -2548,11 +2555,9 @@ function updInsNombre(id,val){
   const kc=document.getElementById('ikey'+id);if(kc)kc.textContent=x.key;
   guardarInsumo(id);
 }
-// recalcularRecetasPorInsumo() todavía escribe en DB.subproductos/
-// DB.recetas_platos, que por ahora siguen viviendo en el documento único
-// viejo (fase 3 de la migración, pendiente) — por eso, además de guardar
-// este insumo en su colección nueva, hay que seguir llamando a sbSave(true)
-// cuando la cascada cambió algo, o esos cambios en cascada no persistirían.
+// recalcularRecetasPorInsumo() persiste por su cuenta cada subproducto/
+// plato afectado en su propia colección (ver esa función) — no hace falta
+// ningún guardado extra acá para la cascada.
 function updInsPrecioFormato(id,val){
   const x=DB.insumos.find(i=>i._id===id);if(!x)return;
   x.precio_formato=parseFloat(val)||0;
@@ -2561,9 +2566,7 @@ function updInsPrecioFormato(id,val){
   const el=document.getElementById('ipk'+id);
   if(el)el.textContent=fmtN(x.costo,2);
   guardarInsumo(id);
-  // Debounced (no de inmediato): igual que antes, para no disparar un
-  // guardado por cada tecla mientras se escribe el precio.
-  if(recalcularRecetasPorInsumo(x.key)) programarGuardadoAutomatico();
+  recalcularRecetasPorInsumo(x.key);
 }
 function updInsKgFormato(id,val){
   const x=DB.insumos.find(i=>i._id===id);if(!x)return;
@@ -2573,7 +2576,7 @@ function updInsKgFormato(id,val){
   const el=document.getElementById('ipk'+id);
   if(el)el.textContent=fmtN(x.costo,2);
   guardarInsumo(id);
-  if(recalcularRecetasPorInsumo(x.key)) programarGuardadoAutomatico();
+  recalcularRecetasPorInsumo(x.key);
 }
 function delIns(id){
   if(!confirm('¿Eliminar insumo?'))return;
@@ -2676,14 +2679,13 @@ function handleXLSX(e){
       showAlert('upload-alert', upd>0?'success':'error',
         upd>0?'✓ '+upd+' insumo'+(upd!==1?'s':'')+' actualizado'+(upd!==1?'s':'')+'.'
              :'No se encontraron coincidencias. Verificá el formato del Excel.');
-      // Cada insumo tocado se guarda en su documento propio; si la cascada
-      // llegó a afectar subproductos/platos (todavía en el documento único
-      // viejo, fase 3 pendiente), eso se sigue persistiendo con sbSave(true).
+      // Cada insumo tocado se guarda en su documento propio; los
+      // subproductos/platos afectados por la cascada ya se persisten solos
+      // dentro de recalcularRecetasPorInsumo().
       insumosModificados.forEach(x=>{
         const {_id, ...datosInsumo}=x;
         FB_COL_INSUMOS.doc(String(_id)).set({...datosInsumo, updated_at:new Date().toISOString()}).catch(err=>console.error('Error al guardar insumo importado:', err));
       });
-      if(recetasAfectadas) sbSave(true);
     }catch(err){showAlert('upload-alert','error','Error al leer el archivo: '+err.message);}
   };
   r.readAsArrayBuffer(f);
@@ -3691,7 +3693,10 @@ function _guardarSubReal(nombre){
   DB.procedimientos[nombre]=leerProcList('sub');
   ddClose();cerrarModal('modal-sub');renderSubproductos();renderMaestros();renderMaestros();
   showAlert('sub-alert','success','Subproducto "'+nombre.replace('SUB - ','')+'" guardado.');
-  sbSave(true);
+  const seRenombroSub=editSubOld&&editSubOld!==nombre;
+  if(seRenombroSub) eliminarSubproductoDoc(editSubOld);
+  guardarSubproductoDoc(nombre);
+  guardarMaestroSubs();
 }
 
 function renderSubproductos(){
@@ -3715,7 +3720,8 @@ function delSub(sub){
   if(DB.subs_config)delete DB.subs_config[sub];
   if(DB.procedimientos)delete DB.procedimientos[sub];
   renderSubproductos();
-  sbSave(true);
+  eliminarSubproductoDoc(sub);
+  guardarMaestroSubs();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -3922,7 +3928,10 @@ function _guardarPlatoReal(nombre){
   DB.procedimientos[nombre]=leerProcList('plato');
   ddClose();cerrarModal('modal-plato');renderPlatos();renderMaestros();renderMaestros();
   showAlert('plato-alert','success','Plato "'+nombre.replace('PLATO - ','')+'" guardado.');
-  sbSave(true);
+  const seRenombroPlato=editPlatoOld&&editPlatoOld!==nombre;
+  if(seRenombroPlato) eliminarPlatoDoc(editPlatoOld);
+  guardarPlatoDoc(nombre);
+  guardarMaestroPlatos();
 }
 
 function renderPlatos(){
@@ -3946,7 +3955,8 @@ function delPlato(plato){
   if(DB.platos_config)delete DB.platos_config[plato];
   if(DB.procedimientos)delete DB.procedimientos[plato];
   renderPlatos();
-  sbSave(true);
+  eliminarPlatoDoc(plato);
+  guardarMaestroPlatos();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -4322,6 +4332,7 @@ function confirmarImportExcel(){
     return;
   }
   let nPlatos=0,nSubs=0;
+  const subsTocados=new Set(), platosTocados=new Set();
   importRecetas.forEach(rec=>{
     const rawName=(rec.nombre||'').trim().toUpperCase();
     if(!rawName||!rec.ingredientes.length)return;
@@ -4345,6 +4356,7 @@ function confirmarImportExcel(){
       DB.subs_config[nombre]=cfgS;
       if(!DB.procedimientos)DB.procedimientos={};
       DB.procedimientos[nombre]=rec.procedimiento||[];
+      subsTocados.add(nombre);
       nSubs++;
     }else{
       const nombre=rawName.startsWith('PLATO - ')?rawName:'PLATO - '+rawName;
@@ -4366,6 +4378,7 @@ function confirmarImportExcel(){
       if(!DB.maestro_platos.includes(nombre))DB.maestro_platos.push(nombre);
       if(!DB.procedimientos)DB.procedimientos={};
       DB.procedimientos[nombre]=rec.procedimiento||[];
+      platosTocados.add(nombre);
       nPlatos++;
     }
   });
@@ -4373,7 +4386,10 @@ function confirmarImportExcel(){
   importRecetas=[];
   renderPlatos();renderSubproductos();renderMaestros();
   showAlert('plato-alert','success','✓ Importación completa: '+nPlatos+' plato(s), '+nSubs+' subproducto(s).');
-  sbSave(true);
+  subsTocados.forEach(nombre=>guardarSubproductoDoc(nombre));
+  platosTocados.forEach(nombre=>guardarPlatoDoc(nombre));
+  if(subsTocados.size) guardarMaestroSubs();
+  if(platosTocados.size) guardarMaestroPlatos();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -4566,25 +4582,25 @@ function updMaestro(inp,tipo){
   const v=inp.value.trim().toUpperCase();if(!v)return;
   const prefix=tipo==='plato'?'PLATO - ':'SUB - ';
   const full=v.startsWith(prefix)?v:prefix+v;
-  if(tipo==='plato'){DB.maestro_platos[i]=full;const k=document.getElementById('mp-key-'+i);if(k)k.textContent=full;}
-  else{DB.maestro_subs[i]=full;const k=document.getElementById('ms-key-'+i);if(k)k.textContent=full;}
+  if(tipo==='plato'){DB.maestro_platos[i]=full;const k=document.getElementById('mp-key-'+i);if(k)k.textContent=full;guardarMaestroPlatos();}
+  else{DB.maestro_subs[i]=full;const k=document.getElementById('ms-key-'+i);if(k)k.textContent=full;guardarMaestroSubs();}
 }
 function addMaestroPlato(){
   const el=document.getElementById('nuevo-plato');
   const v=el.value.trim().toUpperCase();if(!v)return;
   const f=v.startsWith('PLATO - ')?v:'PLATO - '+v;
-  if(!DB.maestro_platos.includes(f)){DB.maestro_platos.push(f);renderMaestros();el.value='';sbSave(true);}
+  if(!DB.maestro_platos.includes(f)){DB.maestro_platos.push(f);renderMaestros();el.value='';guardarMaestroPlatos();}
   else{el.focus();el.select();}
 }
 function addMaestroSub(){
   const el=document.getElementById('nuevo-sub');
   const v=el.value.trim().toUpperCase();if(!v)return;
   const f=v.startsWith('SUB - ')?v:'SUB - '+v;
-  if(!DB.maestro_subs.includes(f)){DB.maestro_subs.push(f);renderMaestros();el.value='';sbSave(true);}
+  if(!DB.maestro_subs.includes(f)){DB.maestro_subs.push(f);renderMaestros();el.value='';guardarMaestroSubs();}
   else{el.focus();el.select();}
 }
-function delMaestroPlato(i){DB.maestro_platos.splice(i,1);renderMaestros();sbSave(true);}
-function delMaestroSub(i){DB.maestro_subs.splice(i,1);renderMaestros();sbSave(true);}
+function delMaestroPlato(i){DB.maestro_platos.splice(i,1);renderMaestros();guardarMaestroPlatos();}
+function delMaestroSub(i){DB.maestro_subs.splice(i,1);renderMaestros();guardarMaestroSubs();}
 
 // ══════════════════════════════════════════════════════════════════
 //  UTILS
@@ -4628,6 +4644,16 @@ const FB_COL_CLIENTES=fbDb.collection('maestro_clientes');
 // Fase 2 de la migración: Insumos y Proveedores, mismo criterio.
 const FB_COL_INSUMOS=fbDb.collection('insumos');
 const FB_COL_PROVEEDORES=fbDb.collection('proveedores');
+// Fase 3: Subproductos y Platos. Cada receta (identificada por su nombre,
+// no tiene un id propio -ver comentario en iniciarListenersRecetas) es un
+// documento con sus componentes y su configuración juntos. maestro_subs/
+// maestro_platos son listas chicas de nombres, editadas rara vez y sin
+// riesgo real de choque, así que se guardan como un único documento
+// compartido en vez de uno por nombre.
+const FB_COL_SUBPRODUCTOS=fbDb.collection('subproductos');
+const FB_COL_PLATOS=fbDb.collection('platos');
+const FB_COL_MAESTRO_SUBS=fbDb.collection('maestro_subs');
+const FB_COL_MAESTRO_PLATOS=fbDb.collection('maestro_platos');
 
 // ══════════════════════════════════════════════════════════════════
 //  FIREBASE AUTHENTICATION (login con Google)
@@ -4732,14 +4758,18 @@ document.addEventListener('click',()=>{
 
 async function sbSave(silent=false){
   try{
-    // DB.comanda, DB.maestro_clientes, DB.insumos y DB.proveedores ya NO
-    // viven en este documento — son un espejo en memoria alimentado por sus
-    // propios listeners (ver iniciarListenersComanda/
-    // iniciarListenersInsumosProveedores). Si se incluyeran acá, un
-    // guardado disparado por cualquier otro módulo escribiría ese espejo
-    // -parcial, según qué tenga cargado esta pestaña- encima del resto de
-    // la base, en vez de ignorarlo.
-    const {comanda, maestro_clientes, insumos, proveedores, ...restoDB}=DB;
+    // DB.comanda, DB.maestro_clientes, DB.insumos, DB.proveedores,
+    // DB.subproductos, DB.recetas_platos, DB.subs_config, DB.platos_config,
+    // DB.procedimientos, DB.maestro_subs y DB.maestro_platos ya NO viven en
+    // este documento — son un espejo en memoria alimentado por sus propios
+    // listeners (ver iniciarListenersComanda/iniciarListenersInsumosProveedores/
+    // iniciarListenersRecetas). Si se incluyeran acá, un guardado disparado
+    // por cualquier otro módulo escribiría ese espejo -parcial, según qué
+    // tenga cargado esta pestaña- encima del resto de la base, en vez de
+    // ignorarlo. Solo queda acá: maestro_bebidas y stock (fase 4 pendiente).
+    const {comanda, maestro_clientes, insumos, proveedores,
+      subproductos, recetas_platos, subs_config, platos_config,
+      procedimientos, maestro_subs, maestro_platos, ...restoDB}=DB;
     const payload=convertirArraysAnidados(restoDB);
     await FB_DOC.set({payload,updated_at:new Date().toISOString()});
     // Backup local
@@ -4830,11 +4860,20 @@ function aplicarActualizacionRemota(p){
     snapshotRemotoPendiente=p;
     return;
   }
-  // DB.comanda/DB.maestro_clientes/DB.insumos/DB.proveedores ya no forman
-  // parte de este documento (ver sbSave): p nunca los trae. Se comparan/
-  // reemplazan sin esas claves para no perder el espejo en memoria que
+  // Todo lo ya migrado (comanda, clientes, insumos, proveedores,
+  // subproductos, platos y sus config/procedimientos/maestros) ya no forma
+  // parte de este documento (ver sbSave): p nunca lo trae. Se compara/
+  // reemplaza sin esas claves para no perder el espejo en memoria que
   // alimentan sus propios listeners.
-  const {comanda:comandaPrevia, maestro_clientes:clientesPrevios, insumos:insumosPrevios, proveedores:proveedoresPrevios, ...dbSinComanda}=DB;
+  const {
+    comanda:comandaPrevia, maestro_clientes:clientesPrevios,
+    insumos:insumosPrevios, proveedores:proveedoresPrevios,
+    subproductos:subproductosPrevios, recetas_platos:recetasPlatosPrevias,
+    subs_config:subsConfigPrevio, platos_config:platosConfigPrevio,
+    procedimientos:procedimientosPrevios,
+    maestro_subs:maestroSubsPrevio, maestro_platos:maestroPlatosPrevio,
+    ...dbSinComanda
+  }=DB;
   try{
     if(JSON.stringify(p)===JSON.stringify(dbSinComanda)) return; // sin cambios reales, evita re-render innecesario
   }catch(e){}
@@ -4843,11 +4882,13 @@ function aplicarActualizacionRemota(p){
   DB.maestro_clientes=clientesPrevios||[];
   DB.insumos=insumosPrevios||[];
   DB.proveedores=proveedoresPrevios||[];
-  if(!DB.platos_config)DB.platos_config={};
-  if(!DB.subs_config)DB.subs_config={};
-  if(!DB.procedimientos)DB.procedimientos={};
-  if(!DB.maestro_platos)DB.maestro_platos=[];
-  if(!DB.maestro_subs)DB.maestro_subs=[];
+  DB.subproductos=subproductosPrevios||[];
+  DB.recetas_platos=recetasPlatosPrevias||[];
+  DB.subs_config=subsConfigPrevio||{};
+  DB.platos_config=platosConfigPrevio||{};
+  DB.procedimientos=procedimientosPrevios||{};
+  DB.maestro_subs=maestroSubsPrevio||[];
+  DB.maestro_platos=maestroPlatosPrevio||[];
   if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
   if(!DB.stock)DB.stock={conteos:[]};
   try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
@@ -4878,14 +4919,12 @@ function sbListen(){
       try{
         if(doc.exists && doc.data().payload){
           const p=reconvertirArraysAnidados(doc.data().payload);
-          // Antes se validaba con p.insumos.length>=100, pero insumos ya no
-          // viaja en este documento (tiene su propia colección, ver
-          // sbSave). Se valida con la forma de subproductos/recetas_platos
-          // en su lugar -siguen viviendo acá hasta la fase 3 de la
-          // migración- sin un número mínimo fijo (no sabemos de antemano
-          // cuántas filas tiene este negocio), solo para descartar un
-          // documento vacío/corrupto antes de aplicarlo.
-          if(Array.isArray(p.recetas_platos) && Array.isArray(p.subproductos)){
+          // Casi todo lo que vivía acá ya migró a su propia colección
+          // (insumos, proveedores, comanda, subproductos, platos...). Lo
+          // único que queda en este documento es maestro_bebidas y stock
+          // (fase 4 pendiente) — se valida con eso, sin un número mínimo
+          // fijo, solo para descartar un documento vacío/corrupto.
+          if(Array.isArray(p.maestro_bebidas) && p.stock && Array.isArray(p.stock.conteos)){
             aplicarActualizacionRemota(p);
             ok=true;
           }
@@ -4971,6 +5010,95 @@ function iniciarListenersInsumosProveedores(){
 function detenerListenersInsumosProveedores(){
   [_unsubInsumos,_unsubProveedores].forEach(u=>{try{u&&u();}catch(e){}});
   _unsubInsumos=_unsubProveedores=null;
+}
+
+// ── Fase 3: Subproductos y Platos ─────────────────────────────────────────
+// A diferencia de todo lo migrado antes, un subproducto/plato NO tiene un id
+// propio hoy -se identifica por su nombre, repetido en varias estructuras
+// (filas de componentes, *_config, procedimientos, maestro_*). En vez de
+// inventar un id nuevo (cambiaría demasiado código de golpe), se usa el
+// nombre como id de documento: sigue siendo "un documento por receta", que
+// es lo que evita que se pisen entre sí, sin tocar cómo el resto de la app
+// ya lee/identifica una receta. Cada documento junta lo que hoy vive
+// repartido en 3 lugares (filas de componentes + *_config + procedimiento).
+// Firestore no admite '/' en un id de documento; se reemplaza si aparece.
+function nombreDocSeguro(nombre){ return String(nombre).replace(/\//g,'∕'); }
+
+let _unsubSubproductos=null, _unsubPlatos=null, _unsubMaestroSubs=null, _unsubMaestroPlatos=null;
+function iniciarListenersRecetas(){
+  _unsubSubproductos=FB_COL_SUBPRODUCTOS.onSnapshot((snap)=>{
+    const filas=[], config={}, procedimientos={};
+    snap.docs.forEach(d=>{
+      const data=d.data();
+      const nombre=data.nombre;
+      (data.componentes||[]).forEach(c=>filas.push({...c, subproducto:nombre, _id:Date.now()+Math.random()}));
+      config[nombre]=data.config||{};
+      if(data.config&&data.config.procedimiento) procedimientos[nombre]=data.config.procedimiento;
+    });
+    DB.subproductos=filas;
+    DB.subs_config=config;
+    DB.procedimientos={...DB.procedimientos, ...procedimientos};
+    refrescarVistaSiCorresponde();
+  }, (err)=>console.error('Error al sincronizar subproductos:', err));
+  _unsubPlatos=FB_COL_PLATOS.onSnapshot((snap)=>{
+    const filas=[], config={}, procedimientos={};
+    snap.docs.forEach(d=>{
+      const data=d.data();
+      const nombre=data.nombre;
+      (data.componentes||[]).forEach(c=>filas.push({...c, plato:nombre, _id:Date.now()+Math.random()}));
+      config[nombre]=data.config||{};
+      if(data.config&&data.config.procedimiento) procedimientos[nombre]=data.config.procedimiento;
+    });
+    DB.recetas_platos=filas;
+    DB.platos_config=config;
+    DB.procedimientos={...DB.procedimientos, ...procedimientos};
+    refrescarVistaSiCorresponde();
+  }, (err)=>console.error('Error al sincronizar platos:', err));
+  _unsubMaestroSubs=FB_COL_MAESTRO_SUBS.doc('lista').onSnapshot((doc)=>{
+    DB.maestro_subs=(doc.exists&&doc.data().nombres)||[];
+    refrescarVistaSiCorresponde();
+  }, (err)=>console.error('Error al sincronizar maestro_subs:', err));
+  _unsubMaestroPlatos=FB_COL_MAESTRO_PLATOS.doc('lista').onSnapshot((doc)=>{
+    DB.maestro_platos=(doc.exists&&doc.data().nombres)||[];
+    refrescarVistaSiCorresponde();
+  }, (err)=>console.error('Error al sincronizar maestro_platos:', err));
+}
+function detenerListenersRecetas(){
+  [_unsubSubproductos,_unsubPlatos,_unsubMaestroSubs,_unsubMaestroPlatos].forEach(u=>{try{u&&u();}catch(e){}});
+  _unsubSubproductos=_unsubPlatos=_unsubMaestroSubs=_unsubMaestroPlatos=null;
+}
+
+async function guardarSubproductoDoc(nombre){
+  const componentes=DB.subproductos.filter(x=>x.subproducto===nombre).map(({subproducto,_id,...resto})=>resto);
+  const config=DB.subs_config[nombre]||{};
+  try{
+    await FB_COL_SUBPRODUCTOS.doc(nombreDocSeguro(nombre)).set({nombre, componentes, config, updated_at:new Date().toISOString()});
+    marcarSincronizado();
+  }catch(e){ marcarErrorSincronizacion(e); console.error('Error al guardar subproducto:', e); }
+}
+async function eliminarSubproductoDoc(nombre){
+  try{ await FB_COL_SUBPRODUCTOS.doc(nombreDocSeguro(nombre)).delete(); }
+  catch(e){ console.error('Error al eliminar subproducto:', e); }
+}
+async function guardarPlatoDoc(nombre){
+  const componentes=DB.recetas_platos.filter(x=>x.plato===nombre).map(({plato,_id,...resto})=>resto);
+  const config=DB.platos_config[nombre]||{};
+  try{
+    await FB_COL_PLATOS.doc(nombreDocSeguro(nombre)).set({nombre, componentes, config, updated_at:new Date().toISOString()});
+    marcarSincronizado();
+  }catch(e){ marcarErrorSincronizacion(e); console.error('Error al guardar plato:', e); }
+}
+async function eliminarPlatoDoc(nombre){
+  try{ await FB_COL_PLATOS.doc(nombreDocSeguro(nombre)).delete(); }
+  catch(e){ console.error('Error al eliminar plato:', e); }
+}
+async function guardarMaestroSubs(){
+  try{ await FB_COL_MAESTRO_SUBS.doc('lista').set({nombres:DB.maestro_subs, updated_at:new Date().toISOString()}); }
+  catch(e){ console.error('Error al guardar maestro_subs:', e); }
+}
+async function guardarMaestroPlatos(){
+  try{ await FB_COL_MAESTRO_PLATOS.doc('lista').set({nombres:DB.maestro_platos, updated_at:new Date().toISOString()}); }
+  catch(e){ console.error('Error al guardar maestro_platos:', e); }
 }
 
 // Guardado con debounce por fila (insumo/proveedor), uno independiente por
@@ -5085,6 +5213,35 @@ document.addEventListener('focusout', (e)=>{
   }, 0);
 }, true);
 
+// Reemplaza el contenido completo de subproductos o platos (colección de
+// un documento por receta, ver iniciarListenersRecetas): agrupa las filas
+// sueltas por nombre, borra los documentos que ya no están en el archivo
+// importado, y escribe/sobreescribe el resto. Solo la usa importarJSON().
+async function reemplazarRecetasCompleto(col, filas, configPorNombre, campoNombre){
+  try{
+    const porNombre={};
+    filas.forEach(f=>{
+      const nombre=f[campoNombre];
+      if(!nombre) return;
+      const {[campoNombre]:_n, _id, ...resto}=f;
+      (porNombre[nombre]=porNombre[nombre]||[]).push(resto);
+    });
+    const nombresNuevos=new Set(Object.keys(porNombre));
+    const snap=await col.get();
+    const aBorrar=snap.docs.filter(d=>!nombresNuevos.has(d.data().nombre));
+    await Promise.all(aBorrar.map(d=>d.ref.delete()));
+    await Promise.all(Object.entries(porNombre).map(([nombre,componentes])=>
+      col.doc(nombreDocSeguro(nombre)).set({
+        nombre, componentes, config:(configPorNombre&&configPorNombre[nombre])||{},
+        updated_at:new Date().toISOString()
+      })
+    ));
+  }catch(e){
+    console.error('Error al reemplazar recetas tras importar JSON:', e);
+    alert('El JSON se importó, pero hubo un error sincronizando subproductos/platos con la nube: '+e.message);
+  }
+}
+
 // Reemplaza el contenido completo de una colección (insumos/proveedores)
 // por un array en memoria con _id: borra los documentos que ya no están
 // en el array, y escribe/sobreescribe el resto. Usada solo por
@@ -5143,6 +5300,12 @@ function importarJSON(e){
       // en el archivo, escribir los que sí- ya no alcanza con sbSave(true).
       reemplazarColeccionCompleta(FB_COL_INSUMOS, DB.insumos);
       reemplazarColeccionCompleta(FB_COL_PROVEEDORES, DB.proveedores);
+      // Mismo criterio para Subproductos y Platos: reemplazo real en sus
+      // colecciones, no solo en memoria.
+      reemplazarRecetasCompleto(FB_COL_SUBPRODUCTOS, DB.subproductos, DB.subs_config, 'subproducto');
+      reemplazarRecetasCompleto(FB_COL_PLATOS, DB.recetas_platos, DB.platos_config, 'plato');
+      FB_COL_MAESTRO_SUBS.doc('lista').set({nombres:DB.maestro_subs, updated_at:new Date().toISOString()}).catch(e=>console.error('Error al guardar maestro_subs:', e));
+      FB_COL_MAESTRO_PLATOS.doc('lista').set({nombres:DB.maestro_platos, updated_at:new Date().toISOString()}).catch(e=>console.error('Error al guardar maestro_platos:', e));
       alert('✓ Datos importados correctamente.\n\n'+parsed.insumos.length+' insumos · '+nSubs+' subproductos · '+nPlatos+' platos · '+(parsed.proveedores?.length||0)+' proveedores');
     }catch(err){
       alert('Error al leer el archivo JSON: '+err.message);
@@ -5313,6 +5476,7 @@ function entrarComo(){
   document.getElementById('modulo-select-screen').style.display='flex';
   iniciarListenersComanda();
   iniciarListenersInsumosProveedores();
+  iniciarListenersRecetas();
 }
 
 // Botón "Cambiar de módulo" del encabezado: vuelve a #modulo-select-screen
@@ -5338,6 +5502,7 @@ function cerrarSesion(){
   try{localStorage.removeItem(MP_AUTH_TS_KEY);}catch(e){}
   detenerListenersComanda();
   detenerListenersInsumosProveedores();
+  detenerListenersRecetas();
   perfilActivo=null;
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('modulo-select-screen').style.display='none';
