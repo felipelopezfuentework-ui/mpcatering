@@ -3507,8 +3507,8 @@ function _filtrarRecetasPorBusqueda(tipo,nombres,q){
 
 function _tipoMeta(tipo){
   return tipo==='sub'
-    ?{prefix:'SUB - ',emoji:'🧩',ghClass:'sub-gh',totalColor:'var(--yellow)',editAttr:'data-edit-sub',delAttr:'data-del-sub'}
-    :{prefix:'PLATO - ',emoji:'🍴',ghClass:'plato-gh',totalColor:'var(--mp-gold)',editAttr:'data-edit-plato',delAttr:'data-del-plato'};
+    ?{prefix:'SUB - ',emoji:'🧩',ghClass:'sub-gh',totalColor:'var(--yellow)',editAttr:'data-edit-sub',delAttr:'data-del-sub',pdfAttr:'data-pdf-sub'}
+    :{prefix:'PLATO - ',emoji:'🍴',ghClass:'plato-gh',totalColor:'var(--mp-gold)',editAttr:'data-edit-plato',delAttr:'data-del-plato',pdfAttr:'data-pdf-plato'};
 }
 function _nombreVisible(meta,nombre){
   return nombre.startsWith(meta.prefix)?nombre.slice(meta.prefix.length):nombre;
@@ -3528,6 +3528,7 @@ function _renderListaRecetas(tipo,nombres){
         ${_mpBotonAlerta(d.faltantes)}
         ${pesoBadge}
         <span style="color:${meta.totalColor};font-weight:700">${fmt(d.total)}</span>
+        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.pdfAttr}="${escH(nombre)}">📄 PDF</button>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.editAttr}="${escH(nombre)}">✏️ Editar</button>
         <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
       </div>
@@ -3560,6 +3561,7 @@ function _renderCardsRecetas(tipo,nombres){
       ${_mpBotonFecha(d.cfg)}
       ${_mpBotonAlerta(d.faltantes)}
       <span style="color:${meta.totalColor};font-weight:700;white-space:nowrap">${fmt(d.total)}</span>
+      <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.pdfAttr}="${escH(nombre)}">📄 PDF</button>
       <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.editAttr}="${escH(nombre)}">✏️ Editar</button>
       <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
     </div>`;
@@ -3578,6 +3580,7 @@ function _renderGrillaRecetas(tipo,nombres){
       <div class="mp-grilla-foot">
         <span style="display:flex;gap:2px">${_mpBotonFecha(d.cfg)}${_mpBotonAlerta(d.faltantes)}</span>
         <span style="display:flex;gap:4px">
+          <button type="button" class="mp-icon-btn" title="PDF" ${meta.pdfAttr}="${escH(nombre)}">📄</button>
           <button type="button" class="mp-icon-btn" title="Editar" ${meta.editAttr}="${escH(nombre)}">✏️</button>
           <button type="button" class="mp-icon-btn" style="color:var(--red);border-color:rgba(192,57,43,.3)" title="Eliminar" ${meta.delAttr}="${escH(nombre)}">🗑</button>
         </span>
@@ -3599,6 +3602,7 @@ function _renderTablaRecetas(tipo,nombres){
       <td class="num" style="color:${meta.totalColor};font-weight:600">${d.costoUnitario!=null?fmt(d.costoUnitario):'—'}</td>
       <td style="white-space:nowrap">${_mpBotonFecha(d.cfg)} ${_mpBotonAlerta(d.faltantes)}</td>
       <td style="white-space:nowrap">
+        <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" ${meta.pdfAttr}="${escH(nombre)}">📄</button>
         <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" ${meta.editAttr}="${escH(nombre)}">✏️</button>
         <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
       </td>
@@ -3714,6 +3718,7 @@ function renderSubproductos(){
     : _renderListaRecetas('sub',subs);
   c.querySelectorAll('[data-edit-sub]').forEach(b=>b.addEventListener('click',()=>abrirModalSub(b.dataset.editSub)));
   c.querySelectorAll('[data-del-sub]').forEach(b=>b.addEventListener('click',()=>delSub(b.dataset.delSub)));
+  c.querySelectorAll('[data-pdf-sub]').forEach(b=>b.addEventListener('click',()=>descargarRecetaPDFPorNombre('sub',b.dataset.pdfSub)));
 }
 function delSub(sub){
   if(!confirm('¿Eliminar "'+sub.replace('SUB - ','')+'"?'))return;
@@ -3949,6 +3954,7 @@ function renderPlatos(){
     : _renderListaRecetas('plato',platos);
   c.querySelectorAll('[data-edit-plato]').forEach(b=>b.addEventListener('click',()=>abrirModalPlato(b.dataset.editPlato)));
   c.querySelectorAll('[data-del-plato]').forEach(b=>b.addEventListener('click',()=>delPlato(b.dataset.delPlato)));
+  c.querySelectorAll('[data-pdf-plato]').forEach(b=>b.addEventListener('click',()=>descargarRecetaPDFPorNombre('plato',b.dataset.pdfPlato)));
 }
 function delPlato(plato){
   if(!confirm('¿Eliminar "'+plato.replace('PLATO - ','')+'"?'))return;
@@ -9075,6 +9081,20 @@ function leerProcList(tipo){
 // ══════════════════════════════════════════════════════════════════
 //  PDF FICHA TÉCNICA DE RECETA
 // ══════════════════════════════════════════════════════════════════
+// Genera el PDF de una receta sin tener que abrir "Editar" primero: reusa
+// abrirModalSub/abrirModalPlato para cargar todo el estado que
+// descargarRecetaPDF() necesita (ingredientes, rendimiento, procedimiento),
+// pero sacando la clase "open" antes de que el navegador llegue a pintar
+// nada, así el modal nunca se ve en pantalla.
+function descargarRecetaPDFPorNombre(tipo, nombre){
+  const esSub=tipo==='sub';
+  const modalId=esSub?'modal-sub':'modal-plato';
+  if(esSub) abrirModalSub(nombre); else abrirModalPlato(nombre);
+  const modal=document.getElementById(modalId);
+  if(modal) modal.classList.remove('open');
+  descargarRecetaPDF(tipo);
+  ddClose();
+}
 function descargarRecetaPDF(tipo){
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
@@ -9249,8 +9269,13 @@ function descargarRecetaPDF(tipo){
     doc.text(fecha+' · Pág '+p+'/'+totalPages,W-margin,H-margin+7,{align:'right'});
   }
 
+  // Se abre en una pestaña nueva (visor de PDF del navegador) en vez de
+  // forzar la descarga: desde ahí se puede imprimir o guardar si hace
+  // falta, sin que se descargue un archivo de entrada.
   const fname='Receta_MP_'+nombre.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)+'.pdf';
-  doc.save(fname);
+  const blobUrl=doc.output('bloburl');
+  const ventana=window.open(blobUrl,'_blank');
+  if(!ventana) doc.save(fname); // por si el navegador bloqueó la pestaña nueva
 }
 
 </script>
