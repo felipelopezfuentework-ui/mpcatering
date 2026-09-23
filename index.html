@@ -4680,35 +4680,41 @@ document.addEventListener('click',()=>{
 });
 
 async function sbSave(silent=false){
+  const payload=convertirArraysAnidados(DB);
+  const nuevoUpdatedAt=new Date().toISOString();
+  const baseAlEntrar=_dbVersionBase; // versión de la que parte el DB de ESTA pestaña
+  let conflicto=null;
   try{
-    // Chequeo de conflicto: como cada guardado reemplaza el documento entero,
-    // si otra pestaña/usuario guardó algo que ésta todavía no incorporó a su DB
-    // (por ejemplo porque quedó en snapshotRemotoPendiente mientras se editaba
-    // un campo, o por Enter que guarda sin esperar ese merge) hay que traer esa
-    // versión más nueva en vez de pisarla a ciegas.
-    if(_dbVersionBase){
-      try{
-        const fresco=await FB_DOC.get({source:'server'});
-        const updatedAtServidor=fresco.exists?fresco.data().updated_at:null;
-        if(updatedAtServidor && updatedAtServidor!==_dbVersionBase){
-          const p=reconvertirArraysAnidados(fresco.data().payload);
-          aplicarSnapshotAhora(p, updatedAtServidor);
-          // Este aviso se muestra SIEMPRE, aunque el guardado sea "silencioso":
-          // en la práctica todos los llamados a sbSave() en la app usan silent=true
-          // (para no mostrar "✓ Guardado" en cada tecla), así que si este cartel
-          // dependiera de `silent` nunca se vería y el usuario perdería su último
-          // cambio sin enterarse.
-          alert('Otro cambio se guardó justo antes que el tuyo. Se actualizó la vista con lo más reciente — repetí tu último cambio.');
-          return;
-        }
-      }catch(e){
-        // Sin conexión o falla al verificar contra el servidor: seguimos con el
-        // guardado normal; si falla también, el catch de abajo ya lo reporta.
+    // Transacción de Firestore: lee y escribe como una única operación atómica
+    // en el servidor (con reintento automático del propio SDK si otra escritura
+    // se cuela justo en el medio). Un get() + set() separados dejarían una
+    // ventana abierta entre chequear y escribir; la transacción la cierra del
+    // todo, así dos guardados que caen casi al mismo milisegundo no pueden
+    // pisarse entre sí sin que se detecte.
+    await fbDb.runTransaction(async (t)=>{
+      conflicto=null; // por si el SDK reintenta la transacción desde cero
+      const snap=await t.get(FB_DOC);
+      const updatedAtServidor=snap.exists?snap.data().updated_at:null;
+      if(baseAlEntrar && updatedAtServidor && updatedAtServidor!==baseAlEntrar){
+        // Otra pestaña/usuario guardó algo que ésta todavía no incorporó a su
+        // DB (por ejemplo porque quedó en snapshotRemotoPendiente mientras se
+        // editaba un campo, o por Enter que guarda sin esperar ese merge).
+        // No escribimos: haríamos desaparecer ese cambio ajeno.
+        conflicto={payload:snap.data().payload, updated_at:updatedAtServidor};
+        return;
       }
+      t.set(FB_DOC,{payload,updated_at:nuevoUpdatedAt});
+    });
+    if(conflicto){
+      aplicarSnapshotAhora(reconvertirArraysAnidados(conflicto.payload), conflicto.updated_at);
+      // Este aviso se muestra SIEMPRE, aunque el guardado sea "silencioso":
+      // en la práctica todos los llamados a sbSave() en la app usan silent=true
+      // (para no mostrar "✓ Guardado" en cada tecla), así que si este cartel
+      // dependiera de `silent` nunca se vería y el usuario perdería su último
+      // cambio sin enterarse.
+      alert('Otro cambio se guardó justo antes que el tuyo. Se actualizó la vista con lo más reciente — repetí tu último cambio.');
+      return;
     }
-    const payload=convertirArraysAnidados(DB);
-    const nuevoUpdatedAt=new Date().toISOString();
-    await FB_DOC.set({payload,updated_at:nuevoUpdatedAt});
     _dbVersionBase=nuevoUpdatedAt;
     // Backup local
     try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
