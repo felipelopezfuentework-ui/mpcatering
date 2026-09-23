@@ -4949,7 +4949,13 @@ let _limpiezaInsumosYaCorrida=false;
 function iniciarListenersInsumosProveedores(){
   _limpiezaInsumosYaCorrida=false;
   _unsubInsumos=FB_COL_INSUMOS.onSnapshot((snap)=>{
-    DB.insumos=snap.docs.map(d=>({...d.data(), _id:Number(d.id)}));
+    // Firestore no garantiza ningún orden particular sin orderBy() -antes,
+    // "agregar insumo" lo ponía siempre primero (unshift) y la lista nunca
+    // se reordenaba sola; ahora, cada snapshot puede devolver los
+    // documentos en cualquier orden. Se ordena por _id descendente (los
+    // _id nuevos son Date.now(), siempre el número más grande) para que un
+    // insumo recién agregado quede siempre arriba de todo, como antes.
+    DB.insumos=snap.docs.map(d=>({...d.data(), _id:Number(d.id)})).sort((a,b)=>b._id-a._id);
     // Antes corría una sola vez al cargar la página, contra datos todavía
     // sin sincronizar; ahora corre en el primer snapshot real de la
     // colección de insumos (ver limpiarInsumosRevisarEliminar).
@@ -4957,7 +4963,8 @@ function iniciarListenersInsumosProveedores(){
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar insumos:', err));
   _unsubProveedores=FB_COL_PROVEEDORES.onSnapshot((snap)=>{
-    DB.proveedores=snap.docs.map(d=>({...d.data(), _id:Number(d.id)}));
+    // Mismo motivo que en insumos: orden estable, más nuevo primero.
+    DB.proveedores=snap.docs.map(d=>({...d.data(), _id:Number(d.id)})).sort((a,b)=>b._id-a._id);
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar proveedores:', err));
 }
