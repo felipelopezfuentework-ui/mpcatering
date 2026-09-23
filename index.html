@@ -4707,13 +4707,14 @@ async function sbSave(silent=false){
       t.set(FB_DOC,{payload,updated_at:nuevoUpdatedAt});
     });
     if(conflicto){
+      // Igual que en el merge silencioso del focusout: como todo el sistema
+      // comparte un único documento, esto salta con cualquier guardado sin
+      // relación de cualquier otro módulo/usuario, no solo con un choque real
+      // sobre lo mismo que se está editando. Avisar acá interrumpía todo el
+      // tiempo por guardados ajenos sin ninguna relación. Se resuelve en
+      // silencio: se adopta la versión más nueva del servidor y no se escribe
+      // la vieja (eso es lo que realmente importa evitar), sin cartel.
       aplicarSnapshotAhora(reconvertirArraysAnidados(conflicto.payload), conflicto.updated_at);
-      // Este aviso se muestra SIEMPRE, aunque el guardado sea "silencioso":
-      // en la práctica todos los llamados a sbSave() en la app usan silent=true
-      // (para no mostrar "✓ Guardado" en cada tecla), así que si este cartel
-      // dependiera de `silent` nunca se vería y el usuario perdería su último
-      // cambio sin enterarse.
-      alert('Otro cambio se guardó justo antes que el tuyo. Se actualizó la vista con lo más reciente — repetí tu último cambio.');
       return;
     }
     _dbVersionBase=nuevoUpdatedAt;
