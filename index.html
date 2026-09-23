@@ -980,7 +980,6 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div class="modal-hd" style="position:sticky;top:0;background:var(--surface);z-index:10;padding-bottom:10px">
       <span class="modal-title" id="modal-evento-titulo">Evento</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="guardarEvento()">💾 Guardar</button>
         <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="exportarEventoPDF()">📄 PDF Completo</button>
         <button class="btn btn-outline" style="color:var(--mp-mid);border-color:rgba(92,45,110,.4)" onclick="exportarPestañaPDF()">📄 PDF Pestaña</button>
         <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-evento-detalle')">✕ Cerrar</button>
@@ -4676,8 +4675,30 @@ document.addEventListener('click',()=>{
 
 async function sbSave(silent=false){
   try{
+    // Chequeo de conflicto: como cada guardado reemplaza el documento entero,
+    // si otra pestaña/usuario guardó algo que ésta todavía no incorporó a su DB
+    // (por ejemplo porque quedó en snapshotRemotoPendiente mientras se editaba
+    // un campo, o por Enter que guarda sin esperar ese merge) hay que traer esa
+    // versión más nueva en vez de pisarla a ciegas.
+    if(_dbVersionBase){
+      try{
+        const fresco=await FB_DOC.get({source:'server'});
+        const updatedAtServidor=fresco.exists?fresco.data().updated_at:null;
+        if(updatedAtServidor && updatedAtServidor!==_dbVersionBase){
+          const p=reconvertirArraysAnidados(fresco.data().payload);
+          aplicarSnapshotAhora(p, updatedAtServidor);
+          if(!silent)alert('Otro cambio se guardó justo antes que el tuyo. Se actualizó la vista con lo más reciente — repetí tu último cambio.');
+          return;
+        }
+      }catch(e){
+        // Sin conexión o falla al verificar contra el servidor: seguimos con el
+        // guardado normal; si falla también, el catch de abajo ya lo reporta.
+      }
+    }
     const payload=convertirArraysAnidados(DB);
-    await FB_DOC.set({payload,updated_at:new Date().toISOString()});
+    const nuevoUpdatedAt=new Date().toISOString();
+    await FB_DOC.set({payload,updated_at:nuevoUpdatedAt});
+    _dbVersionBase=nuevoUpdatedAt;
     // Backup local
     try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
     marcarSincronizado();
@@ -4688,7 +4709,6 @@ async function sbSave(silent=false){
   }
 }
 
-function saveData(){sbSave(false);}
 function exportData(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}));a.download='foodcost_mp.json';a.click();}
 
 // ── Sincronización en tiempo real (Firestore onSnapshot) ─────────────
@@ -4760,16 +4780,24 @@ function refrescarVistaActual(){
   }
 }
 
-function aplicarActualizacionRemota(p){
-  // Si el usuario está escribiendo en algún campo, no lo interrumpimos: se aplica
-  // apenas termine de editar (ver listener de 'focusout' más abajo).
-  if(camposEditandoActivos>0){
-    snapshotRemotoPendiente=p;
-    return;
-  }
+// Última marca de tiempo (updated_at) del documento de Firestore que ya está
+// reflejada en el DB local de esta pestaña. sbSave() la compara contra el
+// servidor antes de guardar, para detectar si otro usuario/pestaña guardó
+// algo que acá todavía no se incorporó (ver comentario en sbSave).
+let _dbVersionBase=null;
+
+// Aplica un snapshot al DB local sin pasar por la cola de "usuario editando".
+// La usa tanto aplicarActualizacionRemota() (cuando no hay edición activa)
+// como sbSave() al detectar un conflicto (ahí se fuerza aunque haya un campo
+// con foco, porque el propio intento de guardado ya indica que el usuario
+// terminó esa acción).
+function aplicarSnapshotAhora(p, updatedAt){
+  let sinCambios=false;
   try{
-    if(JSON.stringify(p)===JSON.stringify(DB)) return; // sin cambios reales, evita re-render innecesario
+    sinCambios=JSON.stringify(p)===JSON.stringify(DB); // sin cambios reales, evita re-render innecesario
   }catch(e){}
+  _dbVersionBase=updatedAt;
+  if(sinCambios) return;
   DB=p;
   if(!DB.platos_config)DB.platos_config={};
   if(!DB.subs_config)DB.subs_config={};
@@ -4783,6 +4811,16 @@ function aplicarActualizacionRemota(p){
   try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
   marcarSincronizado();
   if(perfilActivo) refrescarVistaActual();
+}
+
+function aplicarActualizacionRemota(p, updatedAt){
+  // Si el usuario está escribiendo en algún campo, no lo interrumpimos: se aplica
+  // apenas termine de editar (ver listener de 'focusout' más abajo).
+  if(camposEditandoActivos>0){
+    snapshotRemotoPendiente={payload:p, updated_at:updatedAt};
+    return;
+  }
+  aplicarSnapshotAhora(p, updatedAt);
 }
 
 // Suscribe el listener en tiempo real. Devuelve una promesa que se resuelve
@@ -4809,7 +4847,7 @@ function sbListen(){
         if(doc.exists && doc.data().payload){
           const p=reconvertirArraysAnidados(doc.data().payload);
           if(p.insumos && p.insumos.length>=100){
-            aplicarActualizacionRemota(p);
+            aplicarActualizacionRemota(p, doc.data().updated_at);
             ok=true;
           }
         }
@@ -4878,7 +4916,7 @@ document.addEventListener('focusout', (e)=>{
     if(camposEditandoActivos===0 && snapshotRemotoPendiente){
       const pendiente=snapshotRemotoPendiente;
       snapshotRemotoPendiente=null;
-      aplicarActualizacionRemota(pendiente);
+      aplicarActualizacionRemota(pendiente.payload, pendiente.updated_at);
     }
   }, 0);
 }, true);
@@ -7455,10 +7493,6 @@ function registrarBebida(nombre){
     DB.maestro_bebidas.sort();
   }
 }
-function guardarEvento(){
-  sbSave(false);
-}
-
 // ── Exportar evento a PDF ─────────────────────────────────────────
 function exportarEventoPDF(){
   exportarEventoPDFById(comandaPeriodoActual, comandaEventoActual);
