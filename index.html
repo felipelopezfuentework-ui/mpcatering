@@ -5025,7 +5025,8 @@ function refrescarVistaActual(){
         ({insumos:renderInsumos,subproductos:renderSubproductos,platos:renderPlatos,
           costeo:renderCosteoTable,proveedores:renderProveedores,precio:renderPrecioFinal,
           comanda_clientes:renderClientes,stock:renderStockActual,
-          stock_historial:renderStockHistorial})[name]?.();
+          stock_historial:renderStockHistorial,
+          presupuestos:renderPresupuestos})[name]?.();
       }
     }
   }catch(err){
