@@ -4943,17 +4943,20 @@ document.addEventListener('click',()=>{
 async function sbSave(silent=false){
   try{
     // Todo lo migrado (comanda, clientes, insumos, proveedores,
-    // subproductos, platos, sus config/procedimientos/maestros, y stock) ya
-    // NO vive en este documento — es un espejo en memoria alimentado por
-    // sus propios listeners (ver iniciarListenersComanda/
+    // subproductos, platos, sus config/procedimientos/maestros, stock y
+    // presupuestos) ya NO vive en este documento — es un espejo en memoria
+    // alimentado por sus propios listeners (ver iniciarListenersComanda/
     // iniciarListenersInsumosProveedores/iniciarListenersRecetas/
-    // iniciarListenerStock). Si se incluyera acá, un guardado disparado por
-    // cualquier otro módulo escribiría ese espejo -parcial, según qué tenga
-    // cargado esta pestaña- encima del resto de la base, en vez de
-    // ignorarlo. Solo queda acá: maestro_bebidas.
+    // iniciarListenerStock/iniciarListenersPresupuestos). Si se incluyera
+    // acá, un guardado disparado por cualquier otro módulo escribiría ese
+    // espejo -parcial, según qué tenga cargado esta pestaña- encima del
+    // resto de la base, en vez de ignorarlo. presupuestos además puede
+    // traer fotos en base64: dejarlo acá arriesgaba pasar el límite de 1MB
+    // del documento compartido y tirar abajo el autoguardado de todo lo
+    // demás. Solo queda acá: maestro_bebidas.
     const {comanda, maestro_clientes, insumos, proveedores,
       subproductos, recetas_platos, subs_config, platos_config,
-      procedimientos, maestro_subs, maestro_platos, stock, ...restoDB}=DB;
+      procedimientos, maestro_subs, maestro_platos, stock, presupuestos, ...restoDB}=DB;
     const payload=convertirArraysAnidados(restoDB);
     await FB_DOC.set({payload,updated_at:new Date().toISOString()});
     // Backup local
@@ -5045,10 +5048,12 @@ function aplicarActualizacionRemota(p){
     return;
   }
   // Todo lo ya migrado (comanda, clientes, insumos, proveedores,
-  // subproductos, platos y sus config/procedimientos/maestros) ya no forma
-  // parte de este documento (ver sbSave): p nunca lo trae. Se compara/
-  // reemplaza sin esas claves para no perder el espejo en memoria que
-  // alimentan sus propios listeners.
+  // subproductos, platos y sus config/procedimientos/maestros, stock y
+  // presupuestos) ya no forma parte de este documento (ver sbSave): p nunca
+  // lo trae -salvo que sea un documento viejo, de antes de excluir
+  // presupuestos acá, en cuyo caso también hay que ignorar esa clave-. Se
+  // compara/reemplaza sin esas claves para no perder el espejo en memoria
+  // que alimentan sus propios listeners.
   const {
     comanda:comandaPrevia, maestro_clientes:clientesPrevios,
     insumos:insumosPrevios, proveedores:proveedoresPrevios,
@@ -5056,7 +5061,7 @@ function aplicarActualizacionRemota(p){
     subs_config:subsConfigPrevio, platos_config:platosConfigPrevio,
     procedimientos:procedimientosPrevios,
     maestro_subs:maestroSubsPrevio, maestro_platos:maestroPlatosPrevio,
-    stock:stockPrevio,
+    stock:stockPrevio, presupuestos:presupuestosPrevios,
     ...dbSinComanda
   }=DB;
   try{
@@ -5075,6 +5080,7 @@ function aplicarActualizacionRemota(p){
   DB.maestro_subs=maestroSubsPrevio||[];
   DB.maestro_platos=maestroPlatosPrevio||[];
   DB.stock=stockPrevio||{conteos:[]};
+  DB.presupuestos=presupuestosPrevios||[];
   if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
   try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
   marcarSincronizado();
