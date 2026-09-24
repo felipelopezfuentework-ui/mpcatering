@@ -10319,9 +10319,12 @@ function presuDibujarPDF(d){
 
   const cliSlug=(d.cliente||d.tipoEvento||'presupuesto').replace(/[^a-zA-Z0-9]/g,'_').slice(0,30);
   const fname='Presupuesto_MP_'+cliSlug+'.pdf';
+  // Generar PDF ahora siempre descarga el archivo, se haya podido abrir o
+  // no una pestaña nueva para previsualizarlo (a pedido: "que a la vez lo
+  // descargue").
   const blobUrl=doc.output('bloburl');
-  const ventana=window.open(blobUrl,'_blank');
-  if(!ventana) doc.save(fname);
+  window.open(blobUrl,'_blank');
+  doc.save(fname);
 }
 
 </script>
