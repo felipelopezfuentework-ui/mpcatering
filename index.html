@@ -287,6 +287,45 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   .proc-list{max-height:220px}
 }
 
+/* ─── CELULAR ─────────────────────────────────────────────────
+   El bug de fondo en mobile era el header: al ser un flex sin wrap con
+   .perfil-badge empujado por margin-left:auto, cuando no entraban todos
+   los botones en una fila el navegador ensanchaba el <body> entero en vez
+   de cortar -eso hacía que TODA la app apareciera con scroll horizontal y
+   zoom-out, no solo el header-. Por eso acá el header pasa a wrappear (y
+   deja de ser sticky, para no pelear con el top:78px fijo de .tabs, que
+   asumía una altura de header de una sola fila) y el resto son ajustes de
+   espaciado para aprovechar el ancho angosto. */
+@media(max-width:640px){
+  html,body{overflow-x:hidden}
+  .header{
+    position:static;flex-wrap:wrap;padding:10px 14px;gap:8px 10px;
+  }
+  .logo{width:38px;height:38px}
+  .header h1{font-size:14px;line-height:1.25}
+  .header-sub{font-size:9px}
+  .header-tools{margin-left:0}
+  .header-sync{display:none} /* texto decorativo, no entra cómodo y no hace falta en mobile */
+  .perfil-badge{width:100%;margin-left:0;flex-wrap:wrap;gap:8px 10px}
+  .perfil-badge .badge-perfil{font-size:10.5px;padding:4px 10px}
+  .btn-logout{font-size:10.5px;padding:4px 9px}
+  .tabs{position:sticky;top:0;padding:8px 12px 0}
+  .content{padding:12px}
+  .card{padding:14px;border-radius:8px}
+  .modal-ov{padding:10px 6px 24px}
+  .modal{padding:16px;border-radius:10px}
+  .modal-hd{margin-bottom:14px;padding-bottom:10px;flex-wrap:wrap;gap:8px}
+  .modal-title{font-size:14.5px}
+  .form-row{gap:8px}
+  .toolbar{gap:8px}
+  .sbox{min-width:0;max-width:none;flex:1 1 100%}
+  /* Botones de acción al pie de un modal (Cancelar/Guardar/etc): se
+     apilan en columna y ocupan todo el ancho, más fáciles de tocar que
+     tres botones angostos en fila. */
+  .modal>div[style*="justify-content:flex-end"]{flex-direction:column-reverse}
+  .modal>div[style*="justify-content:flex-end"]>.btn{width:100%;justify-content:center}
+}
+
 /* ─── FICHA DE RECETA: secciones, tabla, tabs y resumen de costos ─ */
 .recipe-section{margin-bottom:22px}
 .recipe-section:last-child{margin-bottom:0}
@@ -452,11 +491,11 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 
 <div class="header" id="app-header" style="display:none">
   <div class="logo"><img src="data:image/jpeg;base64,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" alt="MP"></div>
-  <div>
+  <div class="header-brand">
     <h1>Mariana Pages Catering</h1>
     <div class="header-sub">Sistema de Gestión</div>
   </div>
-  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+  <div class="header-tools" style="margin-left:auto;display:flex;gap:8px;align-items:center">
     <div style="position:relative">
       <button type="button" class="header-gear-btn" title="Herramientas" onclick="toggleHeaderSettings(event)">⚙️</button>
       <div id="header-settings-menu" class="header-gear-menu">
