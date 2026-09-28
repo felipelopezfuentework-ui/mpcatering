@@ -9977,6 +9977,29 @@ function presuDibujarPDF(d){
     text(color); drawC(color); doc.setLineWidth(lw||0.15);
     doc.text(strOrLines, x, y, Object.assign({renderingMode:'fillThenStroke'}, opts||{}));
   }
+  // Alto real (en mm) de cada renglón que jsPDF deja al dibujar un array de
+  // líneas con el tamaño de fuente dado: se usa para saber cuánto texto entra
+  // antes del pie y pasar el resto a una hoja nueva en vez de desbordarse.
+  const LHF=doc.getLineHeightFactor?doc.getLineHeightFactor():1.15;
+  const LH=fs=>fs*LHF*25.4/72;
+  // Como splitTextToSize pero para etiquetas en mayúscula con tracking
+  // (charSpace), que splitTextToSize no tiene en cuenta al medir. Usa la
+  // fuente/tamaño activos. Una palabra que sola no entra se corta por letras.
+  function wrapTracked(str, maxW){
+    const wOf=s=>doc.getTextWidth(s)+s.length*TRACK_SP;
+    const out=[]; let cur='';
+    track(str).split(/\s+/).filter(Boolean).forEach(w=>{
+      while(wOf(w)>maxW && w.length>1){
+        let n=w.length-1; while(n>1 && wOf(w.slice(0,n))>maxW) n--;
+        if(cur){ out.push(cur); cur=''; }
+        out.push(w.slice(0,n)); w=w.slice(n);
+      }
+      const t=cur?cur+' '+w:w;
+      if(!cur || wOf(t)<=maxW) cur=t; else { out.push(cur); cur=w; }
+    });
+    if(cur) out.push(cur);
+    return out.length?out:[''];
+  }
 
   function pageBg(){ fill(CREAM); doc.rect(0,0,W,H,'F'); }
   function header(){
@@ -10037,27 +10060,33 @@ function presuDibujarPDF(d){
 
   // ── Página 2: el evento ──
   function pageEvento(){
-    newPage();
     const leftW=92;
-    try{ doc.addImage(d.fotoEvento||PRESU_IMG_EVENTO,'JPEG',0,0,leftW,H); }catch(e){}
     const rx=leftW+14;
-    let y=34;
-    text(GOLD); doc.setFont('times','bold'); doc.setFontSize(8);
-    ttext('Detalle', rx, y);
-    y+=9;
-    text(BURG); doc.setFont('times','bold'); doc.setFontSize(24);
-    doc.text('El evento', rx, y);
-    y+=4;
-    drawC(GOLD); doc.setLineWidth(1); doc.line(rx, y, rx+16, y);
-    y+=10;
+    const bottom=H-16;
+    // Si los datos no entran en una hoja, se sigue en otra con la misma foto
+    // y el mismo encabezado.
+    function eventoPage(){
+      newPage();
+      try{ doc.addImage(d.fotoEvento||PRESU_IMG_EVENTO,'JPEG',0,0,leftW,H); }catch(e){}
+      let y=34;
+      text(GOLD); doc.setFont('times','bold'); doc.setFontSize(8);
+      ttext('Detalle', rx, y);
+      y+=9;
+      text(BURG); doc.setFont('times','bold'); doc.setFontSize(24);
+      doc.text('El evento', rx, y);
+      y+=4;
+      drawC(GOLD); doc.setLineWidth(1); doc.line(rx, y, rx+16, y);
+      y+=10;
+      return y;
+    }
+    const top=eventoPage();
 
     const colW=(W-M-rx-6)/2;
     const col2=rx+colW+6;
-    function field(x,yy,label,value){
+    function field(x,yy,label,lines){
       text(GOLD); doc.setFont('times','bold'); doc.setFontSize(7.5);
       ttext(label, x, yy);
       doc.setFont('times','normal'); doc.setFontSize(13);
-      const lines=doc.splitTextToSize(value||'—', colW-4);
       btext(BURG, lines, x, yy+6.5, {}, 0.12);
       const endY=yy+6.5+lines.length*5.5+2;
       drawC(LINE); doc.setLineWidth(0.45);
@@ -10065,16 +10094,28 @@ function presuDibujarPDF(d){
       return endY+9;
     }
     const horario=(d.horarioInicio||d.horarioFin)?`${d.horarioInicio||'—'}h – ${d.horarioFin||'—'}h`:'';
-    let y1=y;
+    let y1=top;
     [
       ['Tipo de evento', d.tipoEvento, 'Cliente', d.cliente],
       ['Referente/s', d.referentes, 'Cantidad de personas', d.cantidadPersonas?String(d.cantidadPersonas):''],
       ['Horario', horario, 'Lugar', d.lugar],
       ['Fecha del evento', formatFechaPDF(d.fechaEvento), 'Emisión del presupuesto', formatFechaPDF(d.fechaEmision)],
     ].forEach(([l1,v1,l2,v2])=>{
-      const ny1=field(rx,y1,l1,v1);
-      const ny2=field(col2,y1,l2,v2);
-      y1=Math.max(ny1,ny2);
+      doc.setFont('times','normal'); doc.setFontSize(13);
+      let pend=[[rx,l1,v1],[col2,l2,v2]].map(([x,label,v])=>({x,label,lines:doc.splitTextToSize(v||'—', colW-4)}));
+      while(pend.length){
+        const need=Math.max(...pend.map(p=>p.lines.length));
+        const cap=Math.floor((bottom-y1-8.5)/5.5);
+        // La fila entera pasa a la hoja siguiente si no entra; solo se
+        // parte entre hojas si ni en una hoja nueva entra completa.
+        if(cap<need && y1>top){ y1=eventoPage(); continue; }
+        const take=Math.max(cap,1);
+        let ny=y1;
+        pend.forEach(p=>{ ny=Math.max(ny, field(p.x,y1,p.label,p.lines.slice(0,take))); p.lines=p.lines.slice(take); });
+        y1=ny;
+        pend=pend.filter(p=>p.lines.length);
+        if(pend.length) y1=eventoPage();
+      }
     });
   }
 
@@ -10102,131 +10143,245 @@ function presuDibujarPDF(d){
       return d[key] || (cfg?cfg.default:'');
     }
 
-    chunks.forEach((chunk,idx)=>{
+    // Texto de introducción pendiente de dibujar: si no entra en la columna
+    // de la primera hoja, sigue en la columna de texto de las hojas
+    // siguientes (que en esas hojas está libre).
+    doc.setFont('times','normal'); doc.setFontSize(9.5);
+    let introPend=doc.splitTextToSize(d.menuIntro||'', textColW);
+    const introLH=LH(9.5);
+    function drawIntro(y){
+      if(!introPend.length) return;
+      doc.setFont('times','normal'); doc.setFontSize(9.5);
+      const n=Math.max(0, Math.floor((photoBottom-1-y)/introLH)+1);
+      const take=introPend.slice(0,n); introPend=introPend.slice(n);
+      if(take.length) btext(BURG, take, textColX, y, {}, 0.12);
+    }
+
+    // Cada hoja usa su propio trío de fotos (hoja 1, 2, 3 o 4); de haber
+    // más de 4 hojas, las siguientes reusan las fotos de la 4ta. Si el texto
+    // de una hoja no entra y hay que seguir en otra, esa hoja extra repite
+    // exactamente las mismas fotos que la hoja de la que viene.
+    function menuPage(gidx, first){
       newPage();
-      // Cada hoja usa su propio trío de fotos (hoja 1, 2, 3 o 4); de haber
-      // más de 4 hojas, las siguientes reusan las fotos de la 4ta.
-      const grupo=PRESU_MENU_GRUPOS[Math.min(idx,PRESU_MENU_GRUPOS.length-1)];
+      const grupo=PRESU_MENU_GRUPOS[Math.min(gidx,PRESU_MENU_GRUPOS.length-1)];
       try{ doc.addImage(fotoDePresu(grupo.grande),'JPEG',photoTallX,photoTop,photoTallW,photoBottom-photoTop); }catch(e){}
       try{ doc.addImage(fotoDePresu(grupo.chica1),'JPEG',photoStackX,photoTop,photoStackW,stackH); }catch(e){}
       try{ doc.addImage(fotoDePresu(grupo.chica2),'JPEG',photoStackX,photoTop+stackH+3,photoStackW,stackH); }catch(e){}
 
       // Título + intro solo en la primera hoja, centrados en el alto de la
-      // columna de texto (antes quedaban pegados arriba, descolgados).
-      if(idx===0){
-        doc.setFont('times','normal'); doc.setFontSize(9.5);
-        const introLines=doc.splitTextToSize(d.menuIntro||'', textColW);
-        const blockH=10+9+introLines.length*4.8;
-        let ty=(photoTop+photoBottom)/2-blockH/2;
+      // columna de texto (antes quedaban pegados arriba, descolgados). Si la
+      // intro es muy larga, el bloque arranca arriba en vez de salirse.
+      if(first){
+        const blockH=10+9+introPend.length*4.8;
+        let ty=Math.max((photoTop+photoBottom)/2-blockH/2, photoTop+8);
         text(BURG); doc.setFont('times','bold'); doc.setFontSize(24);
         doc.text('Menú', textColX, ty);
         ty+=4; drawC(GOLD); doc.setLineWidth(1); doc.line(textColX,ty,textColX+14,ty);
         ty+=9;
-        doc.setFont('times','normal'); doc.setFontSize(9.5);
-        btext(BURG, introLines, textColX, ty, {}, 0.12);
+        drawIntro(ty);
+      } else {
+        drawIntro(photoTop+4);
       }
+    }
+
+    const titleLH=LH(base.title)+0.4, precioLH=LH(7);
+    let gidx=0;
+    chunks.forEach((chunk,idx)=>{
+      gidx=idx;
+      menuPage(idx, idx===0);
 
       let ly=photoTop+2;
       chunk.forEach(est=>{
-        text(GOLD); doc.setFont('times','bold'); doc.setFontSize(base.title);
-        ttext(est.titulo||'', listX, ly);
+        // Precio (a la derecha) y título se ajustan hacia abajo si son
+        // largos, repartiéndose el ancho de la columna sin pisarse.
+        let precioLines=[], precioW=0;
         if(est.precio){
-          doc.setFont('times','italic'); doc.setFontSize(7); text(MUTED);
-          doc.text(String(est.precio), listX+listW, ly, {align:'right'});
+          doc.setFont('times','italic'); doc.setFontSize(7);
+          precioLines=doc.splitTextToSize(String(est.precio), listW*0.4);
+          precioW=Math.max(...precioLines.map(s=>doc.getTextWidth(s)))+3;
         }
-        ly+=2.2;
+        doc.setFont('times','bold'); doc.setFontSize(base.title);
+        const titleLines=wrapTracked(est.titulo||'', listW-precioW);
+        const headH=Math.max((titleLines.length-1)*titleLH, (precioLines.length-1)*precioLH);
+        if(ly+headH+base.headerGap+base.line>photoBottom && ly>photoTop+2){ menuPage(idx,false); ly=photoTop+2; }
+        text(GOLD); doc.setFont('times','bold'); doc.setFontSize(base.title);
+        titleLines.forEach((s,i)=>ttext(s, listX, ly+i*titleLH));
+        if(precioLines.length){
+          doc.setFont('times','italic'); doc.setFontSize(7); text(MUTED);
+          doc.text(precioLines, listX+listW, ly, {align:'right'});
+        }
+        ly+=headH+2.2;
         drawC(GOLD); doc.setLineWidth(0.2); doc.line(listX,ly,listX+listW,ly);
         ly+=base.headerGap-2.2;
         doc.setFont('times','normal'); doc.setFontSize(base.item);
         (est.items||'').split('\n').map(s=>s.trim()).filter(Boolean).forEach(item=>{
-          const lines=doc.splitTextToSize('•  '+item, listW-2);
+          let lines=doc.splitTextToSize('•  '+item, listW-2);
           // Con 3 estaciones fijas por hoja esto casi nunca hace falta;
-          // queda solo como red de seguridad si una lista es muy larga.
-          if(ly+lines.length*base.line>H-16){ newPage(); ly=32; }
-          btext(BURG, lines, listX, ly, {}, 0.12);
-          ly+=lines.length*base.line+base.itemGap;
+          // queda como red de seguridad si una lista es muy larga: sigue en
+          // una hoja nueva con las mismas fotos.
+          while(lines.length){
+            if(ly+lines.length*base.line>photoBottom){
+              const fit=Math.floor((photoBottom-ly)/base.line);
+              if(fit>0 && lines.length>Math.floor((photoBottom-photoTop-2)/base.line)){
+                // Un ítem que ni en una hoja entera entra: se parte.
+                btext(BURG, lines.slice(0,fit), listX, ly, {}, 0.12);
+                lines=lines.slice(fit);
+              }
+              menuPage(idx,false); ly=photoTop+2;
+              doc.setFont('times','normal'); doc.setFontSize(base.item);
+              if(ly+lines.length*base.line>photoBottom) continue;
+            }
+            btext(BURG, lines, listX, ly, {}, 0.12);
+            ly+=lines.length*base.line+base.itemGap;
+            lines=[];
+          }
         });
         ly+=base.stationGap;
       });
     });
+    // Si todavía queda intro sin dibujar, se agregan hojas con las mismas
+    // fotos de la última hoja del menú.
+    while(introPend.length) menuPage(gidx,false);
   }
 
   // ── Página 4: presupuesto (precios) ──
   function pagePresupuesto(){
-    newPage();
     const sideW=42;
-    text(GOLD); doc.setFont('times','bold'); doc.setFontSize(7.5);
-    ttext('Experiencia', M, 36);
-    ttext('Sabor', M, 41);
-    ttext('Detalles', M, 46);
-    drawC(LINE); doc.setLineWidth(0.2); doc.line(M,50,M+sideW-6,50);
-    text(BURG); doc.setFont('times','bold'); doc.setFontSize(10);
-    doc.text('Cada evento', M, 58); doc.text('es único', M, 64);
-    drawC(LINE); doc.line(M,69,M+sideW-6,69);
-    text(GOLD); doc.setFont('times','normal'); doc.setFontSize(7.5);
-    doc.text(doc.splitTextToSize(track('Nos encargamos de que todo funcione'), sideW-6), M, 77);
-
     const cx=M+sideW+8;
-    text(BURG); doc.setFont('times','bold'); doc.setFontSize(26);
-    doc.text('Presupuesto', cx, 40);
-    drawC(GOLD); doc.setLineWidth(1); doc.line(cx,44,cx+16,44);
+    const bottom=H-16;
+    const fx=W-M-46, fw=46;
+    // Encabezado de la hoja (columna lateral, título, fecha y evento). Si
+    // precios, aclaración o "incluye / no incluye" no entran, siguen en otra
+    // hoja con el mismo encabezado. Devuelve el Y donde arranca el contenido.
+    function presuPage(){
+      newPage();
+      text(GOLD); doc.setFont('times','bold'); doc.setFontSize(7.5);
+      ttext('Experiencia', M, 36);
+      ttext('Sabor', M, 41);
+      ttext('Detalles', M, 46);
+      drawC(LINE); doc.setLineWidth(0.2); doc.line(M,50,M+sideW-6,50);
+      text(BURG); doc.setFont('times','bold'); doc.setFontSize(10);
+      doc.text('Cada evento', M, 58); doc.text('es único', M, 64);
+      drawC(LINE); doc.line(M,69,M+sideW-6,69);
+      text(GOLD); doc.setFont('times','normal'); doc.setFontSize(7.5);
+      doc.text(doc.splitTextToSize(track('Nos encargamos de que todo funcione'), sideW-6), M, 77);
 
-    text(GOLD); doc.setFont('times','bold'); doc.setFontSize(7.5);
-    ttext('Fecha', W-M-46, 30);
-    doc.setFont('times','normal'); doc.setFontSize(9);
-    btext(BURG, formatFechaPDF(d.fechaEmision)||'—', W-M-46, 35, {}, 0.1);
-    text(GOLD); doc.setFont('times','bold'); doc.setFontSize(7.5);
-    ttext('Evento', W-M-46, 43);
-    doc.setFont('times','normal'); doc.setFontSize(9);
-    btext(BURG, d.tipoEvento||'A confirmar', W-M-46, 48, {}, 0.1);
+      text(BURG); doc.setFont('times','bold'); doc.setFontSize(26);
+      doc.text('Presupuesto', cx, 40);
+      drawC(GOLD); doc.setLineWidth(1); doc.line(cx,44,cx+16,44);
 
-    const panelX=cx, panelW=W-M-cx, panelY=52, rowH=13;
+      text(GOLD); doc.setFont('times','bold'); doc.setFontSize(7.5);
+      ttext('Fecha', fx, 30);
+      doc.setFont('times','normal'); doc.setFontSize(9);
+      btext(BURG, doc.splitTextToSize(formatFechaPDF(d.fechaEmision)||'—', fw), fx, 35, {}, 0.1);
+      text(GOLD); doc.setFont('times','bold'); doc.setFontSize(7.5);
+      ttext('Evento', fx, 43);
+      doc.setFont('times','normal'); doc.setFontSize(9);
+      const evLines=doc.splitTextToSize(d.tipoEvento||'A confirmar', fw);
+      btext(BURG, evLines, fx, 48, {}, 0.1);
+      return Math.max(52, 48+(evLines.length-1)*LH(9)+4);
+    }
+    const top=presuPage();
+    let y=top;
+
+    const panelX=cx, panelW=W-M-cx, rowH=13;
     const precios=(d.precios&&d.precios.length)?d.precios:presuDefaultPrecios();
-    const panelH=Math.max(rowH*precios.length, rowH);
-    fill(PANEL); doc.roundedRect(panelX, panelY, panelW, panelH, 2, 2, 'F');
-    precios.forEach((pr,i)=>{
-      const ry=panelY+i*rowH;
-      text(GOLD); doc.setFont('times','bold'); doc.setFontSize(8);
-      doc.text(doc.splitTextToSize(track(pr.concepto||''), 44), panelX+6, ry+7);
-      drawC(GOLD); doc.setLineWidth(0.3); doc.line(panelX+56,ry+3,panelX+56,ry+rowH-3);
-      text(BURG); doc.setFont('times','bold'); doc.setFontSize(15);
-      doc.text(String(pr.valor||'—'), panelX+62, ry+9);
-      if(i>0){ drawC([222,208,196]); doc.setLineWidth(0.2); doc.line(panelX+4,ry,panelX+panelW-4,ry); }
+    // Cada fila crece hacia abajo si el concepto o el valor ocupan más de un
+    // renglón (con textos cortos mide lo mismo que antes: 13mm).
+    const filas=precios.map(pr=>{
+      doc.setFont('times','bold'); doc.setFontSize(8);
+      const cLines=doc.splitTextToSize(track(pr.concepto||''), 44);
+      doc.setFontSize(15);
+      const vLines=doc.splitTextToSize(String(pr.valor||'—'), panelW-62-6);
+      const h=Math.max(rowH, 7+(cLines.length-1)*LH(8)+6, 9+(vLines.length-1)*LH(15)+4);
+      return {cLines, vLines, h};
     });
-    let y=panelY+panelH+6;
+    let i=0;
+    while(i<filas.length){
+      if(y+filas[i].h>bottom && y>top){ y=presuPage(); continue; }
+      let j=i, segH=0;
+      while(j<filas.length && (j===i || y+segH+filas[j].h<=bottom)){ segH+=filas[j].h; j++; }
+      fill(PANEL); doc.roundedRect(panelX, y, panelW, segH, 2, 2, 'F');
+      let ry=y;
+      for(let k=i;k<j;k++){
+        const f=filas[k];
+        text(GOLD); doc.setFont('times','bold'); doc.setFontSize(8);
+        doc.text(f.cLines, panelX+6, ry+7);
+        drawC(GOLD); doc.setLineWidth(0.3); doc.line(panelX+56,ry+3,panelX+56,ry+f.h-3);
+        text(BURG); doc.setFont('times','bold'); doc.setFontSize(15);
+        doc.text(f.vLines, panelX+62, ry+9);
+        if(k>i){ drawC([222,208,196]); doc.setLineWidth(0.2); doc.line(panelX+4,ry,panelX+panelW-4,ry); }
+        ry+=f.h;
+      }
+      y+=segH; i=j;
+      if(i<filas.length) y=presuPage();
+    }
+    y+=6;
     text(MUTED); doc.setFont('times','italic'); doc.setFontSize(7.5);
-    const acl=doc.splitTextToSize(d.aclaracionPrecios||'', panelW);
-    doc.text(acl, panelX, y);
-    y+=acl.length*3.8+6;
+    let acl=doc.splitTextToSize(d.aclaracionPrecios||'', panelW);
+    const aclLH=LH(7.5);
+    while(acl.length){
+      const n=Math.max(0, Math.floor((bottom-2-y)/aclLH)+1);
+      if(n<=0 && y>top){ y=presuPage(); text(MUTED); doc.setFont('times','italic'); doc.setFontSize(7.5); continue; }
+      const take=acl.slice(0,Math.max(n,1)); acl=acl.slice(take.length);
+      doc.text(take, panelX, y);
+      if(acl.length){ y=presuPage(); text(MUTED); doc.setFont('times','italic'); doc.setFontSize(7.5); }
+      else y+=take.length*3.8+6;
+    }
 
-    const boxW=(panelW-6)/2, boxH=Math.max(H-16-y, 20);
-    drawC(LINE); doc.setLineWidth(0.3);
-    doc.rect(panelX, y, boxW, boxH);
-    doc.rect(panelX+boxW+6, y, boxW, boxH);
-    text(GOLD); doc.setFont('times','bold'); doc.setFontSize(8);
-    ttext('El presupuesto incluye', panelX+5, y+7);
-    ttext('El presupuesto no incluye', panelX+boxW+11, y+7);
-    drawC([222,208,196]);
-    doc.line(panelX+5,y+9,panelX+boxW-5,y+9);
-    doc.line(panelX+boxW+11,y+9,panelX+2*boxW+1,y+9);
+    // "Incluye / no incluye": cada ítem baja de renglón si no entra en el
+    // ancho del recuadro, y lo que no entra en el alto sigue en otra hoja.
+    const boxW=(panelW-6)/2;
     doc.setFont('times','normal'); doc.setFontSize(9);
-    let iy=y+15;
-    (d.incluye||'').split('\n').map(s=>s.trim()).filter(Boolean).forEach(item=>{
-      if(iy>y+boxH-3) return;
-      btext(BURG, item, panelX+5, iy, {}, 0.1); iy+=6;
-    });
-    let ny=y+15;
-    (d.noIncluye||'').split('\n').map(s=>s.trim()).filter(Boolean).forEach(item=>{
-      if(ny>y+boxH-3) return;
-      btext(BURG, item, panelX+boxW+11, ny, {}, 0.1); ny+=6;
-    });
+    const itemLH=LH(9)+0.6;
+    const aRenglones=txt=>{
+      const out=[];
+      (txt||'').split('\n').map(s=>s.trim()).filter(Boolean).forEach(item=>{
+        doc.splitTextToSize(item, boxW-10).forEach((t,li)=>out.push({t, dy:li===0?6:itemLH}));
+      });
+      return out;
+    };
+    const incQ=aRenglones(d.incluye), noQ=aRenglones(d.noIncluye);
+    const altoNecesario=q=>15+q.slice(1).reduce((s,e)=>s+e.dy,0)+3;
+    let primera=true;
+    while(primera || incQ.length || noQ.length){
+      let boxH=bottom-y;
+      const need=Math.max(altoNecesario(incQ), altoNecesario(noQ));
+      if(boxH<20 || (need>boxH && boxH<45 && y>top)){ y=presuPage(); boxH=bottom-y; }
+      drawC(LINE); doc.setLineWidth(0.3);
+      doc.rect(panelX, y, boxW, boxH);
+      doc.rect(panelX+boxW+6, y, boxW, boxH);
+      text(GOLD); doc.setFont('times','bold'); doc.setFontSize(8);
+      ttext('El presupuesto incluye', panelX+5, y+7);
+      ttext('El presupuesto no incluye', panelX+boxW+11, y+7);
+      drawC([222,208,196]);
+      doc.line(panelX+5,y+9,panelX+boxW-5,y+9);
+      doc.line(panelX+boxW+11,y+9,panelX+2*boxW+1,y+9);
+      doc.setFont('times','normal'); doc.setFontSize(9);
+      const llenar=(q,x)=>{
+        let iy=y+15, first=true;
+        while(q.length){
+          const ny=first?iy:iy+q[0].dy;
+          if(ny>y+boxH-3) break;
+          btext(BURG, q[0].t, x, ny, {}, 0.1);
+          iy=ny; first=false; q.shift();
+        }
+      };
+      llenar(incQ, panelX+5);
+      llenar(noQ, panelX+boxW+11);
+      primera=false;
+      if(incQ.length || noQ.length) y=presuPage();
+    }
   }
 
   // ── Páginas 5+: condiciones de pago / términos de contratación ──
   function pagesCondiciones(){
     const clausulas=(d.clausulas&&d.clausulas.length)?d.clausulas:presuDefaultClausulas();
-    const perPage=6;
-    for(let start=0; start<clausulas.length; start+=perPage){
+    const perPage=6; // 3 filas x 2 columnas por hoja, como siempre
+    const bottom=H-16;
+    const colW=(W-2*M-10)/2, col2x=M+colW+10;
+    const titLH=LH(9.5), txtLH=LH(8.5), cierreLH=LH(9);
+    function condPage(){
       newPage();
       let y=36;
       text(BURG); doc.setFont('times','bold'); doc.setFontSize(24);
@@ -10236,40 +10391,98 @@ function presuDibujarPDF(d){
       text(GOLD); doc.setFont('times','normal'); doc.setFontSize(7.5);
       ttext('Para confirmar el evento y garantizar el servicio', M, y);
       y+=8;
-      const chunk=clausulas.slice(start,start+perPage);
-      const isLast=start+perPage>=clausulas.length;
-      const reserveCierre=(isLast && d.cierre)?16:0;
-      const colW=(W-2*M-10)/2, col2x=M+colW+10;
-      const rowH=(H-16-y-reserveCierre)/3;
-      chunk.forEach((c,i)=>{
-        const col=i<3?0:1, row=i%3;
-        const bx=col===0?M:col2x, by=y+row*rowH;
+      return y;
+    }
+    // Título y texto de cada cláusula bajan de renglón al ancho de su
+    // columna. Si una cláusula no entra en su celda, la celda se estira y lo
+    // que no entra en la hoja pasa a la siguiente columna / hoja (si ni en una
+    // columna entera entra, el texto se parte y sigue como continuación).
+    let q=clausulas.map((c,i)=>{
+      doc.setFont('times','bold'); doc.setFontSize(9.5);
+      const tl=doc.splitTextToSize((c.titulo||'').toUpperCase(), colW-18);
+      doc.setFont('times','normal'); doc.setFontSize(8.5);
+      const xl=doc.splitTextToSize(c.texto||'', colW-20);
+      return {num:i+1, tl, xl};
+    });
+    const textoDesde=it=>it.cont?3:10.5+(it.tl.length-1)*titLH;
+    const altoDe=it=>it.cont?textoDesde(it)+(it.xl.length-1)*txtLH+3
+                           :Math.max(15, textoDesde(it)+(it.xl.length-1)*txtLH+3);
+    function dibujar(it, bx, by){
+      if(!it.cont){
         const cx0=bx+7.5, cy0=by+7.5;
         fill(PANEL); doc.circle(cx0, cy0, 7.2, 'F');
         doc.setFont('times','bold'); doc.setFontSize(12.5);
         // {align:'center', baseline:'middle'} centra el número en las dos
         // direcciones dentro del círculo (antes solo quedaba centrado
         // horizontalmente, y se veía corrido hacia abajo).
-        btext(BURG, String(start+i+1).padStart(2,'0'), cx0, cy0, {align:'center', baseline:'middle'}, 0.12);
+        btext(BURG, String(it.num).padStart(2,'0'), cx0, cy0, {align:'center', baseline:'middle'}, 0.12);
         text(BURG); doc.setFont('times','bold'); doc.setFontSize(9.5);
-        doc.text((c.titulo||'').toUpperCase(), bx+18, by+5);
-        doc.setFont('times','normal'); doc.setFontSize(8.5);
-        btext(BURG, doc.splitTextToSize(c.texto||'', colW-20), bx+18, by+10.5, {}, 0.06);
-      });
-      if(isLast && d.cierre){
-        const cy=y+3*rowH+3;
+        doc.text(it.tl, bx+18, by+5);
+      }
+      doc.setFont('times','normal'); doc.setFontSize(8.5);
+      if(it.xl.length) btext(BURG, it.xl, bx+18, by+textoDesde(it), {}, 0.06);
+    }
+
+    doc.setFont('times','italic'); doc.setFontSize(9);
+    let cierreLines=d.cierre?doc.splitTextToSize(String(d.cierre), W-2*M):[];
+    const reserveCierreH=Math.max(16, 12+(cierreLines.length-1)*cierreLH);
+
+    let y=0, rowH=0, reserve=0, lowest=0;
+    while(q.length){
+      y=condPage();
+      const isLast=q.length<=perPage;
+      reserve=(isLast && cierreLines.length && reserveCierreH<=40)?reserveCierreH:0;
+      rowH=(bottom-y-reserve)/3;
+      const limit=bottom-reserve;
+      lowest=y;
+      for(let col=0; col<2 && q.length; col++){
+        const bx=col===0?M:col2x;
+        let by=y, enCol=0;
+        while(q.length && enCol<3){
+          const it=q[0];
+          const h=altoDe(it);
+          if(by+h>limit){
+            if(enCol>0) break; // pasa a la columna / hoja siguiente
+            const n=Math.max(1, Math.floor((limit-by-textoDesde(it))/txtLH)+1);
+            dibujar(Object.assign({}, it, {xl:it.xl.slice(0,n)}), bx, by);
+            q[0]={cont:true, tl:[], xl:it.xl.slice(n)};
+            if(!q[0].xl.length) q.shift();
+            by=limit; break;
+          }
+          dibujar(it, bx, by);
+          q.shift();
+          by+=Math.max(rowH, h); enCol++;
+        }
+        lowest=Math.max(lowest, by);
+      }
+    }
+    if(cierreLines.length && y){
+      let cy=reserve?y+3*rowH+3:lowest+3;
+      if(cy<lowest+3) cy=lowest+3;
+      while(cierreLines.length){
+        let n=Math.floor((bottom-1-(cy+6))/cierreLH)+1;
+        if(n<=0){ cy=condPage(); continue; }
         drawC(LINE); doc.setLineWidth(0.2); doc.line(M,cy,W-M,cy);
         text(BURG); doc.setFont('times','italic'); doc.setFontSize(9);
-        doc.text(String(d.cierre).split('\n'), M, cy+6);
+        doc.text(cierreLines.slice(0,n), M, cy+6);
+        cierreLines=cierreLines.slice(n);
+        if(cierreLines.length) cy=condPage();
       }
     }
   }
 
   // ── Página final: agradecimiento ──
   function pageGracias(){
-    newPage();
     const textColX=M, textColW=100;
     const safeBottom=H-16-9; // límite antes de invadir el pie de página
+    const photoX=textColX+textColW+6, photoY=24, photoW=W-M-photoX, photoH=(H-16)-photoY;
+    // Si el texto de agradecimiento no entra, sigue en otra hoja que repite
+    // la misma foto de cierre.
+    function graciasPage(){
+      newPage();
+      try{ doc.addImage(d.fotoGracias||PRESU_IMG_GRACIAS,'JPEG',photoX,photoY,photoW,photoH); }catch(e){}
+    }
+    graciasPage();
     let y=40;
     text(BURG); doc.setFont('times','bold'); doc.setFontSize(24);
     doc.text('Muchas gracias', textColX, y);
@@ -10280,20 +10493,41 @@ function presuDibujarPDF(d){
     y+=9;
 
     doc.setFont('times','normal'); doc.setFontSize(9);
-    const parLines=doc.splitTextToSize(d.graciasTexto||'', textColW);
-    btext(BURG, parLines, textColX, y, {}, 0.1);
-    y+=parLines.length*4.8+7;
-
+    let parLines=doc.splitTextToSize(d.graciasTexto||'', textColW);
     const disposLines=doc.splitTextToSize('Quedamos a disposición para cualquier consulta.', textColW);
-    btext(BURG, disposLines, textColX, y, {}, 0.1);
-    y+=disposLines.length*4.8+9;
-
-    // Si el texto de agradecimiento es largo, este bloque (línea + firma +
-    // nombre) se apoya siempre sobre el límite seguro en vez de seguir
-    // empujando hacia abajo, para nunca pisar el pie de página.
+    const parLH=LH(9);
     const firmaW=38, firmaH=firmaW*(86/340);
     const trailingH=7+firmaH+5+4.5+4;
-    y=Math.min(y, safeBottom-trailingH);
+    const maxFirma=safeBottom-trailingH;
+    // Ubica "Quedamos a disposición…" y la línea de firma para n renglones de
+    // párrafo arrancando en y0. Si el espaciado original no entra, se
+    // compacta; si ni así entra, avisa (fits=false) para pasar a otra hoja.
+    function cierreLayout(y0, n){
+      let dY=y0+n*4.8+7;
+      const dEnd=()=>dY+(disposLines.length-1)*parLH;
+      if(dEnd()+4>maxFirma) dY=y0+(Math.max(n,1)-1)*parLH+7;
+      // Este bloque (línea + firma + nombre) se apoya sobre el límite seguro
+      // en vez de seguir empujando hacia abajo, sin pisar el texto de arriba.
+      const fY=Math.max(Math.min(dY+disposLines.length*4.8+9, maxFirma), dEnd()+4);
+      return {dY, fY, fits:fY<=maxFirma};
+    }
+    let lay=cierreLayout(y, parLines.length);
+    while(!lay.fits){
+      let n=Math.floor((safeBottom-y)/parLH)+1;
+      n=Math.min(n, parLines.length-1);
+      if(n<=0 && y===40) break; // hoja nueva y aun así no entra: se dibuja igual
+      if(n>0){
+        doc.setFont('times','normal'); doc.setFontSize(9);
+        btext(BURG, parLines.slice(0,n), textColX, y, {}, 0.1);
+        parLines=parLines.slice(n);
+      }
+      graciasPage(); y=40;
+      lay=cierreLayout(y, parLines.length);
+    }
+    doc.setFont('times','normal'); doc.setFontSize(9);
+    btext(BURG, parLines, textColX, y, {}, 0.1);
+    btext(BURG, disposLines, textColX, lay.dY, {}, 0.1);
+    y=lay.fY;
     drawC(LINE); doc.setLineWidth(0.3); doc.line(textColX, y, textColX+40, y);
     y+=7;
     try{
@@ -10305,9 +10539,6 @@ function presuDibujarPDF(d){
     y+=4.5;
     text(MUTED); doc.setFont('times','normal'); doc.setFontSize(7.5);
     ttext('MP Catering', textColX, y);
-
-    const photoX=textColX+textColW+6, photoY=24, photoW=W-M-photoX, photoH=(H-16)-photoY;
-    try{ doc.addImage(d.fotoGracias||PRESU_IMG_GRACIAS,'JPEG',photoX,photoY,photoW,photoH); }catch(e){}
   }
 
   pagePortada();
