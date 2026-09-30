@@ -1443,7 +1443,9 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <span class="modal-title" id="modal-presu-title">🧮 Nuevo Presupuesto</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline" id="presu-orto-btn" onclick="presuRevisarOrtografiaTodo()" title="Revisa ortografía, acentos y puntuación de todos los textos del presupuesto">🔤 Revisar ortografía</button>
-        <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF()">📄 Generar PDF</button>
+        <button class="btn btn-primary" onclick="guardarPresupuestoDesdeModal()">✓ Guardar presupuesto</button>
+        <button class="btn btn-outline" onclick="generarPresupuestoPDF(null,'ver')">👁 Ver PDF</button>
+        <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF(null,'descargar')">⬇ Descargar PDF</button>
         <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModalPresupuesto()">✕ Cerrar</button>
       </div>
     </div>
@@ -1463,8 +1465,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     </div>
     <div class="form-row">
       <div class="form-field" style="flex:1">
-        <label>Referente/s</label>
-        <input type="text" id="presu-referentes" placeholder="Nombres de referentes, separados por coma" style="width:100%">
+        <label>Solicitante</label>
+        <input type="text" id="presu-referentes" placeholder="Nombre de quien solicita el presupuesto" style="width:100%">
       </div>
       <div class="form-field" style="flex:1">
         <label>Cantidad de personas</label>
@@ -1474,11 +1476,11 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div class="form-row">
       <div class="form-field" style="flex:1">
         <label>Horario de inicio</label>
-        <input type="time" id="presu-horario-inicio" style="width:100%">
+        <input type="text" id="presu-horario-inicio" placeholder="Ej: 19:00" style="width:100%">
       </div>
       <div class="form-field" style="flex:1">
         <label>Horario de finalización</label>
-        <input type="time" id="presu-horario-fin" style="width:100%">
+        <input type="text" id="presu-horario-fin" placeholder="Ej: 23:30" style="width:100%">
       </div>
     </div>
     <div class="form-row">
@@ -1555,7 +1557,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div style="display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:var(--surface);padding-top:10px;border-top:1px solid var(--border)">
       <button class="btn btn-outline" onclick="cancelarModalPresupuesto()">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarPresupuestoDesdeModal()">✓ Guardar presupuesto</button>
-      <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF()">📄 Generar PDF</button>
+      <button class="btn btn-outline" onclick="generarPresupuestoPDF(null,'ver')">👁 Ver PDF</button>
+      <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF(null,'descargar')">⬇ Descargar PDF</button>
     </div>
   </div>
 </div>
@@ -9635,28 +9638,6 @@ function descargarRecetaPDF(tipo){
 //  que la imagen final es idéntica evento a evento salvo el contenido.
 // ══════════════════════════════════════════════════════════════════
 
-// 12 casilleros = 4 hojas x 3 estaciones por hoja (el máximo por hoja que
-// pidió el cliente). Los primeros 4 vienen con el menú de ejemplo; el resto
-// quedan en blanco, listos para completar -una estación en blanco (sin
-// título ni ítems) no ocupa lugar en el PDF, así que no hace falta borrarlas
-// si no se usan-. Si hace falta una 5ta hoja, "+ Agregar estación" en el
-// formulario suma de a una más.
-function presuDefaultEstaciones(){
-  return [
-    {titulo:'Bandejeo frío', precio:'', items:'Crackers de parmesano con paté de pollo y cherrys confitados\nBagels de salmón ahumado con crema agria\nTostas de focaccia con babaganoush y jamón crudo\nPuncho de boconcinos capresse'},
-    {titulo:'Bandejeo caliente', precio:'', items:'Empanaditas salteñas de carne cortada a cuchillo\nBuñuelos de espinaca con emulsión de zanahorias\nQuesadillas de pollo con cheddar, pico de gallo y guacamole\nMini pita con pulled pork y pickles caseros'},
-    {titulo:'Cazuela (1 a elección)', precio:'', items:'Pollo con crema de limón\nMalfatis\nTernera al malbec'},
-    {titulo:'Bandejeo dulce', precio:'', items:'Tiramisú clásico\nAlfajorcitos de sablé y dulce de leche\nMousse de chocolate\nCheese cake con mermelada de frutas rojas'},
-    {titulo:'', precio:'', items:''},
-    {titulo:'', precio:'', items:''},
-    {titulo:'', precio:'', items:''},
-    {titulo:'', precio:'', items:''},
-    {titulo:'', precio:'', items:''},
-    {titulo:'', precio:'', items:''},
-    {titulo:'', precio:'', items:''},
-    {titulo:'', precio:'', items:''},
-  ];
-}
 function presuDefaultPrecios(){
   return [{concepto:'Precio total por persona', valor:''}, {concepto:'Personal de salón', valor:''}];
 }
@@ -9682,6 +9663,9 @@ function presuTextoFechaEvento(p){
   const f=formatFechaPDF(p.fechaEvento||'');
   return f ? f+' (a confirmar)' : 'A confirmar';
 }
+// Los presupuestos creados antes de la corrección tienen "los mejores
+// Ingredientes" con I mayúscula en la intro del menú.
+function presuCorregirIntro(t){ return String(t||'').replace('los mejores Ingredientes','los mejores ingredientes'); }
 function presuNuevoBorrador(){
   const hoy=new Date().toISOString().slice(0,10);
   return {
@@ -9692,12 +9676,15 @@ function presuNuevoBorrador(){
     fotoMenuGrande3:'', fotoMenuChica3a:'', fotoMenuChica3b:'',
     fotoMenuGrande4:'', fotoMenuChica4a:'', fotoMenuChica4b:'',
     fotoGracias:'',
-    menuIntro:'Diseñamos el menú con los mejores Ingredientes, según las preferencias de cada cliente.',
-    estaciones:presuDefaultEstaciones(),
-    precios:presuDefaultPrecios(),
-    aclaracionPrecios:'* Precios al día de la fecha, se ajustarán según IPC, hasta su momento de pago.',
-    incluye:'Vajilla de mesa y cristalería\nVajilla de presentación\nIndividuales y caminos\nEquipamiento de cocina de ser necesario\nTraslados y seguros',
-    noIncluye:'Bebidas con o sin alcohol\nMesas, sillas y mobiliario\nInstalación eléctrica y cableado',
+    menuIntro:'Diseñamos el menú con los mejores ingredientes, según las preferencias de cada cliente.',
+    // A pedido: un presupuesto nuevo solo trae precargados las fotos, la
+    // intro del menú, los términos (condiciones de pago) y el cierre; las
+    // estaciones, precios e incluye/no incluye arrancan vacíos.
+    estaciones:[presuEstacionVacia()],
+    precios:[],
+    aclaracionPrecios:'',
+    incluye:'',
+    noIncluye:'',
     clausulas:presuDefaultClausulas(),
     cierre:'Sin otro particular, los saluda atentamente,\nMariana Pagés Delaengue',
     graciasTexto:'Nos entusiasma la posibilidad de ser parte de este evento y acompañarlos con una propuesta gastronómica pensada a medida, cuidando cada detalle para que sea una experiencia memorable.',
@@ -9757,9 +9744,11 @@ function renderPresupuestos(){
       <td>${escH(presuTextoFechaEvento(p)||'—')}</td>
       <td class="num">${escH(p.cantidadPersonas||'')}</td>
       <td>${escH(p.lugar||'—')}</td>
-      <td style="white-space:nowrap;display:flex;gap:6px">
+      <td style="display:flex;flex-wrap:wrap;gap:6px">
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="abrirModalPresupuesto(${p._id})">✎ Editar</button>
-        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF(${p._id})">📄 PDF</button>
+        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="generarPresupuestoPDF(${p._id},'ver')">👁 Ver PDF</button>
+        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF(${p._id},'descargar')">⬇ Descargar PDF</button>
+        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="duplicarPresupuesto(${p._id})">⧉ Duplicar</button>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="delPresupuesto(${p._id})">🗑</button>
       </td>
     </tr>`).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">Todavía no hay presupuestos. Hacé clic en "+ Nuevo presupuesto".</td></tr>`;
@@ -10042,7 +10031,8 @@ function presuMoverEstacion(desde, hasta){
   renderPresuEstaciones();
   presuOrtoActualizarBoton();
 }
-function presuAgregarEstacion(){ _presuEdit.estaciones.push({titulo:'Nueva estación', items:'', precio:''}); renderPresuEstaciones(); }
+function presuEstacionVacia(){ return {titulo:'', items:'', precio:''}; }
+function presuAgregarEstacion(){ _presuEdit.estaciones.push(presuEstacionVacia()); renderPresuEstaciones(); }
 function presuQuitarEstacion(i){ _presuEdit.estaciones.splice(i,1); renderPresuEstaciones(); }
 
 // ── Presupuesto: líneas de precio repetibles ─────────────────────────────
@@ -10087,8 +10077,8 @@ function presuQuitarClausula(i){ _presuEdit.clausulas.splice(i,1); renderPresuCl
 function abrirModalPresupuesto(id){
   const p = id ? DB.presupuestos.find(x=>x._id===id) : null;
   _presuEdit = p ? JSON.parse(JSON.stringify(p)) : presuNuevoBorrador();
-  if(!_presuEdit.estaciones || !_presuEdit.estaciones.length) _presuEdit.estaciones=presuDefaultEstaciones();
-  if(!_presuEdit.precios || !_presuEdit.precios.length) _presuEdit.precios=presuDefaultPrecios();
+  if(!_presuEdit.estaciones || !_presuEdit.estaciones.length) _presuEdit.estaciones=[presuEstacionVacia()];
+  if(!_presuEdit.precios) _presuEdit.precios=[];
   if(!_presuEdit.clausulas || !_presuEdit.clausulas.length) _presuEdit.clausulas=presuDefaultClausulas();
   document.getElementById('presu-edit-id').value = id||'';
   document.getElementById('modal-presu-title').textContent = p ? '✎ Editar Presupuesto' : '🧮 Nuevo Presupuesto';
@@ -10101,7 +10091,7 @@ function abrirModalPresupuesto(id){
   document.getElementById('presu-lugar').value = _presuEdit.lugar||'';
   document.getElementById('presu-fecha-evento').value = _presuEdit.fechaEvento||'';
   document.getElementById('presu-fecha-emision').value = _presuEdit.fechaEmision || new Date().toISOString().slice(0,10);
-  document.getElementById('presu-menu-intro').value = _presuEdit.menuIntro||'';
+  document.getElementById('presu-menu-intro').value = presuCorregirIntro(_presuEdit.menuIntro);
   document.getElementById('presu-aclaracion-precios').value = _presuEdit.aclaracionPrecios||'';
   document.getElementById('presu-incluye').value = _presuEdit.incluye||'';
   document.getElementById('presu-no-incluye').value = _presuEdit.noIncluye||'';
@@ -10119,7 +10109,7 @@ function abrirModalPresupuesto(id){
 }
 // Junta los campos simples del formulario (leídos del DOM) con los arrays/
 // fotos que ya se mantienen sincronizados en _presuEdit vía los oninput de
-// arriba — lo usan tanto Guardar como Generar PDF (este último sin
+// arriba — lo usan tanto Guardar como Ver/Descargar PDF (estos últimos sin
 // persistir, para poder previsualizar cambios todavía no guardados).
 function presuRecolectarDatosDesdeModal(){
   return {
@@ -10193,7 +10183,7 @@ async function presuGuardarDesdeModal({cerrar}){
   delete datos._id;
   const idEl=document.getElementById('presu-edit-id');
   const id=idEl.value?Number(idEl.value):Date.now();
-  // Se fija ya el id, así un segundo clic (Guardar/Generar PDF) actualiza
+  // Se fija ya el id, así un segundo clic (Guardar/Ver/Descargar PDF) actualiza
   // este mismo presupuesto en vez de crear un duplicado.
   idEl.value=id;
   _presuGuardando=true;
@@ -10236,6 +10226,22 @@ function cancelarModalPresupuesto(){
   if(presuHayCambiosSinGuardar() && !confirm('Hay cambios sin guardar en este presupuesto.\n\n¿Descartarlos y cerrar?')) return;
   cerrarModal('modal-presupuesto');
 }
+// Duplica un presupuesto tal cual (fotos, menú, precios, todo) como uno
+// nuevo, lo guarda y lo abre para editarlo.
+async function duplicarPresupuesto(id){
+  const orig=DB.presupuestos.find(p=>p._id===id);
+  if(!orig){ alert('No se encontró el presupuesto.'); return; }
+  const {_id, updated_at, ...datos}=JSON.parse(JSON.stringify(orig));
+  const nuevoId=Date.now();
+  if(!(await guardarPresupuesto(nuevoId, datos))){
+    alert('⚠ No se pudo duplicar el presupuesto (revisá la conexión a internet).');
+    return;
+  }
+  if(!DB.presupuestos.find(p=>p._id===nuevoId)) DB.presupuestos.unshift({_id:nuevoId, ...datos});
+  renderPresupuestos();
+  abrirModalPresupuesto(nuevoId);
+  showAlert('modal-presu-alert','success','⧉ Presupuesto duplicado: estás editando la copia.');
+}
 function delPresupuesto(id){
   if(!confirm('¿Eliminar este presupuesto? Esta acción no se puede deshacer.')) return;
   DB.presupuestos=DB.presupuestos.filter(p=>p._id!==id);
@@ -10244,27 +10250,29 @@ function delPresupuesto(id){
 }
 
 // ── Generación del PDF (estética fija Mariana Pages, 6 páginas) ─────────
-function generarPresupuestoPDF(id){
+// modo: 'ver' (abre el PDF en una pestaña nueva) o 'descargar' (lo baja).
+function generarPresupuestoPDF(id, modo){
   let datos;
   if(id){
     datos=DB.presupuestos.find(p=>p._id===id);
     if(!datos){ alert('No se encontró el presupuesto.'); return; }
-    presuDibujarPDF(datos);
+    presuDibujarPDF(datos, modo);
   } else if(_presuEdit){
-    // Desde el modal, Generar PDF también guarda el presupuesto (antes solo
-    // generaba el PDF, y si después se cerraba con ✕ el presupuesto se perdía).
+    // Desde el modal, Ver/Descargar PDF también guardan el presupuesto (si no,
+    // al cerrar con ✕ después de generar el PDF el presupuesto se perdía).
     // El PDF se dibuja primero, sin esperas, para que el navegador no bloquee
     // la pestaña nueva que abre; el guardado sigue justo después.
     datos=presuRecolectarDatosDesdeModal();
     if(!datos.cliente && !datos.tipoEvento){ showAlert('modal-presu-alert','error','Ingresá al menos el cliente o el tipo de evento antes de generar el PDF.'); return; }
-    presuDibujarPDF(datos);
+    presuDibujarPDF(datos, modo);
     presuGuardarDesdeModal({cerrar:false});
   } else {
     alert('Abrí o creá un presupuesto primero.'); return;
   }
 }
 
-function presuDibujarPDF(d){
+function presuDibujarPDF(d, modo){
+  d={...d, menuIntro:presuCorregirIntro(d.menuIntro)};
   const {jsPDF}=window.jspdf;
   const W=280, H=157.5, M=12; // mm, formato 16:9 (igual proporción que la referencia)
   const doc=new jsPDF({orientation:'landscape',unit:'mm',format:[W,H]});
@@ -10367,8 +10375,18 @@ function presuDibujarPDF(d){
     doc.text('DE SERVICIO', W/2, H*0.71+11, {align:'center'});
     drawC([205,188,160]); doc.setLineWidth(0.5);
     doc.line(W/2-18, H*0.71+16, W/2+18, H*0.71+16);
+    // Nombre del cliente (campo "Cliente") debajo del título, para que la
+    // tapa quede personalizada. Sin cliente, la tapa queda como antes.
+    let webY=H*0.71+24;
+    const cliente=String(d.cliente||'').trim();
+    if(cliente){
+      text(WHITE); doc.setFont('times','italic'); doc.setFontSize(16);
+      const cl=doc.splitTextToSize(cliente, W*0.7).slice(0,2);
+      doc.text(cl, W/2, H*0.71+24.5, {align:'center'});
+      webY=H*0.71+24.5+(cl.length-1)*LH(16)+8;
+    }
     text([235,225,210]); doc.setFont('times','normal'); doc.setFontSize(9);
-    doc.text('WWW.MARIANAPAGES.COM    |    +54 11 3431 2253', W/2, H*0.71+24, {align:'center'});
+    doc.text('WWW.MARIANAPAGES.COM    |    +54 11 3431 2253', W/2, webY, {align:'center'});
   }
 
   // ── Página 2: el evento ──
@@ -10406,11 +10424,14 @@ function presuDibujarPDF(d){
       doc.line(x, endY, x+colW-4, endY);
       return endY+9;
     }
-    const horario=(d.horarioInicio||d.horarioFin)?`${d.horarioInicio||'—'}h – ${d.horarioFin||'—'}h`:'';
+    // El horario es texto libre: la "h" se agrega solo si se escribió una
+    // hora pelada ("19" o "19:30"), no si ya dice "hs", "a confirmar", etc.
+    const conH=v=>{ v=String(v||'').trim(); return !v?'—':/^\d{1,2}([:.]\d{2})?$/.test(v)?v+'h':v; };
+    const horario=(d.horarioInicio||d.horarioFin)?`${conH(d.horarioInicio)} – ${conH(d.horarioFin)}`:'';
     let y1=top;
     [
       ['Tipo de evento', d.tipoEvento, 'Cliente', d.cliente],
-      ['Referente/s', d.referentes, 'Cantidad de personas', d.cantidadPersonas?String(d.cantidadPersonas):''],
+      ['Solicitante', d.referentes, 'Cantidad de personas', d.cantidadPersonas?String(d.cantidadPersonas):''],
       ['Horario', horario, 'Lugar', d.lugar],
       ['Fecha del evento', presuTextoFechaEvento(d), 'Emisión del presupuesto', formatFechaPDF(d.fechaEmision)],
     ].forEach(([l1,v1,l2,v2])=>{
@@ -10943,12 +10964,11 @@ function presuDibujarPDF(d){
 
   const cliSlug=(d.cliente||d.tipoEvento||'presupuesto').replace(/[^a-zA-Z0-9]/g,'_').slice(0,30);
   const fname='Presupuesto_MP_'+cliSlug+'.pdf';
-  // Generar PDF ahora siempre descarga el archivo, se haya podido abrir o
-  // no una pestaña nueva para previsualizarlo (a pedido: "que a la vez lo
-  // descargue").
-  const blobUrl=doc.output('bloburl');
-  window.open(blobUrl,'_blank');
-  doc.save(fname);
+  // "Ver PDF" lo abre en una pestaña nueva; "Descargar PDF" solo lo baja
+  // (antes un único botón hacía las dos cosas).
+  if(modo==='descargar'){ doc.save(fname); return; }
+  const ventana=window.open(doc.output('bloburl'),'_blank');
+  if(!ventana) alert('El navegador bloqueó la pestaña nueva para ver el PDF.\n\nPermití las ventanas emergentes para esta página o usá "Descargar PDF".');
 }
 
 </script>
