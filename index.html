@@ -1522,7 +1522,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <button type="button" class="btn btn-outline" style="width:100%;margin-top:8px;border-style:dashed" onclick="presuAgregarPrecio()">+ Agregar línea de precio</button>
       <div class="form-row" style="margin-top:12px">
         <div class="form-field" style="flex:1">
-          <label>Servicio de salón — cantidad de camareros cotizados</label>
+          <label>Servicio de salón — cantidad de camareros cotizados (no sale en el PDF)</label>
           <input type="number" id="presu-salon-camareros" min="0" placeholder="Ej: 10" style="width:100%">
         </div>
         <div class="form-field" style="flex:1">
@@ -1530,7 +1530,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
           <input type="text" id="presu-salon-precio" placeholder="Ej: $ 25.000" style="width:100%" onblur="this.value=presuFormatoPesos(this.value)">
         </div>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px">En el PDF sale como: <i>Precio por servicio de salón — $ 25.000 por cada camarero · 10 camareros cotizados (se sugiere 1 cada 10 comensales)</i>.</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">En el PDF sale como: <i>Precio por servicio de salón — $ 25.000 por cada camarero (se sugiere 1 cada 10 comensales)</i>.</div>
       <div style="font-size:11px;color:var(--text3);margin-top:10px">Debajo de los precios, el PDF siempre dice: <i>"Este presupuesto tiene una validez de 7 días. Estos precios se ajustarán según IPC hasta el momento de pago."</i></div>
       <div class="form-field" style="margin-top:8px">
         <label>Aclaración de precios adicional (opcional, chica, debajo)</label>
@@ -10751,12 +10751,12 @@ function presuDibujarPDF(d, modo){
     const lineas=(d.precios&&d.precios.length)?d.precios.map(pr=>({concepto:pr.concepto, valor:presuFormatoPesos(pr.valor)}))
       : [{concepto:'Precio total por persona', valor:''}];
     if(haySalon){
-      const nCam=String(d.salonCamareros||'').trim();
       const pCam=presuFormatoPesos(d.salonPrecio);
       lineas.push({
         concepto:'Precio por servicio de salón',
         valor:(pCam||'—')+' por cada camarero',
-        sub:(nCam?`${nCam} ${nCam==='1'?'camarero cotizado':'camareros cotizados'} `:'')+'(se sugiere 1 cada 10 comensales)',
+        // A pedido, la cantidad de camareros cotizados no se muestra.
+        sub:'(se sugiere 1 cada 10 comensales)',
       });
     }
     // Cada fila crece hacia abajo si el concepto o el valor ocupan más de un
