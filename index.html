@@ -1487,9 +1487,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
         <input type="text" id="presu-lugar" placeholder="Ej: CABA" style="width:100%">
       </div>
       <div class="form-field" style="flex:1">
-        <label>Fecha del evento</label>
+        <label>Fecha del evento (a confirmar)</label>
         <input type="date" id="presu-fecha-evento" style="width:100%">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:2px"><input type="checkbox" id="presu-fecha-a-confirmar" checked> Fecha a confirmar (se aclara en el PDF)</label>
       </div>
       <div class="form-field" style="flex:1">
         <label>Fecha de emisión (automática, editable)</label>
@@ -9678,17 +9677,16 @@ function presuDefaultClausulas(){
   ];
 }
 // "15/10/2026 (a confirmar)", o "A confirmar" si todavía no hay fecha.
-// Los presupuestos anteriores a la casilla cuentan como "a confirmar".
+// Siempre "a confirmar" (a pedido: no es opcional).
 function presuTextoFechaEvento(p){
   const f=formatFechaPDF(p.fechaEvento||'');
-  if(p.fechaAConfirmar===false) return f;
   return f ? f+' (a confirmar)' : 'A confirmar';
 }
 function presuNuevoBorrador(){
   const hoy=new Date().toISOString().slice(0,10);
   return {
     tipoEvento:'', cliente:'', referentes:'', cantidadPersonas:'', lugar:'',
-    horarioInicio:'', horarioFin:'', fechaEvento:'', fechaAConfirmar:true, fechaEmision:hoy,
+    horarioInicio:'', horarioFin:'', fechaEvento:'', fechaEmision:hoy,
     fotoPortada:'', fotoEvento:'', fotoMenuGrande:'', fotoMenuChica1:'', fotoMenuChica2:'',
     fotoMenuGrande2:'', fotoMenuChica2a:'', fotoMenuChica2b:'',
     fotoMenuGrande3:'', fotoMenuChica3a:'', fotoMenuChica3b:'',
@@ -10102,7 +10100,6 @@ function abrirModalPresupuesto(id){
   document.getElementById('presu-horario-fin').value = _presuEdit.horarioFin||'';
   document.getElementById('presu-lugar').value = _presuEdit.lugar||'';
   document.getElementById('presu-fecha-evento').value = _presuEdit.fechaEvento||'';
-  document.getElementById('presu-fecha-a-confirmar').checked = _presuEdit.fechaAConfirmar!==false;
   document.getElementById('presu-fecha-emision').value = _presuEdit.fechaEmision || new Date().toISOString().slice(0,10);
   document.getElementById('presu-menu-intro').value = _presuEdit.menuIntro||'';
   document.getElementById('presu-aclaracion-precios').value = _presuEdit.aclaracionPrecios||'';
@@ -10135,7 +10132,6 @@ function presuRecolectarDatosDesdeModal(){
     horarioFin: document.getElementById('presu-horario-fin').value,
     lugar: document.getElementById('presu-lugar').value.trim(),
     fechaEvento: document.getElementById('presu-fecha-evento').value,
-    fechaAConfirmar: document.getElementById('presu-fecha-a-confirmar').checked,
     fechaEmision: document.getElementById('presu-fecha-emision').value,
     menuIntro: document.getElementById('presu-menu-intro').value,
     aclaracionPrecios: document.getElementById('presu-aclaracion-precios').value,
