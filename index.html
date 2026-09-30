@@ -9844,7 +9844,6 @@ function renderPresuEstaciones(){
       <textarea rows="4" style="width:100%;margin:6px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical" oninput="_presuEdit.estaciones[${i}].items=this.value">${escH(e.items)}</textarea>
       <label>Precio de esta estación (ej. "Incluido" o "Adicional $X por pax")</label>
       <input type="text" value="${escH(e.precio||'')}" style="width:100%;margin-top:6px" oninput="_presuEdit.estaciones[${i}].precio=this.value">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px"><input type="checkbox" ${e.unaOpcion!==false?'checked':''} onchange="_presuEdit.estaciones[${i}].unaOpcion=this.checked"> Mostrar en el PDF el cartel "Seleccionar 1 opción para todos los comensales"</label>
     </div>`).join('') || '<div style="font-size:11.5px;color:var(--text3)">Sin estaciones todavía.</div>';
 }
 // ── Corrector ortográfico (ortografía, acentos y puntuación) ─────────────
@@ -10045,7 +10044,7 @@ function presuMoverEstacion(desde, hasta){
   renderPresuEstaciones();
   presuOrtoActualizarBoton();
 }
-function presuAgregarEstacion(){ _presuEdit.estaciones.push({titulo:'Nueva estación', items:'', precio:'', unaOpcion:true}); renderPresuEstaciones(); }
+function presuAgregarEstacion(){ _presuEdit.estaciones.push({titulo:'Nueva estación', items:'', precio:''}); renderPresuEstaciones(); }
 function presuQuitarEstacion(i){ _presuEdit.estaciones.splice(i,1); renderPresuEstaciones(); }
 
 // ── Presupuesto: líneas de precio repetibles ─────────────────────────────
@@ -10519,9 +10518,9 @@ function presuDibujarPDF(d){
     const CARTEL='Seleccionar 1 opción para todos los comensales';
     const CARTEL_H=5, CARTEL_GAP=1.6;
     const itemsDe=est=>(est.items||'').split('\n').map(s=>s.trim()).filter(Boolean);
-    // El cartel va en las estaciones marcadas que tienen más de un plato
-    // para elegir (las anteriores a la casilla cuentan como marcadas).
-    const llevaCartel=est=>est.unaOpcion!==false && itemsDe(est).length>1;
+    // El cartel va siempre, en toda estación que tenga platos (a pedido: no
+    // es opcional).
+    const llevaCartel=est=>itemsDe(est).length>0;
 
     // Mide una "parte" (una estación o el tramo de una estación partida)
     // a la escala s; devuelve el alto y lo necesario para dibujarla.
