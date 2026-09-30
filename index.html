@@ -93,6 +93,13 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .form-row{display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap}
 .form-field{display:flex;flex-direction:column;gap:4px}
 .form-field label{font-size:11px;color:var(--text3);font-weight:600}
+/* Corrector ortográfico del módulo Presupuestos */
+.presu-orto{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;font-size:11px}
+.presu-orto-item{display:flex;align-items:center;flex-wrap:wrap;gap:4px;background:rgba(192,57,43,.07);border:1px solid rgba(192,57,43,.25);border-radius:6px;padding:3px 6px;color:var(--text2)}
+.presu-orto-mal{text-decoration:underline wavy var(--red);text-underline-offset:3px;color:var(--text)}
+.presu-orto-sug{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:4px;padding:1px 7px;cursor:pointer;font-size:11px;font-family:inherit}
+.presu-orto-sug:hover{border-color:var(--green)}
+.presu-orto-ign{background:none;border:none;color:var(--text3);cursor:pointer;font-size:10.5px;text-decoration:underline;font-family:inherit}
 /* Layout horizontal/compacto de las solapas del evento (Ficha Técnica):
    el contenedor de cada solapa es un flex-wrap; por defecto cada bloque
    directo ocupa toda la fila (tablas, secciones, textareas, grupos), y los
@@ -1435,6 +1442,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div class="modal-hd" style="position:sticky;top:0;background:var(--surface);z-index:10;padding-bottom:10px">
       <span class="modal-title" id="modal-presu-title">🧮 Nuevo Presupuesto</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline" id="presu-orto-btn" onclick="presuRevisarOrtografiaTodo()" title="Revisa ortografía, acentos y puntuación de todos los textos del presupuesto">🔤 Revisar ortografía</button>
         <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF()">📄 Generar PDF</button>
         <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModalPresupuesto()">✕ Cerrar</button>
       </div>
@@ -1481,6 +1489,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <div class="form-field" style="flex:1">
         <label>Fecha del evento</label>
         <input type="date" id="presu-fecha-evento" style="width:100%">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:2px"><input type="checkbox" id="presu-fecha-a-confirmar" checked> Fecha a confirmar (se aclara en el PDF)</label>
       </div>
       <div class="form-field" style="flex:1">
         <label>Fecha de emisión (automática, editable)</label>
@@ -9668,11 +9677,18 @@ function presuDefaultClausulas(){
     {titulo:'Aceptación', texto:'La confirmación del evento y/o el pago de la seña implica la aceptación de todas las condiciones detalladas en esta propuesta.'},
   ];
 }
+// "15/10/2026 (a confirmar)", o "A confirmar" si todavía no hay fecha.
+// Los presupuestos anteriores a la casilla cuentan como "a confirmar".
+function presuTextoFechaEvento(p){
+  const f=formatFechaPDF(p.fechaEvento||'');
+  if(p.fechaAConfirmar===false) return f;
+  return f ? f+' (a confirmar)' : 'A confirmar';
+}
 function presuNuevoBorrador(){
   const hoy=new Date().toISOString().slice(0,10);
   return {
     tipoEvento:'', cliente:'', referentes:'', cantidadPersonas:'', lugar:'',
-    horarioInicio:'', horarioFin:'', fechaEvento:'', fechaEmision:hoy,
+    horarioInicio:'', horarioFin:'', fechaEvento:'', fechaAConfirmar:true, fechaEmision:hoy,
     fotoPortada:'', fotoEvento:'', fotoMenuGrande:'', fotoMenuChica1:'', fotoMenuChica2:'',
     fotoMenuGrande2:'', fotoMenuChica2a:'', fotoMenuChica2b:'',
     fotoMenuGrande3:'', fotoMenuChica3a:'', fotoMenuChica3b:'',
@@ -9740,7 +9756,7 @@ function renderPresupuestos(){
     <tr>
       <td>${escH(p.cliente||'—')}</td>
       <td>${escH(p.tipoEvento||'—')}</td>
-      <td>${escH(formatFechaPDF(p.fechaEvento||'')||'—')}</td>
+      <td>${escH(presuTextoFechaEvento(p)||'—')}</td>
       <td class="num">${escH(p.cantidadPersonas||'')}</td>
       <td>${escH(p.lugar||'—')}</td>
       <td style="white-space:nowrap;display:flex;gap:6px">
@@ -9811,20 +9827,225 @@ async function presuCambiarFoto(key, inputEl){
 function renderPresuEstaciones(){
   const cont=document.getElementById('presu-estaciones-list');
   if(!cont||!_presuEdit) return;
+  const n=_presuEdit.estaciones.length;
+  // Botones de posición: el orden de esta lista es el orden del PDF.
+  const posBtn=(i,destino,icono,titulo)=>`<button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:11px" title="${titulo}" ${destino===i?'disabled':''} onclick="presuMoverEstacion(${i},${destino})">${icono}</button>`;
   cont.innerHTML=_presuEdit.estaciones.map((e,i)=>`
     <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <label style="margin:0">Título de la estación</label>
-        <button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:10.5px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuQuitarEstacion(${i})">✕ quitar</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <label style="margin:0">Estación ${i+1} — título <span style="font-weight:400;font-style:italic;color:var(--mp-gold,var(--text3))">· Llenar todos los campos en singular</span></label>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${posBtn(i,0,'⤒','Subir arriba de todo')}${posBtn(i,Math.max(0,i-1),'↑','Subir un lugar')}${posBtn(i,Math.min(n-1,i+1),'↓','Bajar un lugar')}${posBtn(i,n-1,'⤓','Bajar al final')}
+          <button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:10.5px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuQuitarEstacion(${i})">✕ quitar</button>
+        </div>
       </div>
       <input type="text" value="${escH(e.titulo)}" style="width:100%;margin-bottom:8px" oninput="_presuEdit.estaciones[${i}].titulo=this.value">
       <label>Ítems (uno por línea)</label>
       <textarea rows="4" style="width:100%;margin:6px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical" oninput="_presuEdit.estaciones[${i}].items=this.value">${escH(e.items)}</textarea>
       <label>Precio de esta estación (ej. "Incluido" o "Adicional $X por pax")</label>
       <input type="text" value="${escH(e.precio||'')}" style="width:100%;margin-top:6px" oninput="_presuEdit.estaciones[${i}].precio=this.value">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px"><input type="checkbox" ${e.unaOpcion!==false?'checked':''} onchange="_presuEdit.estaciones[${i}].unaOpcion=this.checked"> Mostrar en el PDF el cartel "Seleccionar 1 opción para todos los comensales"</label>
     </div>`).join('') || '<div style="font-size:11.5px;color:var(--text3)">Sin estaciones todavía.</div>';
 }
-function presuAgregarEstacion(){ _presuEdit.estaciones.push({titulo:'Nueva estación', items:'', precio:''}); renderPresuEstaciones(); }
+// ── Corrector ortográfico (ortografía, acentos y puntuación) ─────────────
+// Dos capas, estilo Word:
+//  1) El corrector del navegador (subrayado rojo mientras se escribe,
+//     sugerencias con clic derecho), forzado a español en todos los campos.
+//  2) LanguageTool (servicio online gratuito): al dejar de escribir en un
+//     campo, o con "🔤 Revisar ortografía" para todos a la vez, muestra
+//     debajo de cada campo los errores con sus correcciones, que se aplican
+//     con un clic. Detecta también puntuación y acentos que el navegador no
+//     marca. Necesita internet: sin conexión solo queda la capa 1.
+const PRESU_LT_URL='https://api.languagetool.org/v2/check';
+const PRESU_LT_MAX=15000; // caracteres por consulta (el servicio gratuito limita el tamaño)
+const PRESU_ORTO_IGNORAR_KEY='presu_orto_ignorar';
+function presuOrtoIgnoradas(){
+  try{ return JSON.parse(localStorage.getItem(PRESU_ORTO_IGNORAR_KEY)||'[]'); }catch(e){ return []; }
+}
+function presuOrtoIgnorar(palabra){
+  const lista=presuOrtoIgnoradas();
+  const p=palabra.toLowerCase();
+  if(!lista.includes(p)) lista.push(p);
+  try{ localStorage.setItem(PRESU_ORTO_IGNORAR_KEY, JSON.stringify(lista)); }catch(e){}
+}
+function presuCamposTexto(){
+  return Array.from(document.querySelectorAll('#modal-presupuesto input[type=text], #modal-presupuesto textarea'));
+}
+function presuActivarCorrectorNativo(el){ el.spellcheck=true; el.lang='es'; }
+async function presuLTConsultar(texto){
+  const body=new URLSearchParams({text:texto, language:'es', disabledRules:'UPPERCASE_SENTENCE_START'});
+  const r=await fetch(PRESU_LT_URL,{method:'POST', body});
+  if(!r.ok) throw new Error('El corrector respondió '+r.status);
+  return (await r.json()).matches||[];
+}
+function presuOrtoCaja(el){
+  let caja=el.nextElementSibling;
+  if(!caja || !caja.classList.contains('presu-orto')){
+    caja=document.createElement('div');
+    caja.className='presu-orto';
+    el.insertAdjacentElement('afterend', caja);
+  }
+  return caja;
+}
+function presuOrtoQuitar(el){
+  const caja=el.nextElementSibling;
+  if(caja && caja.classList.contains('presu-orto')) caja.remove();
+  el._ortoMatches=null; el._ortoTexto=null;
+}
+function presuOrtoLimpiarTodo(){
+  document.querySelectorAll('#modal-presupuesto .presu-orto').forEach(c=>c.remove());
+  presuCamposTexto().forEach(el=>{ el._ortoMatches=null; el._ortoTexto=null; });
+  presuOrtoActualizarBoton();
+}
+// Guarda los errores encontrados para `el` (offsets relativos a `texto`)
+// y los dibuja debajo del campo.
+function presuOrtoSetear(el, texto, matches){
+  const ign=presuOrtoIgnoradas();
+  el._ortoTexto=texto;
+  el._ortoMatches=matches.filter(m=>!ign.includes(texto.substr(m.offset,m.length).toLowerCase()));
+  presuOrtoPintar(el);
+}
+function presuOrtoPintar(el){
+  const ms=el._ortoMatches||[];
+  if(!ms.length){ const c=el.nextElementSibling; if(c && c.classList.contains('presu-orto')) c.remove(); presuOrtoActualizarBoton(); return; }
+  const caja=presuOrtoCaja(el);
+  caja.innerHTML='';
+  ms.forEach((m,i)=>{
+    const mal=el._ortoTexto.substr(m.offset,m.length);
+    const item=document.createElement('div');
+    item.className='presu-orto-item';
+    item.title=m.message||'';
+    const span=document.createElement('span');
+    span.className='presu-orto-mal';
+    span.textContent=mal.trim()?mal:'(espacio)';
+    item.appendChild(span);
+    item.appendChild(document.createTextNode('→'));
+    (m.replacements||[]).slice(0,3).forEach(rep=>{
+      const b=document.createElement('button');
+      b.type='button'; b.className='presu-orto-sug';
+      b.textContent=rep.value.trim()?rep.value:'(quitar espacio)';
+      b.addEventListener('click',()=>presuOrtoAplicar(el,i,rep.value));
+      item.appendChild(b);
+    });
+    if(!(m.replacements||[]).length){
+      const s=document.createElement('span'); s.style.color='var(--text3)'; s.textContent=m.shortMessage||m.message||'revisar';
+      item.appendChild(s);
+    }
+    const ig=document.createElement('button');
+    ig.type='button'; ig.className='presu-orto-ign'; ig.textContent='Ignorar';
+    ig.title='No volver a marcar esta palabra';
+    ig.addEventListener('click',()=>{
+      if(mal.trim() && m.rule && m.rule.issueType==='misspelling') presuOrtoIgnorar(mal);
+      el._ortoMatches.splice(i,1); presuOrtoPintar(el);
+    });
+    item.appendChild(ig);
+    caja.appendChild(item);
+  });
+  presuOrtoActualizarBoton();
+}
+function presuOrtoAplicar(el, i, reemplazo){
+  const m=el._ortoMatches[i];
+  if(!m) return;
+  if(el.value!==el._ortoTexto){ presuOrtoRevisarCampo(el); return; } // el texto cambió desde la revisión
+  const v=el.value;
+  el.value=v.slice(0,m.offset)+reemplazo+v.slice(m.offset+m.length);
+  const delta=reemplazo.length-m.length;
+  el._ortoMatches.splice(i,1);
+  el._ortoMatches.forEach(o=>{ if(o.offset>m.offset) o.offset+=delta; });
+  el._ortoTexto=el.value;
+  // Dispara el oninput del campo para que el cambio quede en el borrador.
+  el._ortoAplicando=true;
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+  el._ortoAplicando=false;
+  presuOrtoPintar(el);
+}
+function presuOrtoActualizarBoton(){
+  const btn=document.getElementById('presu-orto-btn');
+  if(!btn) return;
+  const n=presuCamposTexto().reduce((acc,el)=>acc+((el._ortoMatches||[]).length),0);
+  btn.textContent=n?`🔤 Revisar ortografía (${n})`:'🔤 Revisar ortografía';
+  btn.style.color=n?'var(--red)':'';
+}
+async function presuOrtoRevisarCampo(el){
+  const texto=el.value;
+  if(!texto.trim()){ presuOrtoQuitar(el); presuOrtoActualizarBoton(); return; }
+  try{
+    const matches=await presuLTConsultar(texto);
+    if(el.value!==texto) return; // se siguió escribiendo: vendrá otra revisión
+    presuOrtoSetear(el, texto, matches);
+  }catch(e){ console.warn('Corrector ortográfico no disponible:', e); }
+}
+// Revisa todos los campos juntos (en una o pocas consultas).
+async function presuRevisarOrtografiaTodo(){
+  const btn=document.getElementById('presu-orto-btn');
+  const campos=presuCamposTexto().filter(el=>el.value.trim());
+  const SEP='\n\n';
+  const lotes=[]; let lote={texto:'', segs:[]};
+  campos.forEach(el=>{
+    if(lote.texto && lote.texto.length+el.value.length>PRESU_LT_MAX){ lotes.push(lote); lote={texto:'', segs:[]}; }
+    if(lote.texto) lote.texto+=SEP;
+    lote.segs.push({el, inicio:lote.texto.length, texto:el.value});
+    lote.texto+=el.value;
+  });
+  if(lote.texto) lotes.push(lote);
+  if(btn){ btn.disabled=true; btn.textContent='🔤 Revisando…'; }
+  try{
+    for(const l of lotes){
+      const matches=await presuLTConsultar(l.texto);
+      l.segs.forEach(seg=>{
+        const propios=matches
+          .filter(m=>m.offset>=seg.inicio && m.offset+m.length<=seg.inicio+seg.texto.length)
+          .map(m=>({...m, offset:m.offset-seg.inicio}));
+        if(seg.el.value===seg.texto) presuOrtoSetear(seg.el, seg.texto, propios);
+      });
+    }
+    const n=presuCamposTexto().reduce((acc,el)=>acc+((el._ortoMatches||[]).length),0);
+    if(!n) showAlert('modal-presu-alert','success','✓ No se encontraron errores de ortografía ni puntuación.');
+    else{
+      const primero=presuCamposTexto().find(el=>(el._ortoMatches||[]).length);
+      if(primero) primero.scrollIntoView({behavior:'smooth', block:'center'});
+    }
+  }catch(e){
+    alert('No se pudo usar el corrector (¿hay conexión a internet?).\n\nEl subrayado rojo del navegador sigue funcionando.');
+    console.warn(e);
+  }finally{
+    if(btn) btn.disabled=false;
+    presuOrtoActualizarBoton();
+  }
+}
+// Revisión automática campo por campo: al dejar de escribir (2 s) o al
+// salir del campo. Mientras se escribe, las sugerencias viejas se ocultan
+// porque ya no coinciden con el texto.
+(function(){
+  const esCampo=el=>el && el.closest && el.closest('#modal-presupuesto') && (el.tagName==='TEXTAREA' || (el.tagName==='INPUT' && el.type==='text'));
+  document.addEventListener('focusin', e=>{ if(esCampo(e.target)) presuActivarCorrectorNativo(e.target); });
+  document.addEventListener('input', e=>{
+    const el=e.target;
+    if(!esCampo(el) || el._ortoAplicando) return;
+    if(el._ortoMatches){ presuOrtoQuitar(el); presuOrtoActualizarBoton(); }
+    clearTimeout(el._ortoTimer);
+    el._ortoTimer=setTimeout(()=>presuOrtoRevisarCampo(el), 2000);
+  });
+  document.addEventListener('focusout', e=>{
+    const el=e.target;
+    if(!esCampo(el)) return;
+    // Si el foco se va a una sugerencia de este mismo corrector, no se
+    // vuelve a revisar (redibujaría las sugerencias en medio del clic).
+    if(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.presu-orto')) return;
+    clearTimeout(el._ortoTimer);
+    if(el.value!==el._ortoTexto) presuOrtoRevisarCampo(el);
+  });
+})();
+
+function presuMoverEstacion(desde, hasta){
+  const arr=_presuEdit.estaciones;
+  if(hasta===desde || hasta<0 || hasta>=arr.length) return;
+  const [est]=arr.splice(desde,1);
+  arr.splice(hasta,0,est);
+  renderPresuEstaciones();
+  presuOrtoActualizarBoton();
+}
+function presuAgregarEstacion(){ _presuEdit.estaciones.push({titulo:'Nueva estación', items:'', precio:'', unaOpcion:true}); renderPresuEstaciones(); }
 function presuQuitarEstacion(i){ _presuEdit.estaciones.splice(i,1); renderPresuEstaciones(); }
 
 // ── Presupuesto: líneas de precio repetibles ─────────────────────────────
@@ -9882,6 +10103,7 @@ function abrirModalPresupuesto(id){
   document.getElementById('presu-horario-fin').value = _presuEdit.horarioFin||'';
   document.getElementById('presu-lugar').value = _presuEdit.lugar||'';
   document.getElementById('presu-fecha-evento').value = _presuEdit.fechaEvento||'';
+  document.getElementById('presu-fecha-a-confirmar').checked = _presuEdit.fechaAConfirmar!==false;
   document.getElementById('presu-fecha-emision').value = _presuEdit.fechaEmision || new Date().toISOString().slice(0,10);
   document.getElementById('presu-menu-intro').value = _presuEdit.menuIntro||'';
   document.getElementById('presu-aclaracion-precios').value = _presuEdit.aclaracionPrecios||'';
@@ -9894,6 +10116,8 @@ function abrirModalPresupuesto(id){
   renderPresuEstaciones();
   renderPresuPrecios();
   renderPresuClausulas();
+  presuOrtoLimpiarTodo();
+  presuCamposTexto().forEach(presuActivarCorrectorNativo);
   _presuGuardadoJSON=JSON.stringify(presuRecolectarDatosDesdeModal());
   document.getElementById('modal-presupuesto').classList.add('open');
 }
@@ -9912,6 +10136,7 @@ function presuRecolectarDatosDesdeModal(){
     horarioFin: document.getElementById('presu-horario-fin').value,
     lugar: document.getElementById('presu-lugar').value.trim(),
     fechaEvento: document.getElementById('presu-fecha-evento').value,
+    fechaAConfirmar: document.getElementById('presu-fecha-a-confirmar').checked,
     fechaEmision: document.getElementById('presu-fecha-emision').value,
     menuIntro: document.getElementById('presu-menu-intro').value,
     aclaracionPrecios: document.getElementById('presu-aclaracion-precios').value,
@@ -10192,7 +10417,7 @@ function presuDibujarPDF(d){
       ['Tipo de evento', d.tipoEvento, 'Cliente', d.cliente],
       ['Referente/s', d.referentes, 'Cantidad de personas', d.cantidadPersonas?String(d.cantidadPersonas):''],
       ['Horario', horario, 'Lugar', d.lugar],
-      ['Fecha del evento', formatFechaPDF(d.fechaEvento), 'Emisión del presupuesto', formatFechaPDF(d.fechaEmision)],
+      ['Fecha del evento', presuTextoFechaEvento(d), 'Emisión del presupuesto', formatFechaPDF(d.fechaEmision)],
     ].forEach(([l1,v1,l2,v2])=>{
       doc.setFont('times','normal'); doc.setFontSize(13);
       let pend=[[rx,l1,v1],[col2,l2,v2]].map(([x,label,v])=>({x,label,lines:doc.splitTextToSize(v||'—', colW-4)}));
@@ -10214,14 +10439,11 @@ function presuDibujarPDF(d){
 
   // ── Página 3: menú ──
   function pageMenu(){
-    // Máximo 3 estaciones por hoja (a pedido): una estación en blanco (sin
-    // título NI ítems) no genera ni ocupa página. Cada hoja del menú repite
-    // las mismas 3 fotos, así que agregar una estación de más siempre
-    // "viene con foto" sin que haya que cargar una nueva por página.
+    // Una estación en blanco (sin título NI ítems) no genera ni ocupa página.
+    // Cada hoja del menú trae fotos, así que agregar una estación de más
+    // siempre "viene con foto" sin que haya que cargar una nueva por página.
+    // El orden es el de la lista del formulario (se reordena con ⤒ ↑ ↓ ⤓).
     const estacionesTodas=(d.estaciones||[]).filter(e=>(e.titulo&&e.titulo.trim())||(e.items&&e.items.trim()));
-    const chunks=[];
-    for(let i=0;i<estacionesTodas.length;i+=3) chunks.push(estacionesTodas.slice(i,i+3));
-    if(chunks.length===0) chunks.push([]);
 
     const textColX=M, textColW=46;
     const photoTallX=textColX+textColW+6, photoTallW=58;
@@ -10277,59 +10499,142 @@ function presuDibujarPDF(d){
       }
     }
 
-    const titleLH=LH(base.title)+0.4, precioLH=LH(7);
-    let gidx=0;
-    chunks.forEach((chunk,idx)=>{
-      gidx=idx;
-      menuPage(idx, idx===0);
+    // ── Armado de hojas del menú ──
+    // Primero se planifica qué va en cada hoja y recién después se dibuja.
+    // Criterio (a pedido):
+    //  - Hasta 3 estaciones por hoja mientras entren a tamaño normal.
+    //  - Si lo que no entra son POCOS platos (una estación nueva de hasta 3
+    //    platos, o hasta 3 platos que se pasan del final de la hoja), NO se
+    //    abre una hoja solo para eso: esa hoja se compacta (primero los
+    //    espacios entre renglones, la letra baja menos) para que entre todo.
+    //    Si ni así entra, la última estación de la hoja pasa a la hoja nueva
+    //    junto con la chica, para que ninguna hoja quede con 3 platos solos.
+    //  - Si son más, se sigue en una hoja nueva con las fotos precargadas.
+    // Escala s (1 = normal, hasta MIN_ESCALA): los espacios se multiplican
+    // por s y la letra por fF(s), que baja la mitad (con 0.6, letra al 80%).
+    const MIN_ESCALA=0.6, POCOS=3;
+    const fF=s=>1-(1-s)*0.5;
+    const renglon=s=>Math.max(base.line*s, LH(base.item*fF(s))+0.25);
+    const listTop=photoTop+2, dispH=photoBottom-listTop;
+    const CARTEL='Seleccionar 1 opción para todos los comensales';
+    const CARTEL_H=5, CARTEL_GAP=1.6;
+    const itemsDe=est=>(est.items||'').split('\n').map(s=>s.trim()).filter(Boolean);
+    // El cartel va en las estaciones marcadas que tienen más de un plato
+    // para elegir (las anteriores a la casilla cuentan como marcadas).
+    const llevaCartel=est=>est.unaOpcion!==false && itemsDe(est).length>1;
 
-      let ly=photoTop+2;
-      chunk.forEach(est=>{
-        // Precio (a la derecha) y título se ajustan hacia abajo si son
-        // largos, repartiéndose el ancho de la columna sin pisarse.
-        let precioLines=[], precioW=0;
-        if(est.precio){
-          doc.setFont('times','italic'); doc.setFontSize(7);
-          precioLines=doc.splitTextToSize(String(est.precio), listW*0.4);
-          precioW=Math.max(...precioLines.map(s=>doc.getTextWidth(s)))+3;
+    // Mide una "parte" (una estación o el tramo de una estación partida)
+    // a la escala s; devuelve el alto y lo necesario para dibujarla.
+    function medirParte(part, s){
+      // Precio (a la derecha) y título se ajustan hacia abajo si son
+      // largos, repartiéndose el ancho de la columna sin pisarse.
+      let precioLines=[], precioW=0;
+      const f=fF(s);
+      if(part.est.precio){
+        doc.setFont('times','italic'); doc.setFontSize(7*f);
+        precioLines=doc.splitTextToSize(String(part.est.precio), listW*0.4);
+        precioW=Math.max(...precioLines.map(t=>doc.getTextWidth(t)))+3;
+      }
+      doc.setFont('times','bold'); doc.setFontSize(base.title*f);
+      const titleLines=wrapTracked(part.est.titulo||'', listW-precioW);
+      const titleLH=LH(base.title*f)+0.4*s, precioLH=LH(7*f);
+      const headH=Math.max((titleLines.length-1)*titleLH, (precioLines.length-1)*precioLH);
+      let h=headH+base.headerGap*s;
+      if(part.cartel) h+=CARTEL_H*f+CARTEL_GAP*s;
+      doc.setFont('times','normal'); doc.setFontSize(base.item*f);
+      const itemLines=part.items.map(it=>doc.splitTextToSize('•  '+it, listW-2));
+      itemLines.forEach(l=>{ h+=l.length*renglon(s)+base.itemGap*s; });
+      return {h, titleLines, titleLH, precioLines, headH, itemLines};
+    }
+    const altoHoja=(partes,s)=>partes.reduce((acc,p,i)=>acc+medirParte(p,s).h+(i?base.stationGap*s:0),0);
+    // Mayor escala (de 1 hacia abajo) a la que entran todas las partes, o null.
+    function escalaPara(partes){
+      for(let s=1; s>=MIN_ESCALA-1e-9; s-=0.025){ if(altoHoja(partes,s)<=dispH) return s; }
+      return null;
+    }
+    // Cuántos platos de `part` entran a escala 1 después de `previas`.
+    function cuantosEntran(previas, part){
+      let k=0;
+      while(k<part.items.length && altoHoja(previas.concat([{...part, items:part.items.slice(0,k+1)}]),1)<=dispH) k++;
+      return k;
+    }
+
+    const hojas=[]; let cur=[], curCont=false;
+    function cerrarHoja(){ if(cur.length) hojas.push({partes:cur, cont:curCont}); cur=[]; curCont=false; }
+    estacionesTodas.forEach(est=>{
+      let part={est, items:itemsDe(est), cartel:llevaCartel(est)};
+      while(part){
+        const prueba=cur.concat([part]);
+        // 1) Entra tal cual.
+        if(cur.length<3 && altoHoja(prueba,1)<=dispH){ cur=prueba; break; }
+        // 2) Entra achicando la hoja, porque lo que sobra son pocos platos.
+        const sobran=part.items.length-cuantosEntran(cur, part);
+        const chica=part.items.length<=POCOS;
+        if((chica || (cur.length<3 && sobran<=POCOS)) && escalaPara(prueba)){ cur=prueba; break; }
+        // 3) No entra y la hoja ya tiene algo: la estación empieza en hoja
+        //    nueva. Si es chica, se lleva con ella la última estación de la
+        //    hoja, para no dejar una hoja con solo 3 platos.
+        if(cur.length){
+          const ultima=(chica && cur.length>=2) ? cur.pop() : null;
+          cerrarHoja();
+          if(ultima) cur=[ultima];
+          continue;
         }
-        doc.setFont('times','bold'); doc.setFontSize(base.title);
-        const titleLines=wrapTracked(est.titulo||'', listW-precioW);
-        const headH=Math.max((titleLines.length-1)*titleLH, (precioLines.length-1)*precioLH);
-        if(ly+headH+base.headerGap+base.line>photoBottom && ly>photoTop+2){ menuPage(idx,false); ly=photoTop+2; }
-        text(GOLD); doc.setFont('times','bold'); doc.setFontSize(base.title);
-        titleLines.forEach((s,i)=>ttext(s, listX, ly+i*titleLH));
-        if(precioLines.length){
-          doc.setFont('times','italic'); doc.setFontSize(7); text(MUTED);
-          doc.text(precioLines, listX+listW, ly, {align:'right'});
-        }
-        ly+=headH+2.2;
-        drawC(GOLD); doc.setLineWidth(0.2); doc.line(listX,ly,listX+listW,ly);
-        ly+=base.headerGap-2.2;
-        doc.setFont('times','normal'); doc.setFontSize(base.item);
-        (est.items||'').split('\n').map(s=>s.trim()).filter(Boolean).forEach(item=>{
-          let lines=doc.splitTextToSize('•  '+item, listW-2);
-          // Con 3 estaciones fijas por hoja esto casi nunca hace falta;
-          // queda como red de seguridad si una lista es muy larga: sigue en
-          // una hoja nueva con las mismas fotos.
-          while(lines.length){
-            if(ly+lines.length*base.line>photoBottom){
-              const fit=Math.floor((photoBottom-ly)/base.line);
-              if(fit>0 && lines.length>Math.floor((photoBottom-photoTop-2)/base.line)){
-                // Un ítem que ni en una hoja entera entra: se parte.
-                btext(BURG, lines.slice(0,fit), listX, ly, {}, 0.12);
-                lines=lines.slice(fit);
-              }
-              menuPage(idx,false); ly=photoTop+2;
-              doc.setFont('times','normal'); doc.setFontSize(base.item);
-              if(ly+lines.length*base.line>photoBottom) continue;
-            }
-            btext(BURG, lines, listX, ly, {}, 0.12);
-            ly+=lines.length*base.line+base.itemGap;
-            lines=[];
-          }
-        });
-        ly+=base.stationGap;
+        // 4) Sola tampoco entra (lista muy larga): se parte, y el resto
+        //    sigue en una hoja nueva con las mismas fotos y el título repetido.
+        const k=Math.max(1, cuantosEntran([], part));
+        const resto=part.items.slice(k);
+        cur=[{...part, items:part.items.slice(0,k)}];
+        cerrarHoja();
+        if(!resto.length) break;
+        curCont=true;
+        part={est, items:resto, cartel:false};
+      }
+    });
+    cerrarHoja();
+    if(!hojas.length) hojas.push({partes:[], cont:false});
+
+    function dibujarParte(part, ly, s){
+      const m=medirParte(part, s), f=fF(s);
+      text(GOLD); doc.setFont('times','bold'); doc.setFontSize(base.title*f);
+      m.titleLines.forEach((t,i)=>ttext(t, listX, ly+i*m.titleLH));
+      if(m.precioLines.length){
+        doc.setFont('times','italic'); doc.setFontSize(7*f); text(MUTED);
+        doc.text(m.precioLines, listX+listW, ly, {align:'right'});
+      }
+      let y=ly+m.headH+2.2*s;
+      drawC(GOLD); doc.setLineWidth(0.2); doc.line(listX,y,listX+listW,y);
+      if(part.cartel){
+        // Cartel "Seleccionar 1 opción…": recuadro crema con filete dorado,
+        // en la misma tipografía y colores del resto del presupuesto.
+        const cy=y+CARTEL_GAP*s, ch=CARTEL_H*f;
+        doc.setFont('times','italic'); doc.setFontSize(7.5*f);
+        const cw=Math.min(listW, doc.getTextWidth(CARTEL)+6*f);
+        fill(PANEL); doc.roundedRect(listX, cy, cw, ch, 1.2*f, 1.2*f, 'F');
+        fill(GOLD); doc.rect(listX, cy, 0.8*f, ch, 'F');
+        text(BURG); doc.text(CARTEL, listX+3.2*f, cy+ch/2, {baseline:'middle'});
+        y=cy+ch;
+      }
+      y+=base.headerGap*s-2.2*s;
+      doc.setFont('times','normal'); doc.setFontSize(base.item*f);
+      m.itemLines.forEach(lines=>{
+        btext(BURG, lines, listX, y, {}, 0.12);
+        y+=lines.length*renglon(s)+base.itemGap*s;
+      });
+      return ly+m.h;
+    }
+
+    // Cada hoja usa el trío de fotos que le toca (hoja 1, 2, 3 o 4); una
+    // hoja que continúa una estación partida repite las fotos de la anterior.
+    let gidx=0;
+    hojas.forEach((hoja,idx)=>{
+      if(idx>0 && !hoja.cont) gidx++;
+      menuPage(gidx, idx===0);
+      const s=escalaPara(hoja.partes)||MIN_ESCALA;
+      let ly=listTop;
+      hoja.partes.forEach((part,i)=>{
+        if(i) ly+=base.stationGap*s;
+        ly=dibujarParte(part, ly, s);
       });
     });
     // Si todavía queda intro sin dibujar, se agregan hojas con las mismas
