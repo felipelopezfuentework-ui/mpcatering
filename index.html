@@ -9744,13 +9744,13 @@ function renderPresupuestos(){
       <td>${escH(presuTextoFechaEvento(p)||'—')}</td>
       <td class="num">${escH(p.cantidadPersonas||'')}</td>
       <td>${escH(p.lugar||'—')}</td>
-      <td style="display:flex;flex-wrap:wrap;gap:6px">
+      <td style="white-space:nowrap;width:1%"><div style="display:flex;flex-wrap:nowrap;gap:6px">
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="abrirModalPresupuesto(${p._id})">✎ Editar</button>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="generarPresupuestoPDF(${p._id},'ver')">👁 Ver PDF</button>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF(${p._id},'descargar')">⬇ Descargar PDF</button>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="duplicarPresupuesto(${p._id})">⧉ Duplicar</button>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="delPresupuesto(${p._id})">🗑</button>
-      </td>
+      </div></td>
     </tr>`).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">Todavía no hay presupuestos. Hacé clic en "+ Nuevo presupuesto".</td></tr>`;
 }
 
