@@ -1436,7 +1436,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <span class="modal-title" id="modal-presu-title">🧮 Nuevo Presupuesto</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF()">📄 Generar PDF</button>
-        <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-presupuesto')">✕ Cerrar</button>
+        <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModalPresupuesto()">✕ Cerrar</button>
       </div>
     </div>
     <input type="hidden" id="presu-edit-id" value="">
@@ -1545,7 +1545,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     </div>
 
     <div style="display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:var(--surface);padding-top:10px;border-top:1px solid var(--border)">
-      <button class="btn btn-outline" onclick="cerrarModal('modal-presupuesto')">Cancelar</button>
+      <button class="btn btn-outline" onclick="cancelarModalPresupuesto()">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarPresupuestoDesdeModal()">✓ Guardar presupuesto</button>
       <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF()">📄 Generar PDF</button>
     </div>
@@ -5327,19 +5327,23 @@ function iniciarListenersPresupuestos(){
 function detenerListenersPresupuestos(){
   if(_unsubPresupuestos){ _unsubPresupuestos(); _unsubPresupuestos=null; }
 }
-let _guardadoPresupuestoTimers={};
-function guardarPresupuesto(id){
-  clearTimeout(_guardadoPresupuestoTimers[id]);
-  _guardadoPresupuestoTimers[id]=setTimeout(async ()=>{
-    const x=DB.presupuestos.find(p=>p._id===id);
-    if(!x) return;
-    try{
-      const {_id, ...datos}=x;
-      await FB_COL_PRESUPUESTOS.doc(String(id)).set({...datos, updated_at:new Date().toISOString()});
-      try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
-      marcarSincronizado();
-    }catch(e){ marcarErrorSincronizacion(e); console.error('Error al guardar presupuesto:', e); }
-  }, 400);
+// Guarda de inmediato los datos recibidos (no los busca después en
+// DB.presupuestos: antes había un debounce de 400 ms que, al disparar, buscaba
+// el presupuesto en DB.presupuestos, y si en ese intervalo llegaba un snapshot
+// de Firestore -que reemplaza el array entero- el presupuesto nuevo ya no
+// estaba y se descartaba en silencio). Devuelve true/false para que quien
+// llame pueda avisar y no cerrar el modal si falló.
+async function guardarPresupuesto(id, datos){
+  try{
+    const {_id, ...resto}=datos;
+    await FB_COL_PRESUPUESTOS.doc(String(id)).set({...resto, updated_at:new Date().toISOString()});
+    try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
+    marcarSincronizado();
+    return true;
+  }catch(e){
+    marcarErrorSincronizacion(e); console.error('Error al guardar presupuesto:', e);
+    return false;
+  }
 }
 async function eliminarPresupuestoDoc(id){
   try{ await FB_COL_PRESUPUESTOS.doc(String(id)).delete(); }
@@ -5612,7 +5616,7 @@ function cerrarModalEvento(){
 // registro ya existente. Estos pasan por su función de cierre seguro, que
 // guarda si corresponde (ver cerrarModalPlato/cerrarModalSub/cerrarModalCliente/
 // cerrarModalEvento).
-const CIERRE_SEGURO_MODAL={'modal-plato':cerrarModalPlato,'modal-sub':cerrarModalSub,'modal-cliente':cerrarModalCliente,'modal-evento-detalle':cerrarModalEvento};
+const CIERRE_SEGURO_MODAL={'modal-plato':cerrarModalPlato,'modal-sub':cerrarModalSub,'modal-cliente':cerrarModalCliente,'modal-evento-detalle':cerrarModalEvento,'modal-presupuesto':cerrarModalPresupuesto};
 document.querySelectorAll('.modal-ov').forEach(el=>el.addEventListener('click',e=>{
   if(e.target!==el) return;
   const cierreSeguro=CIERRE_SEGURO_MODAL[el.id];
@@ -9890,6 +9894,7 @@ function abrirModalPresupuesto(id){
   renderPresuEstaciones();
   renderPresuPrecios();
   renderPresuClausulas();
+  _presuGuardadoJSON=JSON.stringify(presuRecolectarDatosDesdeModal());
   document.getElementById('modal-presupuesto').classList.add('open');
 }
 // Junta los campos simples del formulario (leídos del DOM) con los arrays/
@@ -9916,19 +9921,100 @@ function presuRecolectarDatosDesdeModal(){
     graciasTexto: document.getElementById('presu-gracias-texto').value,
   };
 }
-function guardarPresupuestoDesdeModal(){
-  if(!_presuEdit) return;
+// Estado del formulario tal como quedó guardado (o como se abrió), para saber
+// si al cerrar hay cambios sin guardar.
+let _presuGuardadoJSON='';
+let _presuGuardando=false;
+function presuHayCambiosSinGuardar(){
+  return !!_presuEdit && JSON.stringify(presuRecolectarDatosDesdeModal())!==_presuGuardadoJSON;
+}
+
+// Firestore rechaza documentos de más de 1 MiB, y las fotos se guardan
+// embebidas en el documento: con varias fotos propias el guardado fallaba
+// (solo se veía "⚠ Error al sincronizar" en el encabezado, con el modal ya
+// cerrado) y el presupuesto se perdía al recargar. Si no entra, se
+// recomprimen las fotos propias un poco más cada vuelta hasta que entre.
+const PRESU_MAX_BYTES=1000000;
+function presuTamanoBytes(datos){ return new Blob([JSON.stringify(datos)]).size; }
+function presuRecomprimirDataURL(dataUrl, factor, calidad){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onerror=()=>reject(new Error('No se pudo recomprimir la imagen'));
+    img.onload=()=>{
+      const outW=Math.max(1,Math.round(img.naturalWidth*factor)), outH=Math.max(1,Math.round(img.naturalHeight*factor));
+      const canvas=document.createElement('canvas');
+      canvas.width=outW; canvas.height=outH;
+      canvas.getContext('2d').drawImage(img,0,0,outW,outH);
+      resolve(canvas.toDataURL('image/jpeg', calidad));
+    };
+    img.src=dataUrl;
+  });
+}
+async function presuAjustarTamano(datos){
+  for(let vuelta=0; vuelta<5 && presuTamanoBytes(datos)>PRESU_MAX_BYTES; vuelta++){
+    for(const f of PRESU_FOTOS){
+      const v=datos[f.key];
+      if(typeof v==='string' && v.startsWith('data:image')){
+        datos[f.key]=await presuRecomprimirDataURL(v, 0.8, 0.65);
+        if(_presuEdit) _presuEdit[f.key]=datos[f.key];
+      }
+    }
+  }
+  return presuTamanoBytes(datos)<=PRESU_MAX_BYTES;
+}
+
+// Guarda lo que está en el modal. Devuelve el id si se guardó en Firestore,
+// o null si no (validación, tamaño o error de red: en esos casos el modal
+// queda abierto con el aviso, para no perder lo cargado).
+async function presuGuardarDesdeModal({cerrar}){
+  if(!_presuEdit || _presuGuardando) return null;
   const datos=presuRecolectarDatosDesdeModal();
-  if(!datos.cliente && !datos.tipoEvento){ showAlert('modal-presu-alert','error','Ingresá al menos el cliente o el tipo de evento.'); return; }
+  if(!datos.cliente && !datos.tipoEvento){ showAlert('modal-presu-alert','error','Ingresá al menos el cliente o el tipo de evento para poder guardar el presupuesto.'); return null; }
   delete datos._id;
-  const idStr=document.getElementById('presu-edit-id').value;
-  const id=idStr?Number(idStr):Date.now();
-  const existente=DB.presupuestos.find(x=>x._id===id);
-  if(existente) Object.assign(existente, datos);
-  else DB.presupuestos.unshift({_id:id, ...datos});
-  guardarPresupuesto(id);
+  const idEl=document.getElementById('presu-edit-id');
+  const id=idEl.value?Number(idEl.value):Date.now();
+  // Se fija ya el id, así un segundo clic (Guardar/Generar PDF) actualiza
+  // este mismo presupuesto en vez de crear un duplicado.
+  idEl.value=id;
+  _presuGuardando=true;
+  try{
+    if(!(await presuAjustarTamano(datos))){
+      alert('⚠ No se pudo guardar el presupuesto: las fotos cargadas ocupan demasiado espacio.\n\nQuitá alguna foto propia (usá la de MP Catering) y volvé a apretar "Guardar presupuesto".');
+      return null;
+    }
+    if(!(await guardarPresupuesto(id, datos))){
+      alert('⚠ No se pudo guardar el presupuesto (revisá la conexión a internet).\n\nNo cierres esta ventana y volvé a apretar "Guardar presupuesto".');
+      return null;
+    }
+    const existente=DB.presupuestos.find(x=>x._id===id);
+    if(existente) Object.assign(existente, datos);
+    else DB.presupuestos.unshift({_id:id, ...datos});
+    _presuGuardadoJSON=JSON.stringify(presuRecolectarDatosDesdeModal());
+    document.getElementById('modal-presu-title').textContent='✎ Editar Presupuesto';
+    showAlert('modal-presu-alert','success','✓ Presupuesto guardado.');
+    renderPresupuestos();
+    if(cerrar) cerrarModal('modal-presupuesto');
+    return id;
+  }finally{ _presuGuardando=false; }
+}
+function guardarPresupuestoDesdeModal(){ return presuGuardarDesdeModal({cerrar:true}); }
+
+// Cierre seguro (✕ Cerrar, Cancelar y clic fuera del modal): si hay cambios
+// sin guardar se guardan antes de cerrar, igual que en los otros modales de
+// edición. Antes se descartaban en silencio.
+async function cerrarModalPresupuesto(){
+  if(!presuHayCambiosSinGuardar()){ cerrarModal('modal-presupuesto'); return; }
+  const d=presuRecolectarDatosDesdeModal();
+  if(!d.cliente && !d.tipoEvento){
+    if(confirm('Este presupuesto no tiene cliente ni tipo de evento, así que no se puede guardar.\n\n¿Cerrar y descartar lo cargado?')) cerrarModal('modal-presupuesto');
+    return;
+  }
+  await presuGuardarDesdeModal({cerrar:true});
+}
+// "Cancelar" sí descarta, pero pregunta antes si hay algo sin guardar.
+function cancelarModalPresupuesto(){
+  if(presuHayCambiosSinGuardar() && !confirm('Hay cambios sin guardar en este presupuesto.\n\n¿Descartarlos y cerrar?')) return;
   cerrarModal('modal-presupuesto');
-  renderPresupuestos();
 }
 function delPresupuesto(id){
   if(!confirm('¿Eliminar este presupuesto? Esta acción no se puede deshacer.')) return;
@@ -9943,12 +10029,19 @@ function generarPresupuestoPDF(id){
   if(id){
     datos=DB.presupuestos.find(p=>p._id===id);
     if(!datos){ alert('No se encontró el presupuesto.'); return; }
+    presuDibujarPDF(datos);
   } else if(_presuEdit){
+    // Desde el modal, Generar PDF también guarda el presupuesto (antes solo
+    // generaba el PDF, y si después se cerraba con ✕ el presupuesto se perdía).
+    // El PDF se dibuja primero, sin esperas, para que el navegador no bloquee
+    // la pestaña nueva que abre; el guardado sigue justo después.
     datos=presuRecolectarDatosDesdeModal();
+    if(!datos.cliente && !datos.tipoEvento){ showAlert('modal-presu-alert','error','Ingresá al menos el cliente o el tipo de evento antes de generar el PDF.'); return; }
+    presuDibujarPDF(datos);
+    presuGuardarDesdeModal({cerrar:false});
   } else {
     alert('Abrí o creá un presupuesto primero.'); return;
   }
-  presuDibujarPDF(datos);
 }
 
 function presuDibujarPDF(d){
