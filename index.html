@@ -1520,8 +1520,20 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <label style="font-size:11px;color:var(--mp-gold,var(--text3));font-weight:700;letter-spacing:.5px;display:block;margin-bottom:8px">PRESUPUESTO — PRECIOS</label>
       <div id="presu-precios-list"></div>
       <button type="button" class="btn btn-outline" style="width:100%;margin-top:8px;border-style:dashed" onclick="presuAgregarPrecio()">+ Agregar línea de precio</button>
-      <div class="form-field" style="margin-top:12px">
-        <label>Aclaración de precios (chica, debajo)</label>
+      <div class="form-row" style="margin-top:12px">
+        <div class="form-field" style="flex:1">
+          <label>Servicio de salón — cantidad de camareros cotizados</label>
+          <input type="number" id="presu-salon-camareros" min="0" placeholder="Ej: 10" style="width:100%">
+        </div>
+        <div class="form-field" style="flex:1">
+          <label>Precio por cada camarero</label>
+          <input type="text" id="presu-salon-precio" placeholder="Ej: $ 25.000" style="width:100%" onblur="this.value=presuFormatoPesos(this.value)">
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">En el PDF sale como: <i>Precio por servicio de salón — $ 25.000 por cada camarero · 10 camareros cotizados (se sugiere 1 cada 10 comensales)</i>.</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:10px">Debajo de los precios, el PDF siempre dice: <i>"Este presupuesto tiene una validez de 7 días. Estos precios se ajustarán según IPC hasta el momento de pago."</i></div>
+      <div class="form-field" style="margin-top:8px">
+        <label>Aclaración de precios adicional (opcional, chica, debajo)</label>
         <textarea id="presu-aclaracion-precios" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
       </div>
       <div class="form-row" style="margin-top:8px">
@@ -9638,22 +9650,19 @@ function descargarRecetaPDF(tipo){
 //  que la imagen final es idéntica evento a evento salvo el contenido.
 // ══════════════════════════════════════════════════════════════════
 
-function presuDefaultPrecios(){
-  return [{concepto:'Precio total por persona', valor:''}, {concepto:'Personal de salón', valor:''}];
-}
 function presuDefaultClausulas(){
   return [
     {titulo:'Reserva', texto:'Para confirmar la fecha se requiere una seña del 50% del presupuesto total. La reserva se considera efectiva una vez acreditado el pago.'},
     {titulo:'Forma de pago', texto:'Transferencia bancaria o medios de pago acordados previamente.'},
     {titulo:'Saldo', texto:'El saldo restante deberá abonarse hasta 7 días hábiles antes del evento.'},
     {titulo:'Facturación', texto:'Se emite factura A o B según los datos provistos por el cliente.'},
-    {titulo:'Ajuste de valores', texto:'Los valores cotizados tienen una vigencia de 7 días corridos. Pasado ese plazo, podrán ajustarse según IPC.'},
+    {titulo:'Ajuste de valores', texto:'Este presupuesto tiene una validez de 7 días. Estos precios se ajustarán según IPC hasta el momento de pago.'},
     {titulo:'Consumos adicionales', texto:'Cualquier servicio o producto adicional solicitado luego de la confirmación será facturado por separado.'},
     {titulo:'Personal adicional', texto:'Cualquier hora extra de personal, servicios adicionales o requerimientos especiales que no estén contemplados en esta propuesta se cotizarán por separado.'},
     {titulo:'Proveedores externos', texto:'En caso de requerir proveedores externos (alquiler de vajilla especial, mobiliario, carpas, iluminación, sonido, etc.), la contratación y el pago se gestionarán por separado.'},
-    {titulo:'Ajustes por cambios', texto:'Cualquier cambio en la cantidad de invitados, menú, horarios o servicios deberá informarse por escrito y podrá implicar un ajuste en los valores.'},
+    {titulo:'Ajustes por cambios', texto:'Cualquier cambio en la cantidad de invitados, menú, horarios o servicios deberá informarse por escrito vía email y podrá implicar un ajuste en los valores.'},
     {titulo:'Condiciones especiales', texto:'Requerimientos particulares (dietas especiales, menús personalizados, montajes especiales, etc.) se evaluarán individualmente y podrán tener un costo adicional.'},
-    {titulo:'Vigencia del presupuesto', texto:'La presente propuesta tiene una validez de 15 días corridos a partir de la fecha indicada. Pasado ese plazo, los valores podrán ser actualizados según IPC.'},
+    {titulo:'Vigencia del presupuesto', texto:'La presente propuesta tiene una validez de 7 días corridos a partir de la fecha indicada. Pasado ese plazo, los valores podrán ser actualizados según IPC.'},
     {titulo:'Aceptación', texto:'La confirmación del evento y/o el pago de la seña implica la aceptación de todas las condiciones detalladas en esta propuesta.'},
   ];
 }
@@ -9663,9 +9672,41 @@ function presuTextoFechaEvento(p){
   const f=formatFechaPDF(p.fechaEvento||'');
   return f ? f+' (a confirmar)' : 'A confirmar';
 }
-// Los presupuestos creados antes de la corrección tienen "los mejores
-// Ingredientes" con I mayúscula en la intro del menú.
-function presuCorregirIntro(t){ return String(t||'').replace('los mejores Ingredientes','los mejores ingredientes'); }
+// Correcciones de textos por defecto para presupuestos guardados antes de
+// cada corrección. Solo cambia textos que siguen tal cual venían por
+// defecto: lo que alguien editó a mano no se toca.
+const PRESU_CLAUSULAS_CORREGIDAS={
+  'Los valores cotizados tienen una vigencia de 7 días corridos. Pasado ese plazo, podrán ajustarse según IPC.':'Este presupuesto tiene una validez de 7 días. Estos precios se ajustarán según IPC hasta el momento de pago.',
+  'Cualquier cambio en la cantidad de invitados, menú, horarios o servicios deberá informarse por escrito y podrá implicar un ajuste en los valores.':'Cualquier cambio en la cantidad de invitados, menú, horarios o servicios deberá informarse por escrito vía email y podrá implicar un ajuste en los valores.',
+  'La presente propuesta tiene una validez de 15 días corridos a partir de la fecha indicada. Pasado ese plazo, los valores podrán ser actualizados según IPC.':'La presente propuesta tiene una validez de 7 días corridos a partir de la fecha indicada. Pasado ese plazo, los valores podrán ser actualizados según IPC.',
+};
+const PRESU_ACLARACION_VIEJA='* Precios al día de la fecha, se ajustarán según IPC, hasta su momento de pago.';
+function presuMigrar(d){
+  const x={...d};
+  x.menuIntro=String(x.menuIntro||'').replace('los mejores Ingredientes','los mejores ingredientes');
+  if(Array.isArray(x.clausulas)) x.clausulas=x.clausulas.map(c=>PRESU_CLAUSULAS_CORREGIDAS[c.texto]?{...c, texto:PRESU_CLAUSULAS_CORREGIDAS[c.texto]}:c);
+  x.cierre=String(x.cierre||'').replace('Mariana Pagés Delaengue','Mariana Pages Palenque');
+  // La aclaración vieja quedó reemplazada por la frase fija de validez.
+  if(String(x.aclaracionPrecios||'').trim()===PRESU_ACLARACION_VIEJA) x.aclaracionPrecios='';
+  return x;
+}
+// 13: precios siempre en formato pesos ("55000" -> "$ 55.000"). Si el valor
+// no empieza con un número (ej. "A confirmar") se deja como está; lo que
+// siga al número (ej. " + IVA") se conserva.
+function presuFormatoPesos(v){
+  const t=String(v||'').trim();
+  if(!t) return '';
+  const m=t.match(/^\$?\s*(\d[\d.,]*)(.*)$/);
+  if(!m) return t;
+  const num=m[1];
+  let n;
+  if(num.includes(',')) n=parseFloat(num.replace(/\./g,'').replace(',','.'));
+  else if(/^\d{1,3}(\.\d{3})+$/.test(num)) n=parseFloat(num.replace(/\./g,''));
+  else n=parseFloat(num);
+  if(!isFinite(n)) return t;
+  const dec=Math.round(n*100)%100!==0;
+  return '$ '+n.toLocaleString('es-AR',{minimumFractionDigits:dec?2:0, maximumFractionDigits:2})+m[2];
+}
 function presuNuevoBorrador(){
   const hoy=new Date().toISOString().slice(0,10);
   return {
@@ -9683,10 +9724,11 @@ function presuNuevoBorrador(){
     estaciones:[presuEstacionVacia()],
     precios:[],
     aclaracionPrecios:'',
+    salonCamareros:'', salonPrecio:'',
     incluye:'',
     noIncluye:'',
     clausulas:presuDefaultClausulas(),
-    cierre:'Sin otro particular, los saluda atentamente,\nMariana Pagés Delaengue',
+    cierre:'Sin otro particular, los saluda atentamente,\nMariana Pages Palenque',
     graciasTexto:'Nos entusiasma la posibilidad de ser parte de este evento y acompañarlos con una propuesta gastronómica pensada a medida, cuidando cada detalle para que sea una experiencia memorable.',
   };
 }
@@ -10047,7 +10089,7 @@ function renderPresuPrecios(){
       </div>
       <div class="form-field" style="flex:1">
         <label>Valor</label>
-        <input type="text" value="${escH(p.valor)}" placeholder="Ej: $55.000 + IVA" style="width:100%" oninput="_presuEdit.precios[${i}].valor=this.value">
+        <input type="text" value="${escH(presuFormatoPesos(p.valor))}" placeholder="Ej: $ 55.000 + IVA" style="width:100%" oninput="_presuEdit.precios[${i}].valor=this.value" onblur="this.value=presuFormatoPesos(this.value);_presuEdit.precios[${i}].valor=this.value">
       </div>
       <button type="button" class="btn btn-outline" style="padding:6px 10px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuQuitarPrecio(${i})">✕</button>
     </div>`).join('') || '<div style="font-size:11.5px;color:var(--text3);margin-bottom:8px">Sin líneas de precio todavía.</div>';
@@ -10076,7 +10118,7 @@ function presuQuitarClausula(i){ _presuEdit.clausulas.splice(i,1); renderPresuCl
 // ── Abrir / guardar / eliminar ────────────────────────────────────────────
 function abrirModalPresupuesto(id){
   const p = id ? DB.presupuestos.find(x=>x._id===id) : null;
-  _presuEdit = p ? JSON.parse(JSON.stringify(p)) : presuNuevoBorrador();
+  _presuEdit = p ? presuMigrar(JSON.parse(JSON.stringify(p))) : presuNuevoBorrador();
   if(!_presuEdit.estaciones || !_presuEdit.estaciones.length) _presuEdit.estaciones=[presuEstacionVacia()];
   if(!_presuEdit.precios) _presuEdit.precios=[];
   if(!_presuEdit.clausulas || !_presuEdit.clausulas.length) _presuEdit.clausulas=presuDefaultClausulas();
@@ -10091,7 +10133,9 @@ function abrirModalPresupuesto(id){
   document.getElementById('presu-lugar').value = _presuEdit.lugar||'';
   document.getElementById('presu-fecha-evento').value = _presuEdit.fechaEvento||'';
   document.getElementById('presu-fecha-emision').value = _presuEdit.fechaEmision || new Date().toISOString().slice(0,10);
-  document.getElementById('presu-menu-intro').value = presuCorregirIntro(_presuEdit.menuIntro);
+  document.getElementById('presu-menu-intro').value = _presuEdit.menuIntro||'';
+  document.getElementById('presu-salon-camareros').value = _presuEdit.salonCamareros||'';
+  document.getElementById('presu-salon-precio').value = presuFormatoPesos(_presuEdit.salonPrecio);
   document.getElementById('presu-aclaracion-precios').value = _presuEdit.aclaracionPrecios||'';
   document.getElementById('presu-incluye').value = _presuEdit.incluye||'';
   document.getElementById('presu-no-incluye').value = _presuEdit.noIncluye||'';
@@ -10125,6 +10169,8 @@ function presuRecolectarDatosDesdeModal(){
     fechaEmision: document.getElementById('presu-fecha-emision').value,
     menuIntro: document.getElementById('presu-menu-intro').value,
     aclaracionPrecios: document.getElementById('presu-aclaracion-precios').value,
+    salonCamareros: document.getElementById('presu-salon-camareros').value.trim(),
+    salonPrecio: presuFormatoPesos(document.getElementById('presu-salon-precio').value),
     incluye: document.getElementById('presu-incluye').value,
     noIncluye: document.getElementById('presu-no-incluye').value,
     cierre: document.getElementById('presu-cierre').value,
@@ -10272,7 +10318,7 @@ function generarPresupuestoPDF(id, modo){
 }
 
 function presuDibujarPDF(d, modo){
-  d={...d, menuIntro:presuCorregirIntro(d.menuIntro)};
+  d=presuMigrar(d);
   const {jsPDF}=window.jspdf;
   const W=280, H=157.5, M=12; // mm, formato 16:9 (igual proporción que la referencia)
   const doc=new jsPDF({orientation:'landscape',unit:'mm',format:[W,H]});
@@ -10699,16 +10745,32 @@ function presuDibujarPDF(d, modo){
     let y=top;
 
     const panelX=cx, panelW=W-M-cx, rowH=13;
-    const precios=(d.precios&&d.precios.length)?d.precios:presuDefaultPrecios();
+    // Servicio de salón: precio por camarero y cantidad de camareros
+    // cotizados; la sugerencia de 1 cada 10 comensales es fija.
+    const haySalon=!!(String(d.salonPrecio||'').trim() || String(d.salonCamareros||'').trim());
+    const lineas=(d.precios&&d.precios.length)?d.precios.map(pr=>({concepto:pr.concepto, valor:presuFormatoPesos(pr.valor)}))
+      : [{concepto:'Precio total por persona', valor:''}];
+    if(haySalon){
+      const nCam=String(d.salonCamareros||'').trim();
+      const pCam=presuFormatoPesos(d.salonPrecio);
+      lineas.push({
+        concepto:'Precio por servicio de salón',
+        valor:(pCam||'—')+' por cada camarero',
+        sub:(nCam?`${nCam} ${nCam==='1'?'camarero cotizado':'camareros cotizados'} `:'')+'(se sugiere 1 cada 10 comensales)',
+      });
+    }
     // Cada fila crece hacia abajo si el concepto o el valor ocupan más de un
     // renglón (con textos cortos mide lo mismo que antes: 13mm).
-    const filas=precios.map(pr=>{
+    const filas=lineas.map(pr=>{
       doc.setFont('times','bold'); doc.setFontSize(8);
       const cLines=doc.splitTextToSize(track(pr.concepto||''), 44);
       doc.setFontSize(15);
       const vLines=doc.splitTextToSize(String(pr.valor||'—'), panelW-62-6);
-      const h=Math.max(rowH, 7+(cLines.length-1)*LH(8)+6, 9+(vLines.length-1)*LH(15)+4);
-      return {cLines, vLines, h};
+      doc.setFont('times','italic'); doc.setFontSize(8.5);
+      const sLines=pr.sub?doc.splitTextToSize(pr.sub, panelW-62-6):[];
+      const subH=sLines.length?1.5+sLines.length*LH(8.5):0;
+      const h=Math.max(rowH, 7+(cLines.length-1)*LH(8)+6, 9+(vLines.length-1)*LH(15)+4+subH);
+      return {cLines, vLines, sLines, h};
     });
     let i=0;
     while(i<filas.length){
@@ -10724,6 +10786,10 @@ function presuDibujarPDF(d, modo){
         drawC(GOLD); doc.setLineWidth(0.3); doc.line(panelX+56,ry+3,panelX+56,ry+f.h-3);
         text(BURG); doc.setFont('times','bold'); doc.setFontSize(15);
         doc.text(f.vLines, panelX+62, ry+9);
+        if(f.sLines.length){
+          text(MUTED); doc.setFont('times','italic'); doc.setFontSize(8.5);
+          doc.text(f.sLines, panelX+62, ry+9+(f.vLines.length-1)*LH(15)+1.5+LH(8.5));
+        }
         if(k>i){ drawC([222,208,196]); doc.setLineWidth(0.2); doc.line(panelX+4,ry,panelX+panelW-4,ry); }
         ry+=f.h;
       }
@@ -10731,6 +10797,12 @@ function presuDibujarPDF(d, modo){
       if(i<filas.length) y=presuPage();
     }
     y+=6;
+    // Frase de costo fija (a pedido: va siempre, no se edita).
+    text(BURG); doc.setFont('times','italic'); doc.setFontSize(9);
+    const frase=doc.splitTextToSize('Este presupuesto tiene una validez de 7 días. Estos precios se ajustarán según IPC hasta el momento de pago.', panelW);
+    if(y+frase.length*LH(9)>bottom-2 && y>top) y=presuPage();
+    doc.text(frase, panelX, y+2);
+    y+=2+frase.length*LH(9)+4;
     text(MUTED); doc.setFont('times','italic'); doc.setFontSize(7.5);
     let acl=doc.splitTextToSize(d.aclaracionPrecios||'', panelW);
     const aclLH=LH(7.5);
@@ -10794,7 +10866,9 @@ function presuDibujarPDF(d, modo){
     const perPage=6; // 3 filas x 2 columnas por hoja, como siempre
     const bottom=H-16;
     const colW=(W-2*M-10)/2, col2x=M+colW+10;
-    const titLH=LH(9.5), txtLH=LH(8.5), cierreLH=LH(9);
+    // Letra más grande (a pedido) y el texto sin el trazo de "semi-negrita".
+    const TIT_FS=10.5, TXT_FS=10;
+    const titLH=LH(TIT_FS), txtLH=LH(TXT_FS), cierreLH=LH(9);
     function condPage(){
       newPage();
       let y=36;
@@ -10812,9 +10886,9 @@ function presuDibujarPDF(d, modo){
     // que no entra en la hoja pasa a la siguiente columna / hoja (si ni en una
     // columna entera entra, el texto se parte y sigue como continuación).
     let q=clausulas.map((c,i)=>{
-      doc.setFont('times','bold'); doc.setFontSize(9.5);
+      doc.setFont('times','bold'); doc.setFontSize(TIT_FS);
       const tl=doc.splitTextToSize((c.titulo||'').toUpperCase(), colW-18);
-      doc.setFont('times','normal'); doc.setFontSize(8.5);
+      doc.setFont('times','normal'); doc.setFontSize(TXT_FS);
       const xl=doc.splitTextToSize(c.texto||'', colW-20);
       return {num:i+1, tl, xl};
     });
@@ -10830,11 +10904,11 @@ function presuDibujarPDF(d, modo){
         // direcciones dentro del círculo (antes solo quedaba centrado
         // horizontalmente, y se veía corrido hacia abajo).
         btext(BURG, String(it.num).padStart(2,'0'), cx0, cy0, {align:'center', baseline:'middle'}, 0.12);
-        text(BURG); doc.setFont('times','bold'); doc.setFontSize(9.5);
+        text(BURG); doc.setFont('times','bold'); doc.setFontSize(TIT_FS);
         doc.text(it.tl, bx+18, by+5);
       }
-      doc.setFont('times','normal'); doc.setFontSize(8.5);
-      if(it.xl.length) btext(BURG, it.xl, bx+18, by+textoDesde(it), {}, 0.06);
+      text(BURG); doc.setFont('times','normal'); doc.setFontSize(TXT_FS);
+      if(it.xl.length) doc.text(it.xl, bx+18, by+textoDesde(it));
     }
 
     doc.setFont('times','italic'); doc.setFontSize(9);
@@ -10949,7 +11023,7 @@ function presuDibujarPDF(d, modo){
       y+=firmaH+5;
     }catch(e){ y+=5; }
     text(BURG); doc.setFont('times','bold'); doc.setFontSize(8);
-    ttext('Mariana Pagés', textColX, y);
+    ttext('Mariana Pages', textColX, y);
     y+=4.5;
     text(MUTED); doc.setFont('times','normal'); doc.setFontSize(7.5);
     ttext('MP Catering', textColX, y);
