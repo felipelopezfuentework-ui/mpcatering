@@ -9873,6 +9873,7 @@ function renderPresuEstaciones(){
       <textarea rows="4" style="width:100%;margin:6px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical" oninput="_presuEdit.estaciones[${i}].items=this.value">${escH(e.items)}</textarea>
       <label>Precio de esta estación (ej. "Incluido" o "Adicional $X por pax")</label>
       <input type="text" value="${escH(e.precio||'')}" style="width:100%;margin-top:6px" oninput="_presuEdit.estaciones[${i}].precio=this.value">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px"><input type="checkbox" ${e.unaOpcion!==false?'checked':''} onchange="_presuEdit.estaciones[${i}].unaOpcion=this.checked"> Se elige 1 opción: mostrar en el PDF el cartel "Seleccionar 1 opción para todos los comensales"</label>
     </div>`).join('') || '<div style="font-size:11.5px;color:var(--text3)">Sin estaciones todavía.</div>';
 }
 // ── Corrector ortográfico (ortografía, acentos y puntuación) ─────────────
@@ -10073,7 +10074,7 @@ function presuMoverEstacion(desde, hasta){
   renderPresuEstaciones();
   presuOrtoActualizarBoton();
 }
-function presuEstacionVacia(){ return {titulo:'', items:'', precio:''}; }
+function presuEstacionVacia(){ return {titulo:'', items:'', precio:'', unaOpcion:true}; }
 function presuAgregarEstacion(){ _presuEdit.estaciones.push(presuEstacionVacia()); renderPresuEstaciones(); }
 function presuQuitarEstacion(i){ _presuEdit.estaciones.splice(i,1); renderPresuEstaciones(); }
 
@@ -10581,9 +10582,10 @@ function presuDibujarPDF(d, modo){
     const CARTEL='Seleccionar 1 opción para todos los comensales';
     const CARTEL_H=5, CARTEL_GAP=1.6;
     const itemsDe=est=>(est.items||'').split('\n').map(s=>s.trim()).filter(Boolean);
-    // El cartel va siempre, en toda estación que tenga platos (a pedido: no
-    // es opcional).
-    const llevaCartel=est=>itemsDe(est).length>0;
+    // El cartel va en las estaciones con platos que tengan tildado "Se elige
+    // 1 opción" (tildado por defecto; las guardadas sin la casilla cuentan
+    // como tildadas).
+    const llevaCartel=est=>est.unaOpcion!==false && itemsDe(est).length>0;
 
     // Mide una "parte" (una estación o el tramo de una estación partida)
     // a la escala s; devuelve el alto y lo necesario para dibujarla.
