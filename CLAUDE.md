@@ -1,0 +1,32 @@
+# MP Catering — sistema interno (Mariana Pages Catering)
+
+Toda la app está en **`index.html`** (~11k líneas: HTML + CSS + un único `<script>` al final). Sin build. Firebase (Firestore + Auth Google) por CDN; jsPDF 2.5.1, pdf.js, SheetJS por CDN.
+Usuario: dueño del negocio, no técnico. Hablar en español rioplatense, resúmenes breves, sin jerga. Si un pedido es ambiguo, preguntar con opciones antes de programar.
+
+## Cómo trabajar (ahorrar tokens)
+- Buscar por **nombre de función** con Grep (los de abajo) y leer solo ese tramo. No leer el archivo entero.
+- Ediciones grandes: script Python con `io.open(..., newline='')` + `assert s.count(a)==1`. Evitar `sed` con regex/`$`/`\n` (se rompe el escapado).
+- Verificar sintaxis: extraer el último `<script>` a un .js y `node --check`.
+- PDFs: arnés en el scratchpad que extrae `presuDibujarPDF` + constantes y lo corre con `jspdf@2.5.1` en node; revisar con `pymupdf` (texto y PNG).
+- Al terminar: commit en español + `git push origin main` sin preguntar. Actualizar este archivo si cambia algo de lo que describe.
+
+## Datos
+- `DB` global en memoria. Firestore: doc `mp_data/main` (`FB_DOC`, guarda el resto vía `sbSave`, que **excluye** las colecciones propias) y colecciones `insumos`, `proveedores`, `subproductos`, `platos`, `maestro_subs`/`maestro_platos` (doc `lista`), `comanda_periodos`, `comanda_eventos`, `maestro_clientes`, `stock_conteos`, `presupuestos`. Listeners `iniciarListeners*` en `entrarComo()`.
+- Recetas se identifican por **nombre con prefijo**: `INSUMO - `, `SUB - `, `PLATO - ` (`nombreDocSeguro` para el id del doc).
+- Autoguardado genérico: eventos `change`/Enter → `sbSave(true)` o `guardarEventoActual()` (si está dentro de `#modal-evento-detalle`). Modales con cierre que guarda: `CIERRE_SEGURO_MODAL`.
+- Tab nueva → agregarla en `refrescarVistaActual` y en el switch de `switchTab`.
+- Acceso: `EMAILS_AUTORIZADOS` (login); Presupuestos solo `EMAILS_PRESUPUESTOS`.
+
+## Módulos (`cambiarModulo(perfil)`; tabs en `TABS_PROD/COT/COM/STOCK/PRESU`)
+- **Producción** (insumos, subproductos, platos, proveedores): `renderInsumos`, `abrirModalSub`/`guardarSub`→`_guardarSubReal`, `abrirModalPlato`/`guardarPlato`→`_guardarPlatoReal`, vistas `_renderListaRecetas/_renderCardsRecetas/_renderTablaRecetas` (`_tipoMeta`), rendimiento `rendUpdate`/`rendUpdateCosto` (costo unitario = costo × (1+`merma_receta`) ÷ `rendimiento_unidades`), `moverRecetaEntreListas` (pasar/duplicar sub⇄plato), import Excel `importRecetas`, cascada de costos `recalcularRecetasPorInsumo`, PDF receta `descargarRecetaPDFPorNombre`.
+- **Cotización**: Cotizador `costeoRows` (en memoria, no se guarda), `renderCosteoTable`, `cotizRecetaInfo` (costo/porción desde la receta; sin porciones → alerta, no suma), `exportarCoteoPDF`; Precio Final `pfMarkups`/`PF_ORDER`, `calcCostoTipo`, `exportarPrecioFinalPDF`. Tipos: plato, sub, vajilla, personal, seguro, descartables, flete.
+- **Fichas Técnicas / Comanda**: períodos y eventos (`abrirPeriodo`, `abrirEvento`, `renderEventoSheet`, `guardarEventoActual`), import desde PDF de presupuesto (`extraerDatosPDF`), menú por secciones, checklists, PDF del evento (`exportarEventoPDFById`). Maestro de clientes: `abrirModalCliente`/`guardarCliente` (hace `set()` del doc completo: **todo campo nuevo va en `datos`**), `getHistorialCliente`.
+- **Stock**: conteos (`stock_conteos`), importación de planilla.
+- **Presupuestos**: `abrirModalPresupuesto`, `presuRecolectarDatosDesdeModal`, `presuGuardarDesdeModal` (guarda inmediato; Ver/Descargar PDF también guardan), `cerrarModalPresupuesto`/`cancelarModalPresupuesto`, `duplicarPresupuesto`, `presuMigrar` (corrige textos por defecto viejos en docs guardados), `presuDibujarPDF(d, 'ver'|'descargar')` con `pagePortada/pageEvento/pageMenu/pagePresupuesto/pagesCondiciones/pageGracias`, corrector `presuRevisarOrtografiaTodo` (LanguageTool API), `presuFormatoPesos`.
+
+## Reglas de negocio y decisiones del cliente
+- Subproductos llevan **solo insumos**; platos llevan insumos y subs. Un sub usado en platos no se "pasa" a plato (sí se duplica).
+- Presupuesto nuevo: precargados solo fotos, intro del menú, términos y cierre; estaciones/precios/incluye vacíos.
+- PDF presupuesto: fecha del evento siempre "(a confirmar)"; cartel "Seleccionar 1 opción para todos los comensales" por estación (casilla, tildada por defecto); hojas de menú: hasta 3 estaciones, ≤3 platos sobrantes no abren hoja (se compacta); frase fija de validez 7 días + IPC; servicio de salón "$ X por cada camarero (se sugiere 1 cada 10 comensales)" (sin cantidad); precios en formato `$ 55.000`; cliente en la tapa; "Solicitante" (campo `referentes`); firma "Mariana Pages Palenque" (sin tilde).
+- Doc de Firestore máx. 1 MiB: fotos de presupuestos se recomprimen (`presuAjustarTamano`).
+- Pendiente de definir: módulo "Pendientes" (propuesta hecha, sin implementar); facturación ARCA (solo charla).
