@@ -51,6 +51,12 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 .badge-blue{background:rgba(92,45,110,.15);color:var(--accent)}
 .badge-gold{background:rgba(200,169,81,.25);color:#8a6800}
 .tw{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border)}
+/* Tabla con scroll propio y encabezado fijo (Insumos): con overflow-x:auto
+   el sticky no se engancha a la página, así que la tabla scrollea dentro de
+   una caja que entra en pantalla debajo del header + solapas. El borde de
+   abajo del th va como sombra porque con border-collapse se pierde al fijarlo. */
+.tw-scroll{overflow:auto;max-height:calc(100vh - var(--mp-vbar-top,130px) - 70px)}
+.tw-scroll thead th{position:sticky;top:0;z-index:2;box-shadow:inset 0 -2px 0 var(--border)}
 /* KEY FIX: table itself must NOT clip its children */
 table{width:100%;border-collapse:collapse;font-size:12px}
 thead th{background:linear-gradient(180deg,#ede5f5,#e3d5f0);padding:10px 12px;text-align:left;font-weight:700;color:var(--mp-plum);border-bottom:2px solid var(--border);white-space:nowrap}
@@ -572,7 +578,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
         <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleXLSX(event)">
       </label>
     </div>
-    <div class="tw"><table>
+    <div class="tw tw-scroll"><table>
       <thead><tr><th>#</th><th>Key interna</th><th>Nombre</th><th>Formato</th><th class="num">$ Formato</th><th class="num">Kg/Formato</th><th class="num">$ / kg</th><th>Proveedor</th><th></th></tr></thead>
       <tbody id="ins-tbody"></tbody>
     </table></div>
@@ -2735,6 +2741,7 @@ function addProveedor(){
 //  INSUMOS
 // ══════════════════════════════════════════════════════════════════
 function renderInsumos(){
+  _mpUpdateVbarTop(); // alto de la caja con encabezado fijo (.tw-scroll)
   const q=document.getElementById('ins-search').value.toLowerCase();
   const f=DB.insumos.filter(x=>x.nombre.toLowerCase().includes(q)||x.key.toLowerCase().includes(q)||String(x.proveedor).toLowerCase().includes(q));
   document.getElementById('ins-count').textContent=f.length;
