@@ -359,7 +359,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 }
 .mp-icon-btn:hover{background:var(--surface2)}
 .mp-icon-btn-warn{border-color:rgba(230,160,20,.45)}
-/* Barra sticky de vistas (Lista/Grilla/Cards/Tabla) + buscador, en Subproductos y Platos */
+/* Barra sticky de vistas (Lista/Cards/Tabla) + buscador, en Subproductos y Platos */
 .mp-vista-bar{
   position:sticky;top:var(--mp-vbar-top,130px);z-index:30;background:var(--surface);
   border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;
@@ -374,16 +374,6 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .mp-vista-btn:hover{background:var(--accent-light)}
 .mp-vista-btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .mp-vista-bar .sbox{flex:1;min-width:160px;max-width:none;margin:0}
-/* Vista Grilla: cards cuadradas compactas */
-.mp-grilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
-.mp-grilla-card{
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-  padding:10px;cursor:pointer;transition:box-shadow .15s;display:flex;flex-direction:column;gap:6px
-}
-.mp-grilla-card:hover{box-shadow:var(--shadow)}
-.mp-grilla-nombre{font-size:12px;font-weight:700;color:var(--text);line-height:1.3;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.mp-grilla-foot{display:flex;align-items:center;justify-content:space-between;gap:6px}
 /* Vista Tabla: filas compactas */
 .mp-tabla-row td{vertical-align:middle}
 /* Botón flotante "Cargar desde Excel" */
@@ -593,7 +583,6 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div class="mp-vista-bar">
       <div class="mp-vista-btns">
         <button type="button" class="mp-vista-btn on" data-vista-btn="sub" data-vista="lista" onclick="setVistaReceta('sub','lista')">📋 Lista</button>
-        <button type="button" class="mp-vista-btn" data-vista-btn="sub" data-vista="grilla" onclick="setVistaReceta('sub','grilla')">⊞ Grilla</button>
         <button type="button" class="mp-vista-btn" data-vista-btn="sub" data-vista="cards" onclick="setVistaReceta('sub','cards')">▦ Cards</button>
         <button type="button" class="mp-vista-btn" data-vista-btn="sub" data-vista="tabla" onclick="setVistaReceta('sub','tabla')">≡ Tabla</button>
       </div>
@@ -618,7 +607,6 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div class="mp-vista-bar">
       <div class="mp-vista-btns">
         <button type="button" class="mp-vista-btn on" data-vista-btn="plato" data-vista="lista" onclick="setVistaReceta('plato','lista')">📋 Lista</button>
-        <button type="button" class="mp-vista-btn" data-vista-btn="plato" data-vista="grilla" onclick="setVistaReceta('plato','grilla')">⊞ Grilla</button>
         <button type="button" class="mp-vista-btn" data-vista-btn="plato" data-vista="cards" onclick="setVistaReceta('plato','cards')">▦ Cards</button>
         <button type="button" class="mp-vista-btn" data-vista-btn="plato" data-vista="tabla" onclick="setVistaReceta('plato','tabla')">≡ Tabla</button>
       </div>
@@ -3739,7 +3727,7 @@ function mpTogglePopover(btn){
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  VISTAS de las cards de Subproductos/Platos: Lista/Grilla/Cards/Tabla
+//  VISTAS de las cards de Subproductos/Platos: Lista/Cards/Tabla
 //  La vista elegida se recuerda solo en memoria (dura la sesión, no
 //  se persiste a Firebase ni a localStorage).
 // ══════════════════════════════════════════════════════════════════
@@ -3811,12 +3799,10 @@ function _tipoMeta(tipo){
     :{prefix:'PLATO - ',emoji:'🍴',ghClass:'plato-gh',totalColor:'var(--mp-gold)',editAttr:'data-edit-plato',delAttr:'data-del-plato',pdfAttr:'data-pdf-plato',
       pasarAttr:'data-pasar-plato',dupAttr:'data-dup-plato',otra:'subproducto'};
 }
-// Botones "⇄ Pasar a…" y "⧉ Duplicar como…" (la otra lista). compacto=true
-// para Grilla/Tabla: solo el ícono, con el texto en el tooltip.
-function _mpBotonesMover(meta,nombre,compacto){
+// Botones "⇄ Pasar a…" y "⧉ Duplicar como…" (la otra lista), para las
+// vistas Lista y Cards (la Tabla tiene su versión de solo íconos).
+function _mpBotonesMover(meta,nombre){
   const n=escH(nombre);
-  if(compacto) return `<button type="button" class="mp-icon-btn" title="Pasar a ${meta.otra}" ${meta.pasarAttr}="${n}">⇄</button>`
-    +`<button type="button" class="mp-icon-btn" title="Duplicar como ${meta.otra}" ${meta.dupAttr}="${n}">⧉</button>`;
   return `<button class="btn btn-outline" style="padding:4px 10px;font-size:11px;white-space:nowrap" title="La receta se mueve a la otra lista" ${meta.pasarAttr}="${n}">⇄ Pasar a ${meta.otra}</button>`
     +`<button class="btn btn-outline" style="padding:4px 10px;font-size:11px;white-space:nowrap" title="Se crea una copia en la otra lista; esta queda" ${meta.dupAttr}="${n}">⧉ Duplicar como ${meta.otra}</button>`;
 }
@@ -3838,7 +3824,7 @@ function _renderListaRecetas(tipo,nombres){
         ${_mpBotonAlerta(d.faltantes)}
         ${pesoBadge}
         <span style="color:${meta.totalColor};font-weight:700">${fmt(d.total)}</span>
-        ${_mpBotonesMover(meta,nombre,false)}
+        ${_mpBotonesMover(meta,nombre)}
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.pdfAttr}="${escH(nombre)}">📄 PDF</button>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.editAttr}="${escH(nombre)}">✏️ Editar</button>
         <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
@@ -3872,35 +3858,12 @@ function _renderCardsRecetas(tipo,nombres){
       ${_mpBotonFecha(d.cfg)}
       ${_mpBotonAlerta(d.faltantes)}
       <span style="color:${meta.totalColor};font-weight:700;white-space:nowrap">${fmt(d.total)}</span>
-      ${_mpBotonesMover(meta,nombre,false)}
+      ${_mpBotonesMover(meta,nombre)}
       <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.pdfAttr}="${escH(nombre)}">📄 PDF</button>
       <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.editAttr}="${escH(nombre)}">✏️ Editar</button>
       <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
     </div>`;
   }).join('');
-}
-
-// Vista ⊞ Grilla: cards cuadradas compactas — nombre, categoría y costo unitario.
-function _renderGrillaRecetas(tipo,nombres){
-  const meta=_tipoMeta(tipo);
-  const cards=nombres.map(nombre=>{
-    const d=_recetaViewData(tipo,nombre);
-    return `<div class="mp-grilla-card">
-      <div class="mp-grilla-nombre" title="${escH(_nombreVisible(meta,nombre))}">${escH(_nombreVisible(meta,nombre))}</div>
-      ${_mpCategoriaBadge(d.categoria)||'<span></span>'}
-      <div style="font-size:12px;color:${meta.totalColor};font-weight:700">${d.costoUnitario!=null?fmt(d.costoUnitario)+' / u.':'—'}</div>
-      <div class="mp-grilla-foot">
-        <span style="display:flex;gap:2px">${_mpBotonFecha(d.cfg)}${_mpBotonAlerta(d.faltantes)}</span>
-        <span style="display:flex;gap:4px">
-          ${_mpBotonesMover(meta,nombre,true)}
-          <button type="button" class="mp-icon-btn" title="PDF" ${meta.pdfAttr}="${escH(nombre)}">📄</button>
-          <button type="button" class="mp-icon-btn" title="Editar" ${meta.editAttr}="${escH(nombre)}">✏️</button>
-          <button type="button" class="mp-icon-btn" style="color:var(--red);border-color:rgba(192,57,43,.3)" title="Eliminar" ${meta.delAttr}="${escH(nombre)}">🗑</button>
-        </span>
-      </div>
-    </div>`;
-  }).join('');
-  return `<div class="mp-grilla">${cards}</div>`;
 }
 
 // Vista ≡ Tabla: filas compactas — nombre, categoría, porciones, costo unitario y alertas.
@@ -4027,8 +3990,7 @@ function renderSubproductos(){
   const c=document.getElementById('sub-list');
   if(!subs.length){c.innerHTML='<div class="empty">Sin subproductos.</div>';return;}
   const vista=_subVista;
-  c.innerHTML = vista==='grilla'?_renderGrillaRecetas('sub',subs)
-    : vista==='cards'?_renderCardsRecetas('sub',subs)
+  c.innerHTML = vista==='cards'?_renderCardsRecetas('sub',subs)
     : vista==='tabla'?_renderTablaRecetas('sub',subs)
     : _renderListaRecetas('sub',subs);
   c.querySelectorAll('[data-edit-sub]').forEach(b=>b.addEventListener('click',()=>abrirModalSub(b.dataset.editSub)));
@@ -4265,8 +4227,7 @@ function renderPlatos(){
   const c=document.getElementById('plato-list');
   if(!platos.length){c.innerHTML='<div class="empty">Sin platos.</div>';return;}
   const vista=_platoVista;
-  c.innerHTML = vista==='grilla'?_renderGrillaRecetas('plato',platos)
-    : vista==='cards'?_renderCardsRecetas('plato',platos)
+  c.innerHTML = vista==='cards'?_renderCardsRecetas('plato',platos)
     : vista==='tabla'?_renderTablaRecetas('plato',platos)
     : _renderListaRecetas('plato',platos);
   c.querySelectorAll('[data-edit-plato]').forEach(b=>b.addEventListener('click',()=>abrirModalPlato(b.dataset.editPlato)));
