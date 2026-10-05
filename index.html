@@ -993,6 +993,67 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
         <textarea id="cli-obs-generales" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
       </div>
     </div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:20px">
+      <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:8px">🧠 Particularidades</label>
+      <div class="form-row">
+        <div class="form-field" style="flex:1">
+          <label>Particularidades</label>
+          <textarea id="cli-particularidades" rows="5" placeholder="Todo lo que haya que saber de este cliente" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1">
+          <label>Fecha de cumpleaños <span id="cli-edad" style="font-weight:400;color:var(--mp-violet)"></span></label>
+          <input type="date" id="cli-fecha-cumpleanos" style="width:100%" oninput="actualizarEdadCliente()">
+        </div>
+        <div class="form-field" style="flex:1">
+          <label>Nacionalidad / Descendencia</label>
+          <input type="text" id="cli-nacionalidad" style="width:100%">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1">
+          <label>Profesión</label>
+          <input type="text" id="cli-profesion" style="width:100%">
+        </div>
+        <div class="form-field" style="flex:1">
+          <label>Nivel socioeconómico</label>
+          <select id="cli-nivel-socioeconomico" style="width:100%">
+            <option value="">— Seleccionar —</option>
+            <option value="Clase alta">Clase alta</option>
+            <option value="Clase media alta">Clase media alta</option>
+            <option value="Clase media">Clase media</option>
+            <option value="Clase baja">Clase baja</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1">
+          <label>Restaurant preferido</label>
+          <input type="text" id="cli-restaurant-preferido" style="width:100%">
+        </div>
+        <div class="form-field" style="flex:1">
+          <label>Nivel de exigencia</label>
+          <input type="text" id="cli-nivel-exigencia" style="width:100%">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1">
+          <label>TOCs</label>
+          <textarea id="cli-tocs" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1">
+          <label>Aversiones (lo que NO va)</label>
+          <textarea id="cli-aversiones" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+        </div>
+        <div class="form-field" style="flex:1">
+          <label>Preferencias</label>
+          <textarea id="cli-preferencias" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+        </div>
+      </div>
+    </div>
     <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:18px">
       <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:8px">📋 Historial de eventos vinculados</label>
       <div id="cli-historial"></div>
@@ -6435,10 +6496,34 @@ function abrirModalCliente(id){
   document.getElementById('cli-referente').value           = cliente?.referente||'';
   document.getElementById('cli-obs-acceso').value          = cliente?.obs_acceso||'';
   document.getElementById('cli-obs-generales').value       = cliente?.obs_generales||'';
+  document.getElementById('cli-particularidades').value    = cliente?.particularidades||'';
+  document.getElementById('cli-fecha-cumpleanos').value    = cliente?.fecha_cumpleanos||'';
+  document.getElementById('cli-nacionalidad').value        = cliente?.nacionalidad||'';
+  document.getElementById('cli-profesion').value           = cliente?.profesion||'';
+  document.getElementById('cli-nivel-socioeconomico').value= cliente?.nivel_socioeconomico||'';
+  document.getElementById('cli-restaurant-preferido').value= cliente?.restaurant_preferido||'';
+  document.getElementById('cli-nivel-exigencia').value     = cliente?.nivel_exigencia||'';
+  document.getElementById('cli-tocs').value                = cliente?.tocs||'';
+  document.getElementById('cli-aversiones').value          = cliente?.aversiones||'';
+  document.getElementById('cli-preferencias').value        = cliente?.preferencias||'';
+  actualizarEdadCliente();
   document.getElementById('modal-cliente-alert').className='alert';
   renderHistorialCliente(cliente);
   document.getElementById('modal-cliente').classList.add('open');
   setTimeout(()=>document.getElementById('cli-nombre-cliente').focus(),50);
+}
+
+// Edad calculada sola a partir de la fecha de cumpleaños (no se carga a mano).
+function actualizarEdadCliente(){
+  const el=document.getElementById('cli-edad');
+  if(!el) return;
+  const v=document.getElementById('cli-fecha-cumpleanos').value;
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v||'');
+  if(!m){ el.textContent=''; return; }
+  const hoy=new Date();
+  let edad=hoy.getFullYear()-Number(m[1]);
+  if(hoy.getMonth()+1<Number(m[2]) || (hoy.getMonth()+1===Number(m[2]) && hoy.getDate()<Number(m[3]))) edad--;
+  el.textContent=(edad>=0 && edad<130)?`· ${edad} años`:'';
 }
 
 // Abre la ficha de un cliente por encima del modal de detalle del evento (link
@@ -6475,6 +6560,16 @@ function guardarCliente(){
     referente:         document.getElementById('cli-referente').value.trim(),
     obs_acceso:        document.getElementById('cli-obs-acceso').value.trim(),
     obs_generales:     document.getElementById('cli-obs-generales').value.trim(),
+    particularidades:  document.getElementById('cli-particularidades').value.trim(),
+    fecha_cumpleanos:  document.getElementById('cli-fecha-cumpleanos').value,
+    nacionalidad:      document.getElementById('cli-nacionalidad').value.trim(),
+    profesion:         document.getElementById('cli-profesion').value.trim(),
+    nivel_socioeconomico: document.getElementById('cli-nivel-socioeconomico').value,
+    restaurant_preferido: document.getElementById('cli-restaurant-preferido').value.trim(),
+    nivel_exigencia:   document.getElementById('cli-nivel-exigencia').value.trim(),
+    tocs:              document.getElementById('cli-tocs').value.trim(),
+    aversiones:        document.getElementById('cli-aversiones').value.trim(),
+    preferencias:      document.getElementById('cli-preferencias').value.trim(),
   };
   const clienteId = id || generarClienteId();
   cerrarModal('modal-cliente');
