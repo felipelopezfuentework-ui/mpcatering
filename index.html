@@ -650,6 +650,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div class="toolbar" style="margin-bottom:16px">
       <span style="font-size:11px;font-weight:600;color:var(--text3);white-space:nowrap">Agregar:</span>
       <button class="btn btn-gold"    onclick="agregarFila('plato')">🍴 Plato</button>
+      <button class="btn btn-gold"    onclick="agregarFila('sub')">🧩 Subproducto</button>
       <button class="btn btn-outline" onclick="agregarFila('vajilla')">🍽 Vajilla</button>
       <button class="btn btn-outline" onclick="agregarFila('personal')">👤 Personal</button>
       <button class="btn btn-outline" onclick="agregarFila('seguro')">🛡 Seguro Evento</button>
@@ -661,13 +662,15 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       </div>
     </div>
 
+    <!-- Aviso de recetas sin porciones (lo completa renderCosteoTable) -->
+    <div id="costeo-alerta" class="alert alert-error" style="display:none;margin-bottom:12px"></div>
     <!-- Tabla unificada -->
     <div class="tw"><table>
       <thead><tr>
         <th style="width:140px">Tipo</th>
         <th>Descripción</th>
         <th class="num">$ Receta</th>
-        <th class="num">Porciones<br><span style="font-weight:400;font-size:10px;color:var(--text3)">(auto)</span></th>
+        <th class="num">Porciones<br><span style="font-weight:400;font-size:10px;color:var(--text3)">(de la receta)</span></th>
         <th class="num">Costo/Porc.</th>
         <th class="num">Cantidad</th>
         <th class="num">Monto unit.</th>
@@ -3981,6 +3984,7 @@ function _guardarSubReal(nombre){
   if(seRenombroSub) eliminarSubproductoDoc(editSubOld);
   guardarSubproductoDoc(nombre);
   guardarMaestroSubs();
+  renderCosteoTable();
 }
 
 function renderSubproductos(){
@@ -4218,6 +4222,7 @@ function _guardarPlatoReal(nombre){
   if(seRenombroPlato) eliminarPlatoDoc(editPlatoOld);
   guardarPlatoDoc(nombre);
   guardarMaestroPlatos();
+  renderCosteoTable();
 }
 
 function renderPlatos(){
@@ -4790,12 +4795,40 @@ let costeoRows=[];
 let costeoMeta={titulo:'',cliente:''};
 
 // Tipos: 'plato' | 'personal' | 'flete' | 'packaging'
-const TIPO_LABELS={plato:'🍴 Plato',vajilla:'🍽 Vajilla',personal:'👤 Personal',seguro:'🛡 Seguro Evento',descartables:'🧴 Descartables/Packaging',flete:'🚚 Fletes'};
-const TIPO_COLORS={plato:'var(--mp-violet)',vajilla:'#7b4a90',personal:'var(--green)',seguro:'#1a6b5a',descartables:'#0066aa',flete:'#c05c00'};
+const TIPO_LABELS={plato:'🍴 Plato',sub:'🧩 Subproducto',vajilla:'🍽 Vajilla',personal:'👤 Personal',seguro:'🛡 Seguro Evento',descartables:'🧴 Descartables/Packaging',flete:'🚚 Fletes'};
+const TIPO_COLORS={plato:'var(--mp-violet)',sub:'#8a6d1f',vajilla:'#7b4a90',personal:'var(--green)',seguro:'#1a6b5a',descartables:'#0066aa',flete:'#c05c00'};
+
+// Filas de receta (plato o subproducto): el costo por porción sale siempre
+// de la receta, igual que el "Costo unitario" que muestra al editarla:
+// costo de ingredientes con la merma general de la receta, dividido las
+// "Porciones/Unidades obtenidas". Si la receta no tiene porciones cargadas,
+// la fila avisa y no suma al total (antes se tipeaban a mano en el Cotizador).
+// row.plato guarda el nombre de la receta también para subproductos.
+const esFilaReceta=row=>{const t=row.tipo||'plato'; return t==='plato'||t==='sub';};
+function cotizRecetaInfo(row){
+  const tipo=row.tipo==='sub'?'sub':'plato';
+  const nombre=row.plato||'';
+  if(!nombre) return null;
+  const filas=tipo==='sub'?DB.subproductos.filter(x=>x.subproducto===nombre):DB.recetas_platos.filter(x=>x.plato===nombre);
+  const cfg=((tipo==='sub'?DB.subs_config:DB.platos_config)||{})[nombre]||{};
+  const merma=Math.min(Math.max(parseFloat(cfg.merma_receta)||0,0),99.99);
+  const costoReceta=filas.reduce((acc,r)=>acc+(parseFloat(r.costo_receta)||0),0)*(1+merma/100);
+  let porciones=parseFloat(cfg.rendimiento_unidades)||0;
+  // Platos viejos que solo tienen guardado el peso por porción.
+  if(!(porciones>0) && parseFloat(cfg.peso_porcion)>0){
+    const tk=filas.reduce((acc,r)=>acc+(parseFloat(r.kgs)||0),0);
+    porciones=tk*1000/parseFloat(cfg.peso_porcion);
+  }
+  const sinPorciones=!(porciones>0);
+  return {tipo, nombre, visible:nombre.replace(/^(PLATO|SUB) - /,''), filas, cfg, costoReceta, porciones,
+    sinPorciones, costoPorcion:sinPorciones?0:costoReceta/porciones,
+    unidad:UNIDAD_LABELS[cfg.tipo_unidad]||'porciones'};
+}
+function abrirRecetaDesdeCotizador(tipo,nombre){ tipo==='sub'?abrirModalSub(nombre):abrirModalPlato(nombre); }
 
 function agregarFila(tipo){
   const id=Date.now();
-  costeoRows.push({id,tipo,plato:'',desc:'',porcionesManual:1,unidades:1,montoUnit:0});
+  costeoRows.push({id,tipo,plato:'',desc:'',unidades:1,montoUnit:0});
   renderCosteoTable();
   setTimeout(()=>{
     const el=document.getElementById('cci'+id)||document.getElementById('cdesc'+id);
@@ -4823,11 +4856,14 @@ function limpiarCosteo(){
 function renderCosteoTable(){
   const tbody=document.getElementById('costeo-tbody');
   const tfoot=document.getElementById('costeo-tfoot');
+  const alertaEl=document.getElementById('costeo-alerta');
+  if(alertaEl) alertaEl.style.display='none';
   if(!costeoRows.length){
     tbody.innerHTML='<tr><td colspan="9" class="empty">Usá los botones de arriba para agregar ítems al presupuesto.</td></tr>';
     tfoot.style.display='none';return;
   }
   let grand=0;
+  const sinPorcionesList=[];
   const INP=`style="text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 6px;font-size:12px"`;
   tbody.innerHTML=costeoRows.map(row=>{
     const tipo=row.tipo||'plato';
@@ -4835,42 +4871,33 @@ function renderCosteoTable(){
     const tipoColor=TIPO_COLORS[tipo]||'var(--text)';
     const tipoBadge=`<span style="font-size:11px;font-weight:700;color:${tipoColor};white-space:nowrap">${tipoLabel}</span>`;
 
-    if(tipo==='plato'){
-      // ── FILA PLATO ──────────────────────────────────────────────
-      const recipeRows=DB.recetas_platos.filter(x=>x.plato===row.plato);
-      const pr=recipeRows.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0);
-      const porcAuto=(()=>{
-        if(!row.plato)return null;
-        const cfg=(DB.platos_config||{})[row.plato];
-        if(!cfg||!cfg.peso_porcion)return null;
-        const tk=DB.recetas_platos.filter(x=>x.plato===row.plato).reduce((s,r)=>s+(parseFloat(r.kgs)||0),0);
-        return tk*1000/cfg.peso_porcion;
-      })();
-      const porciones=porcAuto!==null?porcAuto:(row.porcionesManual||0);
-      const cp=porciones>0?pr/porciones:0;
-      const tot=cp*row.unidades; grand+=tot;
-      const lbl=row.plato?row.plato.replace('PLATO - ',''):'';
-      const cfg=row.plato?(DB.platos_config||{})[row.plato]:null;
-      const pesoTag=cfg&&cfg.peso_porcion?`<span style="font-size:10px;color:var(--text3);display:block">${cfg.peso_porcion}g/porc.</span>`:'';
-      const porcDisplay=porcAuto!==null
-        ?`<span style="color:var(--mp-violet);font-weight:600">${fmtN(porciones,1)}</span>${pesoTag}`
-        :`<input type="number" step="1" min="1" value="${row.porcionesManual||0}" ${INP} style="width:70px;${INP.slice(7)}"
-            oninput="setCManual(${row.id},this.value)" title="Ingresá las porciones manualmente">`;
-      return `<tr>
+    if(tipo==='plato'||tipo==='sub'){
+      // ── FILA RECETA (plato o subproducto) ───────────────────────
+      const info=cotizRecetaInfo(row);
+      if(info&&info.sinPorciones) sinPorcionesList.push(info.visible);
+      const tot=info?info.costoPorcion*(row.unidades||0):0; grand+=tot;
+      const pesoTag=info&&tipo==='plato'&&info.cfg.peso_porcion?`<span style="font-size:10px;color:var(--text3);display:block">${info.cfg.peso_porcion}g/porc.</span>`:'';
+      const unidadTag=info&&info.unidad!=='porciones'?`<span style="font-size:10px;color:var(--text3);display:block">${escH(info.unidad)}</span>`:'';
+      const porcDisplay=!info?'—'
+        : info.sinPorciones
+          ?`<span style="color:var(--red);font-weight:700;font-size:11px;white-space:nowrap">⚠ Sin porciones</span>
+             <button class="btn btn-outline" style="padding:2px 7px;font-size:10.5px;margin-top:3px" onclick="abrirRecetaDesdeCotizador('${tipo}',${escH(JSON.stringify(info.nombre))})">Cargar en la receta</button>`
+          :`<span style="color:var(--mp-violet);font-weight:600">${fmtN(info.porciones,1)}</span>${unidadTag}${pesoTag}`;
+      return `<tr${info&&info.sinPorciones?' style="background:rgba(192,57,43,.06)"':''}>
         <td style="padding:6px 8px">${tipoBadge}</td>
         <td style="min-width:200px;padding:6px 10px">
-          <input class="dd-input" id="cci${row.id}" type="text" placeholder="Elegí un plato…"
-            data-val="${escH(row.plato)}" value="${escH(lbl)}">
+          <input class="dd-input" id="cci${row.id}" type="text" placeholder="${tipo==='sub'?'Elegí un subproducto…':'Elegí un plato…'}"
+            data-val="${escH(row.plato)}" value="${escH(info?info.visible:'')}">
         </td>
-        <td class="num" style="color:var(--text3)">${row.plato?fmt(pr):'—'}</td>
-        <td class="num" style="vertical-align:middle">${row.plato?porcDisplay:'—'}</td>
-        <td class="num" style="color:var(--yellow);font-weight:600">${row.plato?fmt(cp):'—'}</td>
+        <td class="num" style="color:var(--text3)">${info?fmt(info.costoReceta):'—'}</td>
+        <td class="num" style="vertical-align:middle">${porcDisplay}</td>
+        <td class="num" style="color:var(--yellow);font-weight:600">${info&&!info.sinPorciones?fmt(info.costoPorcion):'—'}</td>
         <td class="num"><input type="number" step="1" min="1" value="${row.unidades}"
           style="width:70px;${INP.slice(7)}" oninput="setCVal(${row.id},'unidades',this.value)"></td>
         <td class="num" style="color:var(--text3)">—</td>
-        <td class="num" style="color:var(--mp-gold);font-weight:700;font-size:13px">${row.plato?fmt(tot):'—'}</td>
+        <td class="num" style="color:var(--mp-gold);font-weight:700;font-size:13px">${info&&!info.sinPorciones?fmt(tot):'—'}</td>
         <td style="white-space:nowrap">
-          ${row.plato?`<button class="btn btn-outline" style="padding:3px 8px;font-size:11px" onclick="toggleCDet(${row.id})">🔍</button>`:''}
+          ${info?`<button class="btn btn-outline" style="padding:3px 8px;font-size:11px" onclick="toggleCDet(${row.id})">🔍</button>`:''}
           <button class="btn btn-danger" onclick="eliminarFilaCosteo(${row.id})">🗑</button>
         </td>
       </tr>`;
@@ -4902,27 +4929,32 @@ function renderCosteoTable(){
   }).join('');
   document.getElementById('costeo-grand').textContent=fmt(grand);
   tfoot.style.display='';
+  if(alertaEl && sinPorcionesList.length){
+    alertaEl.style.display='block';
+    alertaEl.textContent='⚠ '+(sinPorcionesList.length===1?'Esta receta no tiene':'Estas recetas no tienen')
+      +' porciones cargadas y no suman al total: '+sinPorcionesList.join(', ')
+      +'. Cargalas en la receta ("Porciones/Unidades obtenidas") con el botón de la fila.';
+  }
 
-  // Attach dropdowns only for plato rows
-  costeoRows.filter(r=>(r.tipo||'plato')==='plato').forEach(row=>{
+  // Desplegables de recetas (platos o subproductos según la fila)
+  costeoRows.filter(esFilaReceta).forEach(row=>{
     const inp=document.getElementById('cci'+row.id);if(!inp)return;
     attachDD(inp,
-      ()=>platoOpts(),
+      ()=>row.tipo==='sub'?subOpts():platoOpts(),
       ()=>row.plato||'',
       val=>{ row.plato=val; renderCosteoTable(); }
     );
   });
 }
 function setCVal(id,f,v){const r=costeoRows.find(x=>x.id===id);if(r){r[f]=parseFloat(v)||0;renderCosteoTable();}}
-function setCManual(id,v){const r=costeoRows.find(x=>x.id===id);if(r){r.porcionesManual=parseFloat(v)||0;renderCosteoTable();}}
 function setCText(id,f,v){const r=costeoRows.find(x=>x.id===id);if(r){r[f]=v;}}
 function toggleCDet(id){
   const ex=document.getElementById('cdet'+id);if(ex){ex.remove();return;}
   const row=costeoRows.find(r=>r.id===id);if(!row||!row.plato)return;
-  const rows=DB.recetas_platos.filter(x=>x.plato===row.plato);
+  const rows=row.tipo==='sub'?DB.subproductos.filter(x=>x.subproducto===row.plato):DB.recetas_platos.filter(x=>x.plato===row.plato);
   const div=document.createElement('div');div.id='cdet'+id;div.className='card';div.style.marginTop='12px';
   div.innerHTML=`<div class="card-title" style="font-size:13px;display:flex;justify-content:space-between">
-    <span>🔍 Detalle: ${escH(row.plato.replace('PLATO - ',''))}</span>
+    <span>🔍 Detalle: ${escH(row.plato.replace(/^(PLATO|SUB) - /,''))}</span>
     <button class="btn btn-outline" style="padding:2px 8px;font-size:11px" onclick="toggleCDet(${id})">✕</button>
   </div>
   <div class="tw"><table>
@@ -9097,6 +9129,7 @@ function exportarCoteoPDF(){
   // Cabecera de sección coloreada
   const SEC_COLORS={
     plato:       {bg:[92,45,110],  fg:[255,255,255], label:'PLATOS'},
+    sub:         {bg:[138,109,31], fg:[255,255,255], label:'SUBPRODUCTOS'},
     vajilla:     {bg:[123,74,144], fg:[255,255,255], label:'VAJILLA'},
     personal:    {bg:[34,100,70],  fg:[255,255,255], label:'PERSONAL'},
     seguro:      {bg:[26,107,90],  fg:[255,255,255], label:'SEGURO EVENTO'},
@@ -9185,13 +9218,13 @@ function exportarCoteoPDF(){
   // ════════════════════════════════════════════════════════════════
   // AGRUPAR filas por tipo (independiente del orden en el cotizador)
   // ════════════════════════════════════════════════════════════════
-  const ORDER=['plato','vajilla','personal','seguro','descartables','flete'];
+  const ORDER=['plato','sub','vajilla','personal','seguro','descartables','flete'];
   const grouped={};
   ORDER.forEach(t=>{ grouped[t]=[]; });
   costeoRows.forEach(r=>{ const t=r.tipo||'plato'; if(!grouped[t])grouped[t]=[]; grouped[t].push(r); });
 
   // Columnas según tipo
-  const COLS_PLATO =['Descripción / Plato','$ Receta','Porciones','Costo/Porc.','Unidades','Total $'];
+  const COLS_PLATO =['Descripción / Receta','$ Receta','Porciones','Costo/Porc.','Unidades','Total $'];
   const CW_PLATO   =[100,30,24,28,22,32];
   const COLS_MANUAL=['Descripción','Cantidad','Monto unitario','Total $'];
   const CW_MANUAL  =[120,24,36,36];
@@ -9209,7 +9242,7 @@ function exportarCoteoPDF(){
     const rows=grouped[tipo];
     if(!rows||!rows.length)return;
 
-    const isPlato=tipo==='plato';
+    const isPlato=tipo==='plato'||tipo==='sub';
     const cols=isPlato?COLS_PLATO:COLS_MANUAL;
     const colW=isPlato?CW_PLATO:CW_MANUAL;
     const TW=colW.reduce((a,b)=>a+b,0);
@@ -9226,23 +9259,15 @@ function exportarCoteoPDF(){
 
       let vals, tot=0;
       if(isPlato){
-        const rr=DB.recetas_platos.filter(rx=>rx.plato===row.plato);
-        const pr=rr.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0);
-        const cfg=(DB.platos_config||{})[row.plato];
-        const porcAuto=cfg&&cfg.peso_porcion?(()=>{
-          const tk=rr.reduce((s,r)=>s+(parseFloat(r.kgs)||0),0);
-          return tk*1000/cfg.peso_porcion;
-        })():null;
-        const porc=porcAuto!==null?porcAuto:(row.porcionesManual||0);
-        const cp=porc>0?pr/porc:0;
-        tot=cp*(row.unidades||0);
+        const info=cotizRecetaInfo(row);
+        tot=info?info.costoPorcion*(row.unidades||0):0;
         vals=[
-          row.plato?row.plato.replace('PLATO - ',''):'(sin plato)',
-          row.plato?fmt(pr):'—',
-          porc>0?fmtN(porc,1):'—',
-          row.plato?fmt(cp):'—',
+          info?info.visible:'(sin receta)',
+          info?fmt(info.costoReceta):'—',
+          info?(info.sinPorciones?'Sin porciones':fmtN(info.porciones,1)):'—',
+          info&&!info.sinPorciones?fmt(info.costoPorcion):'—',
           String(row.unidades||0),
-          row.plato?fmt(tot):'—'
+          info&&!info.sinPorciones?fmt(tot):'—'
         ];
       } else {
         const cant=parseFloat(row.unidades)||0;
@@ -9257,7 +9282,7 @@ function exportarCoteoPDF(){
 
     // Subtotal sección
     if(y>H-16){ doc.addPage(); pageNum++; drawHeader(pageNum); y=34; }
-    const secLabels={plato:'Platos',vajilla:'Vajilla',personal:'Personal',seguro:'Seguro Evento',descartables:'Descartables/Packaging',flete:'Fletes'};
+    const secLabels={plato:'Platos',sub:'Subproductos',vajilla:'Vajilla',personal:'Personal',seguro:'Seguro Evento',descartables:'Descartables/Packaging',flete:'Fletes'};
     y=drawSubtotal(secLabels[tipo]||tipo, secTotal, colW, x, y);
     y+=4;
   });
@@ -9300,26 +9325,18 @@ function exportarCoteoPDF(){
 //  PRECIO FINAL (markup)
 // ══════════════════════════════════════════════════════════════════
 // markups por concepto: {tipo: porcentaje}
-let pfMarkups={plato:30,vajilla:30,personal:30,seguro:30,descartables:30,flete:30};
+let pfMarkups={plato:30,sub:30,vajilla:30,personal:30,seguro:30,descartables:30,flete:30};
 
-const PF_LABELS={plato:'Platos',vajilla:'Vajilla',personal:'Personal',
+const PF_LABELS={plato:'Platos',sub:'Subproductos',vajilla:'Vajilla',personal:'Personal',
   seguro:'Seguro Evento',descartables:'Descartables / Packaging',flete:'Fletes'};
-const PF_ORDER=['plato','vajilla','personal','seguro','descartables','flete'];
+const PF_ORDER=['plato','sub','vajilla','personal','seguro','descartables','flete'];
 
 function calcCostoTipo(tipo){
   const rows=costeoRows.filter(r=>(r.tipo||'plato')===tipo);
   return rows.reduce((sum,row)=>{
-    if(tipo==='plato'){
-      const rr=DB.recetas_platos.filter(x=>x.plato===row.plato);
-      const pr=rr.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0);
-      const cfg=(DB.platos_config||{})[row.plato];
-      const porcAuto=cfg&&cfg.peso_porcion?(()=>{
-        const tk=rr.reduce((s,r)=>s+(parseFloat(r.kgs)||0),0);
-        return tk*1000/cfg.peso_porcion;
-      })():null;
-      const porc=porcAuto!==null?porcAuto:(row.porcionesManual||0);
-      const cp=porc>0?pr/porc:0;
-      return sum+cp*(row.unidades||0);
+    if(tipo==='plato'||tipo==='sub'){
+      const info=cotizRecetaInfo(row);
+      return sum+(info?info.costoPorcion*(row.unidades||0):0);
     } else {
       return sum+(parseFloat(row.unidades)||0)*(parseFloat(row.montoUnit)||0);
     }
