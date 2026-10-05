@@ -15,7 +15,7 @@ Usuario: dueño del negocio, no técnico. Hablar en español rioplatense, resúm
 - Recetas se identifican por **nombre con prefijo**: `INSUMO - `, `SUB - `, `PLATO - ` (`nombreDocSeguro` para el id del doc).
 - Autoguardado genérico: eventos `change`/Enter → `sbSave(true)` o `guardarEventoActual()` (si está dentro de `#modal-evento-detalle`). Modales con cierre que guarda: `CIERRE_SEGURO_MODAL`.
 - Tab nueva → agregarla en `refrescarVistaActual` y en el switch de `switchTab`.
-- Acceso: `EMAILS_AUTORIZADOS` (login); Presupuestos solo `EMAILS_PRESUPUESTOS` (Mariana y felipelopezfuentework).
+- Acceso: `EMAILS_AUTORIZADOS` (login); Presupuestos solo `EMAILS_PRESUPUESTOS` (Mariana, admmppcatering y felipelopezfuentework).
 
 ## Módulos (`cambiarModulo(perfil)`; tabs en `TABS_PROD/COT/COM/STOCK/PRESU`)
 - **Producción** (insumos, subproductos, platos, proveedores): `renderInsumos`, `abrirModalSub`/`guardarSub`→`_guardarSubReal`, `abrirModalPlato`/`guardarPlato`→`_guardarPlatoReal`, vistas `_renderListaRecetas/_renderCardsRecetas/_renderTablaRecetas` (`_tipoMeta`), rendimiento `rendUpdate`/`rendUpdateCosto` (costo unitario = costo × (1+`merma_receta`) ÷ `rendimiento_unidades`), `moverRecetaEntreListas` (pasar/duplicar sub⇄plato), import Excel `importRecetas`, cascada de costos `recalcularRecetasPorInsumo`, PDF receta `descargarRecetaPDFPorNombre`.
