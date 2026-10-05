@@ -3806,8 +3806,19 @@ function _filtrarRecetasPorBusqueda(tipo,nombres,q){
 
 function _tipoMeta(tipo){
   return tipo==='sub'
-    ?{prefix:'SUB - ',emoji:'🧩',ghClass:'sub-gh',totalColor:'var(--yellow)',editAttr:'data-edit-sub',delAttr:'data-del-sub',pdfAttr:'data-pdf-sub'}
-    :{prefix:'PLATO - ',emoji:'🍴',ghClass:'plato-gh',totalColor:'var(--mp-gold)',editAttr:'data-edit-plato',delAttr:'data-del-plato',pdfAttr:'data-pdf-plato'};
+    ?{prefix:'SUB - ',emoji:'🧩',ghClass:'sub-gh',totalColor:'var(--yellow)',editAttr:'data-edit-sub',delAttr:'data-del-sub',pdfAttr:'data-pdf-sub',
+      pasarAttr:'data-pasar-sub',dupAttr:'data-dup-sub',otra:'plato'}
+    :{prefix:'PLATO - ',emoji:'🍴',ghClass:'plato-gh',totalColor:'var(--mp-gold)',editAttr:'data-edit-plato',delAttr:'data-del-plato',pdfAttr:'data-pdf-plato',
+      pasarAttr:'data-pasar-plato',dupAttr:'data-dup-plato',otra:'subproducto'};
+}
+// Botones "⇄ Pasar a…" y "⧉ Duplicar como…" (la otra lista). compacto=true
+// para Grilla/Tabla: solo el ícono, con el texto en el tooltip.
+function _mpBotonesMover(meta,nombre,compacto){
+  const n=escH(nombre);
+  if(compacto) return `<button type="button" class="mp-icon-btn" title="Pasar a ${meta.otra}" ${meta.pasarAttr}="${n}">⇄</button>`
+    +`<button type="button" class="mp-icon-btn" title="Duplicar como ${meta.otra}" ${meta.dupAttr}="${n}">⧉</button>`;
+  return `<button class="btn btn-outline" style="padding:4px 10px;font-size:11px;white-space:nowrap" title="La receta se mueve a la otra lista" ${meta.pasarAttr}="${n}">⇄ Pasar a ${meta.otra}</button>`
+    +`<button class="btn btn-outline" style="padding:4px 10px;font-size:11px;white-space:nowrap" title="Se crea una copia en la otra lista; esta queda" ${meta.dupAttr}="${n}">⧉ Duplicar como ${meta.otra}</button>`;
 }
 function _nombreVisible(meta,nombre){
   return nombre.startsWith(meta.prefix)?nombre.slice(meta.prefix.length):nombre;
@@ -3820,13 +3831,14 @@ function _renderListaRecetas(tipo,nombres){
     const d=_recetaViewData(tipo,nombre);
     const pesoBadge=(tipo==='plato'&&d.cfg.peso_porcion)?`<span class="badge" style="background:rgba(92,45,110,.12);color:var(--mp-violet);font-size:10px">${d.cfg.peso_porcion}g/porción</span>`:'';
     return `<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
         <span class="${meta.ghClass}" style="flex:1;min-width:0">${meta.emoji} ${escH(_nombreVisible(meta,nombre))}</span>
         ${_mpCategoriaBadge(d.categoria)}
         ${_mpBotonFecha(d.cfg)}
         ${_mpBotonAlerta(d.faltantes)}
         ${pesoBadge}
         <span style="color:${meta.totalColor};font-weight:700">${fmt(d.total)}</span>
+        ${_mpBotonesMover(meta,nombre,false)}
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.pdfAttr}="${escH(nombre)}">📄 PDF</button>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.editAttr}="${escH(nombre)}">✏️ Editar</button>
         <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
@@ -3852,7 +3864,7 @@ function _renderCardsRecetas(tipo,nombres){
   const meta=_tipoMeta(tipo);
   return nombres.map(nombre=>{
     const d=_recetaViewData(tipo,nombre);
-    return `<div class="card" style="margin-bottom:10px;display:flex;align-items:center;gap:12px">
+    return `<div class="card" style="margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span class="${meta.ghClass}">${meta.emoji} ${escH(_nombreVisible(meta,nombre))}</span>
         ${_mpCategoriaBadge(d.categoria)}
@@ -3860,6 +3872,7 @@ function _renderCardsRecetas(tipo,nombres){
       ${_mpBotonFecha(d.cfg)}
       ${_mpBotonAlerta(d.faltantes)}
       <span style="color:${meta.totalColor};font-weight:700;white-space:nowrap">${fmt(d.total)}</span>
+      ${_mpBotonesMover(meta,nombre,false)}
       <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.pdfAttr}="${escH(nombre)}">📄 PDF</button>
       <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.editAttr}="${escH(nombre)}">✏️ Editar</button>
       <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
@@ -3879,6 +3892,7 @@ function _renderGrillaRecetas(tipo,nombres){
       <div class="mp-grilla-foot">
         <span style="display:flex;gap:2px">${_mpBotonFecha(d.cfg)}${_mpBotonAlerta(d.faltantes)}</span>
         <span style="display:flex;gap:4px">
+          ${_mpBotonesMover(meta,nombre,true)}
           <button type="button" class="mp-icon-btn" title="PDF" ${meta.pdfAttr}="${escH(nombre)}">📄</button>
           <button type="button" class="mp-icon-btn" title="Editar" ${meta.editAttr}="${escH(nombre)}">✏️</button>
           <button type="button" class="mp-icon-btn" style="color:var(--red);border-color:rgba(192,57,43,.3)" title="Eliminar" ${meta.delAttr}="${escH(nombre)}">🗑</button>
@@ -3901,6 +3915,8 @@ function _renderTablaRecetas(tipo,nombres){
       <td class="num" style="color:${meta.totalColor};font-weight:600">${d.costoUnitario!=null?fmt(d.costoUnitario):'—'}</td>
       <td style="white-space:nowrap">${_mpBotonFecha(d.cfg)} ${_mpBotonAlerta(d.faltantes)}</td>
       <td style="white-space:nowrap">
+        <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" title="Pasar a ${meta.otra}" ${meta.pasarAttr}="${escH(nombre)}">⇄</button>
+        <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" title="Duplicar como ${meta.otra}" ${meta.dupAttr}="${escH(nombre)}">⧉</button>
         <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" ${meta.pdfAttr}="${escH(nombre)}">📄</button>
         <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" ${meta.editAttr}="${escH(nombre)}">✏️</button>
         <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
@@ -4018,6 +4034,8 @@ function renderSubproductos(){
   c.querySelectorAll('[data-edit-sub]').forEach(b=>b.addEventListener('click',()=>abrirModalSub(b.dataset.editSub)));
   c.querySelectorAll('[data-del-sub]').forEach(b=>b.addEventListener('click',()=>delSub(b.dataset.delSub)));
   c.querySelectorAll('[data-pdf-sub]').forEach(b=>b.addEventListener('click',()=>descargarRecetaPDFPorNombre('sub',b.dataset.pdfSub)));
+  c.querySelectorAll('[data-pasar-sub]').forEach(b=>b.addEventListener('click',()=>moverRecetaEntreListas('sub',b.dataset.pasarSub,'pasar')));
+  c.querySelectorAll('[data-dup-sub]').forEach(b=>b.addEventListener('click',()=>moverRecetaEntreListas('sub',b.dataset.dupSub,'duplicar')));
 }
 function delSub(sub){
   if(!confirm('¿Eliminar "'+sub.replace('SUB - ','')+'"?'))return;
@@ -4254,6 +4272,8 @@ function renderPlatos(){
   c.querySelectorAll('[data-edit-plato]').forEach(b=>b.addEventListener('click',()=>abrirModalPlato(b.dataset.editPlato)));
   c.querySelectorAll('[data-del-plato]').forEach(b=>b.addEventListener('click',()=>delPlato(b.dataset.delPlato)));
   c.querySelectorAll('[data-pdf-plato]').forEach(b=>b.addEventListener('click',()=>descargarRecetaPDFPorNombre('plato',b.dataset.pdfPlato)));
+  c.querySelectorAll('[data-pasar-plato]').forEach(b=>b.addEventListener('click',()=>moverRecetaEntreListas('plato',b.dataset.pasarPlato,'pasar')));
+  c.querySelectorAll('[data-dup-plato]').forEach(b=>b.addEventListener('click',()=>moverRecetaEntreListas('plato',b.dataset.dupPlato,'duplicar')));
 }
 function delPlato(plato){
   if(!confirm('¿Eliminar "'+plato.replace('PLATO - ','')+'"?'))return;
@@ -4264,6 +4284,109 @@ function delPlato(plato){
   renderPlatos();
   eliminarPlatoDoc(plato);
   guardarMaestroPlatos();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PASAR / DUPLICAR RECETAS ENTRE SUBPRODUCTOS Y PLATOS
+//  – "Pasar a…": la receta se mueve a la otra lista con todo (componentes,
+//    mermas, rendimiento, procedimiento, nota del chef, categoría) y deja de
+//    estar en la de origen.
+//  – "Duplicar como…": se crea la copia en la otra lista; la original queda.
+//  Frenos para no dejar recetas rotas:
+//  – Un subproducto solo lleva insumos: un plato que lleva subproductos no
+//    puede pasar/duplicarse como subproducto.
+//  – Un subproducto que se usa dentro de un plato no se puede "pasar" (los
+//    platos que lo usan quedarían sin ese componente); sí duplicar.
+// ══════════════════════════════════════════════════════════════════
+function moverRecetaEntreListas(origen, nombre, modo){
+  const destino=origen==='sub'?'plato':'sub';
+  const PREF={sub:'SUB - ', plato:'PLATO - '};
+  const LISTA={sub:'Subproductos', plato:'Platos'};
+  const visible=nombre.startsWith(PREF[origen])?nombre.slice(PREF[origen].length):nombre;
+  const nuevoNombre=PREF[destino]+visible;
+  const filasOrigen=origen==='sub'?DB.subproductos.filter(x=>x.subproducto===nombre):DB.recetas_platos.filter(x=>x.plato===nombre);
+  const alertId=origen==='sub'?'sub-alert':'plato-alert';
+  if(!filasOrigen.length){ alert('No se encontró la receta "'+visible+'".'); return; }
+
+  if(destino==='sub'){
+    const subsAdentro=[...new Set(filasOrigen.map(r=>r.componente).filter(c=>String(c).startsWith('SUB - ')))];
+    if(subsAdentro.length){
+      alert('No se puede '+(modo==='pasar'?'pasar':'duplicar')+' "'+visible+'" como subproducto: lleva subproductos adentro ('
+        +subsAdentro.map(s=>s.replace('SUB - ','')).join(', ')+') y un subproducto solo puede llevar insumos.');
+      return;
+    }
+  }
+  if(origen==='sub' && modo==='pasar'){
+    const usadoEn=[...new Set(DB.recetas_platos.filter(x=>x.componente===nombre).map(x=>x.plato.replace('PLATO - ','')))];
+    if(usadoEn.length){
+      alert('No se puede pasar "'+visible+'" a Platos porque se usa como componente en: '+usadoEn.join(', ')
+        +'.\n\nEsas recetas quedarían rotas. Podés usar "Duplicar como plato".');
+      return;
+    }
+  }
+
+  const ejecutar=()=>{
+    const ahora=new Date().toISOString();
+    const cfgOrigenObj=(origen==='sub'?DB.subs_config:DB.platos_config)||{};
+    const cfg=JSON.parse(JSON.stringify(cfgOrigenObj[nombre]||{}));
+    // Pasar conserva la fecha de creación; duplicar es una receta nueva.
+    if(modo==='duplicar') cfg.fecha_creacion=ahora;
+    cfg.fecha_modificacion=ahora;
+    // peso_porcion (g) solo lo usan los platos (Costeo/PDF/Precio Final).
+    if(destino==='plato'){
+      const pesoKg=parseFloat(cfg.rendimiento_peso_kg)||0;
+      if(pesoKg>0) cfg.peso_porcion=Math.round(pesoKg*1000*100)/100; else delete cfg.peso_porcion;
+    }else delete cfg.peso_porcion;
+
+    const copiarFila=r=>{
+      const {_id, subproducto, plato, ...resto}=r;
+      return destino==='sub'?{_id:Date.now()+Math.random(), subproducto:nuevoNombre, ...resto}
+                            :{_id:Date.now()+Math.random(), plato:nuevoNombre, ...resto};
+    };
+    const nuevas=filasOrigen.map(copiarFila);
+    if(destino==='sub'){
+      DB.subproductos=DB.subproductos.filter(x=>x.subproducto!==nuevoNombre).concat(nuevas);
+      if(!DB.subs_config)DB.subs_config={};
+      DB.subs_config[nuevoNombre]=cfg;
+      if(!DB.maestro_subs.includes(nuevoNombre)) DB.maestro_subs.push(nuevoNombre);
+    }else{
+      DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==nuevoNombre).concat(nuevas);
+      if(!DB.platos_config)DB.platos_config={};
+      DB.platos_config[nuevoNombre]=cfg;
+      if(!DB.maestro_platos.includes(nuevoNombre)) DB.maestro_platos.push(nuevoNombre);
+    }
+    if(!DB.procedimientos)DB.procedimientos={};
+    DB.procedimientos[nuevoNombre]=JSON.parse(JSON.stringify((DB.procedimientos||{})[nombre]||cfg.procedimiento||[]));
+
+    if(modo==='pasar'){
+      if(origen==='sub'){
+        DB.subproductos=DB.subproductos.filter(x=>x.subproducto!==nombre);
+        DB.maestro_subs=DB.maestro_subs.filter(s=>s!==nombre);
+        if(DB.subs_config) delete DB.subs_config[nombre];
+      }else{
+        DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==nombre);
+        DB.maestro_platos=DB.maestro_platos.filter(p=>p!==nombre);
+        if(DB.platos_config) delete DB.platos_config[nombre];
+      }
+      delete DB.procedimientos[nombre];
+    }
+
+    renderSubproductos(); renderPlatos(); renderMaestros();
+    if(destino==='sub'){ guardarSubproductoDoc(nuevoNombre); guardarMaestroSubs(); }
+    else { guardarPlatoDoc(nuevoNombre); guardarMaestroPlatos(); }
+    if(modo==='pasar'){
+      if(origen==='sub'){ eliminarSubproductoDoc(nombre); guardarMaestroSubs(); }
+      else { eliminarPlatoDoc(nombre); guardarMaestroPlatos(); }
+    }
+    showAlert(alertId,'success',(modo==='pasar'?'"'+visible+'" pasó a ':'"'+visible+'" se duplicó en ')+LISTA[destino]+'.');
+  };
+
+  if(modo==='pasar' && !confirm('¿Pasar "'+visible+'" a '+LISTA[destino]+'?\n\nVa a dejar de estar en '+LISTA[origen]+'.')) return;
+  const yaExiste=destino==='sub'
+    ? (DB.maestro_subs.includes(nuevoNombre)||DB.subproductos.some(x=>x.subproducto===nuevoNombre))
+    : (DB.maestro_platos.includes(nuevoNombre)||DB.recetas_platos.some(x=>x.plato===nuevoNombre));
+  if(yaExiste){ mostrarConfirmDuplicado(ejecutar); return; }
+  ejecutar();
 }
 
 // ══════════════════════════════════════════════════════════════════
