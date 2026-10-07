@@ -9056,6 +9056,27 @@ function buildValueItems(ev, item){
     }
     // Sin secciones cargadas todavía: cae al modo plano de siempre (com_menu).
   }
+  if(item.tipo==='tabla_armado_vajilla'){
+    // Mismo armado que la pantalla (renderEventoSheet): platos del menú de la
+    // Ficha Técnica + lo cargado en datos[key] indexado por "sección::plato".
+    const estado=(ev.datos?.[item.key] && typeof ev.datos[item.key]==='object' && !Array.isArray(ev.datos[item.key])) ? ev.datos[item.key] : {};
+    const seccionesMenu=(Array.isArray(ev.datos?.com_menu_secciones) && ev.datos.com_menu_secciones.length)
+      ? ev.datos.com_menu_secciones
+      : [{nombre:'', filas:(ev.datos?.com_menu||[])}];
+    const rows=[];
+    seccionesMenu.forEach(sec=>{
+      const nombreSec=sec.nombre||'Sin sección';
+      const platos=(sec.filas||[]).map(f=>Array.isArray(f)?String(f[0]||'').trim():'').filter(Boolean);
+      if(!platos.length) return;
+      rows.push({__seccion:nombreSec});
+      platos.forEach(p=>{
+        const r=estado[nombreSec+'::'+p]||{};
+        rows.push([p, r.cantidad_porciones||'', r.vajilla||'', r.cantidad_vajilla||'']);
+      });
+    });
+    // Se dibuja como tabla_menu para que la columna Menú salga más ancha.
+    return rows.length ? [{label:item.label||'', value:rows, type:'tabla_menu', cols:item.cols || []}] : [];
+  }
   if(item.tipo==='tabla_libre'||item.tipo==='tabla_menu'||item.tipo==='tabla_timing'||item.tipo==='tabla_bebidas'||item.tipo==='tabla_checks'||item.tipo==='tabla_evaluacion'||item.tipo==='tabla_personal'||item.tipo==='tabla_dietas'){
     const rows=Array.isArray(ev.datos?.[item.key]) ? ev.datos[item.key] : [];
     const visibleRows=rows.filter(row=>{
