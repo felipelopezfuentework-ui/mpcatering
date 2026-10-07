@@ -2701,6 +2701,7 @@ function getCompPrice(comp){
 // sin repintar nada — se usa desde la importación masiva por Excel, que llama
 // a esta función una vez por insumo y prefiere repintar una sola vez al final
 // en lugar de una vez por cada insumo actualizado.
+let _recetasDiferidas=null;
 function recalcularRecetasPorInsumo(insumoKey,render=true){
   if(!insumoKey) return false;
   let huboCambios=false;
@@ -2730,8 +2731,15 @@ function recalcularRecetasPorInsumo(insumoKey,render=true){
   // Los subproductos/platos afectados viven en sus propias colecciones
   // (documento por receta): se persiste cada uno individualmente, en vez
   // del sbSave(true) que antes guardaba todo el documento único.
-  subsAfectados.forEach(nombre=>guardarSubproductoDoc(nombre));
-  platosAfectados.forEach(nombre=>guardarPlatoDoc(nombre));
+  // Si se están actualizando muchos insumos juntos (lista de precios), solo
+  // se anotan las recetas y se guardan una vez al final.
+  if(_recetasDiferidas){
+    subsAfectados.forEach(n=>_recetasDiferidas.subs.add(n));
+    platosAfectados.forEach(n=>_recetasDiferidas.platos.add(n));
+  }else{
+    subsAfectados.forEach(nombre=>guardarSubproductoDoc(nombre));
+    platosAfectados.forEach(nombre=>guardarPlatoDoc(nombre));
+  }
   if(huboCambios && render) _repintarRecetasTrasRecalculo();
   return huboCambios;
 }
@@ -3076,9 +3084,7 @@ function handleListaPrecios(e){
       });
       document.getElementById('lp-archivo').textContent=file.name+' · '+filas.length+' productos';
       // Los seguros se aplican ya.
-      _lpPropuestas.filter(p=>p.estado==='pendiente'&&!p.motivo).forEach(p=>lpAplicarUno(p,false));
-      renderInsumos(); _repintarRecetasTrasRecalculo();
-      renderListaPrecios();
+      lpAplicarVarios(_lpPropuestas.filter(p=>p.estado==='pendiente'&&!p.motivo));
       document.getElementById('modal-lista-precios').classList.add('open');
     }catch(err){ console.error(err); alert('No pude leer el Excel: '+err.message); }
   };
@@ -3089,34 +3095,69 @@ function _lpValores(p){
   if(p.edit) return p.edit;
   return {formato:lpFormatoTexto(f), precio:f.neto, kg:f.cant?Math.round(f.cant.q*1000)/1000:(parseFloat(p.ins.formato_kg)||1)};
 }
-// Actualiza un insumo, lo guarda directo en la nube y recalcula sus recetas.
-function lpAplicarUno(p,repintar=true){
-  const x=DB.insumos.find(i=>i._id===p.ins._id); if(!x) return;
-  const v=_lpValores(p);
-  p.antes=parseFloat(x.costo)||0;
-  x.formato=v.formato; x.precio_formato=v.precio; x.formato_kg=v.kg;
-  x.costo=v.kg>0?v.precio/v.kg:v.precio;
-  x.precio_actualizado=_lpFecha; x.precio_fuente=_lpArchivo; x.precio_producto=p.cands[p.sel].nombre;
-  p.nuevo=x.costo; p.final=v; p.estado='hecho';
-  const {_id, ...datos}=x;
-  _lpGuardando++;
-  FB_COL_INSUMOS.doc(String(_id)).set({...datos, updated_at:new Date().toISOString()})
-    .then(()=>marcarSincronizado())
-    .catch(e=>{ _lpError=e.message; marcarErrorSincronizacion(e); console.error('Error al guardar precio:', e); })
-    .finally(()=>{ _lpGuardando--; lpPintarEstado(); });
-  recalcularRecetasPorInsumo(x.key,false);
-  if(repintar){ renderInsumos(); _repintarRecetasTrasRecalculo(); }
-}
-function lpConfirmar(i){ lpAplicarUno(_lpPropuestas[i]); renderListaPrecios(); }
-function lpDescartar(i){ _lpPropuestas[i].estado='descartado'; renderListaPrecios(); }
-function lpConfirmarTodos(){
-  _lpPropuestas.filter(p=>p.estado==='pendiente').forEach(p=>lpAplicarUno(p,false));
+// Aplica varios insumos de una: primero los cambia en memoria y recalcula
+// las recetas (sin guardar cada receta una y otra vez), después guarda todos
+// los insumos en lotes y por último cada receta afectada UNA sola vez.
+// Antes se mandaba una escritura por insumo y otra por cada receta en cada
+// insumo (miles), la cola de la nube no terminaba nunca y al recargar se
+// perdía lo que faltaba.
+let _lpTandas=0, _lpProgreso='';
+function lpAplicarVarios(ps){
+  if(!ps.length){ renderListaPrecios(); return; }
+  _recetasDiferidas={subs:new Set(), platos:new Set()};
+  const insumosAGuardar=[];
+  try{
+    ps.forEach(p=>{
+      const x=DB.insumos.find(i=>i._id===p.ins._id); if(!x) return;
+      const v=_lpValores(p);
+      p.antes=parseFloat(x.costo)||0;
+      x.formato=v.formato; x.precio_formato=v.precio; x.formato_kg=v.kg;
+      x.costo=v.kg>0?v.precio/v.kg:v.precio;
+      x.precio_actualizado=_lpFecha; x.precio_fuente=_lpArchivo; x.precio_producto=p.cands[p.sel].nombre;
+      p.nuevo=x.costo; p.final=v; p.estado='hecho';
+      insumosAGuardar.push(x);
+      recalcularRecetasPorInsumo(x.key,false);
+    });
+  } finally {
+    var subs=[..._recetasDiferidas.subs], platos=[..._recetasDiferidas.platos];
+    _recetasDiferidas=null;
+  }
   renderInsumos(); _repintarRecetasTrasRecalculo(); renderListaPrecios();
+  _lpTandas++; _lpError=''; lpPintarEstado();
+  (async ()=>{
+    const ahora=new Date().toISOString();
+    for(let i=0;i<insumosAGuardar.length;i+=400){
+      _lpProgreso='precios '+Math.min(i+400,insumosAGuardar.length)+'/'+insumosAGuardar.length; lpPintarEstado();
+      const lote=fbDb.batch();
+      insumosAGuardar.slice(i,i+400).forEach(x=>{ const {_id,...datos}=x; lote.set(FB_COL_INSUMOS.doc(String(_id)),{...datos,updated_at:ahora}); });
+      await lote.commit();
+    }
+    const recetas=[...subs.map(n=>['sub',n]), ...platos.map(n=>['plato',n])];
+    for(let i=0;i<recetas.length;i+=50){
+      _lpProgreso='recetas '+Math.min(i+50,recetas.length)+'/'+recetas.length; lpPintarEstado();
+      const lote=fbDb.batch();
+      recetas.slice(i,i+50).forEach(([tipo,nombre])=>{
+        if(tipo==='sub'){
+          const componentes=DB.subproductos.filter(x=>x.subproducto===nombre).map(({subproducto,_id,...resto})=>resto);
+          lote.set(FB_COL_SUBPRODUCTOS.doc(nombreDocSeguro(nombre)),{nombre,componentes,config:DB.subs_config[nombre]||{},updated_at:ahora});
+        }else{
+          const componentes=DB.recetas_platos.filter(x=>x.plato===nombre).map(({plato,_id,...resto})=>resto);
+          lote.set(FB_COL_PLATOS.doc(nombreDocSeguro(nombre)),{nombre,componentes,config:DB.platos_config[nombre]||{},updated_at:ahora});
+        }
+      });
+      await lote.commit();
+    }
+    marcarSincronizado();
+  })().catch(e=>{ _lpError=e.message; marcarErrorSincronizacion(e); console.error('Error al guardar precios:', e); })
+    .finally(()=>{ _lpTandas--; _lpProgreso=''; lpPintarEstado(); });
 }
+function lpConfirmar(i){ lpAplicarVarios([_lpPropuestas[i]]); }
+function lpDescartar(i){ _lpPropuestas[i].estado='descartado'; renderListaPrecios(); }
+function lpConfirmarTodos(){ lpAplicarVarios(_lpPropuestas.filter(p=>p.estado==='pendiente')); }
 function lpPintarEstado(){
   const el=document.getElementById('lp-estado'); if(!el) return;
   if(_lpError){ el.style.color='var(--red)'; el.textContent='⚠ Error al guardar: '+_lpError; }
-  else if(_lpGuardando>0){ el.style.color='var(--yellow)'; el.textContent='⏳ Guardando en la nube…'; }
+  else if(_lpTandas>0){ el.style.color='var(--yellow)'; el.textContent='⏳ Guardando '+(_lpProgreso||'')+'… no recargues todavía'; }
   else { el.style.color='var(--green)'; el.textContent='☁ Todo guardado'; }
 }
 function renderListaPrecios(){
