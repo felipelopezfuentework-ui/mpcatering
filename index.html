@@ -3128,19 +3128,33 @@ function aplicarListaPrecios(){
   const sel=_lpPropuestas.filter(p=>p.ok&&p.cands.length);
   if(!sel.length){ alert('No hay insumos tildados.'); return; }
   if(!confirm('¿Actualizar el precio de '+sel.length+' insumos? También se recalculan las recetas que los usan.')) return;
-  const ahora=new Date().toISOString(), hechos=[];
+  const ahora=new Date().toISOString(), hechos=[], lote=[];
   sel.forEach(p=>{
     const x=DB.insumos.find(i=>i._id===p.ins._id); if(!x) return;
     const v=_lpValores(p), antes=parseFloat(x.costo)||0;
     x.formato=v.formato; x.precio_formato=v.precio; x.formato_kg=v.kg;
     x.costo=v.kg>0?v.precio/v.kg:v.precio;
     x.precio_actualizado=ahora; x.precio_fuente=_lpArchivo; x.precio_producto=p.cands[p.sel].nombre;
-    guardarInsumo(x._id);
+    // Guardado directo e inmediato (sin la espera de guardarInsumo), así no
+    // se pierde nada aunque se recargue la página enseguida.
+    const {_id, ...datos}=x;
+    lote.push(FB_COL_INSUMOS.doc(String(_id)).set({...datos, updated_at:ahora}));
     recalcularRecetasPorInsumo(x.key,false);
     hechos.push({nombre:x.nombre, producto:x.precio_producto, formato:v.formato, precio:v.precio, kg:v.kg, antes, nuevo:x.costo});
   });
   renderInsumos(); _repintarRecetasTrasRecalculo();
   _lpMostrarResumen(hechos, _lpPropuestas.filter(p=>!(p.ok&&p.cands.length)).map(p=>p.ins.nombre));
+  const aviso=document.getElementById('lp-resumen');
+  aviso.insertAdjacentHTML('beforeend','<div id="lp-guardando" style="margin-top:6px;color:var(--yellow)">⏳ Guardando en la nube… no cierres ni recargues todavía.</div>');
+  Promise.all(lote).then(()=>{
+    marcarSincronizado();
+    const el=document.getElementById('lp-guardando');
+    if(el){ el.style.color='var(--green)'; el.textContent='☁ Guardado en la nube. Ya podés recargar.'; }
+  }).catch(e=>{
+    marcarErrorSincronizacion(e); console.error('Error al guardar precios:', e);
+    const el=document.getElementById('lp-guardando');
+    if(el){ el.style.color='var(--red)'; el.textContent='⚠ Error al guardar: '+e.message+'. Volvé a aplicar la lista.'; }
+  });
 }
 // Después de aplicar, el mismo modal muestra el resumen de lo que se cambió.
 function _lpMostrarResumen(hechos,noTocados){
@@ -5896,9 +5910,15 @@ async function guardarMaestroPlatos(){
 let _guardadoInsumoTimers={}, _guardadoProveedorTimers={};
 function guardarInsumo(id){
   clearTimeout(_guardadoInsumoTimers[id]);
+  // Se copia el insumo AHORA, no cuando vence la espera: si en esos 400 ms
+  // llega un snapshot de Firestore (por ejemplo, al guardar otro insumo),
+  // DB.insumos se rearma con los datos viejos del servidor y se terminaba
+  // guardando el precio anterior encima del nuevo.
+  const copia=DB.insumos.find(i=>i._id===id);
+  if(!copia) return;
+  const datosAhora={...copia};
   _guardadoInsumoTimers[id]=setTimeout(async ()=>{
-    const x=DB.insumos.find(i=>i._id===id);
-    if(!x) return;
+    const x=datosAhora;
     try{
       // OJO: asignar _id:undefined NO lo saca del objeto (queda como
       // propiedad con valor undefined), y Firestore rechaza escribir
