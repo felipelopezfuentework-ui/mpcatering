@@ -769,34 +769,44 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <div id="pf-cliente" style="font-size:12px;color:var(--text3);margin-top:2px"></div>
     </div>
 
-    <!-- Tabla de costos + markup -->
+    <!-- Tabla por ítem: costo, precio de venta y ganancia -->
+    <div style="font-size:12px;color:var(--text3);margin-bottom:8px">
+      Escribí el <b>precio de venta por unidad</b> de cada ítem y se calcula la ganancia. Si no lo escribís, se usa el markup del concepto.
+    </div>
     <div class="tw" style="margin-bottom:20px"><table id="pf-tabla">
       <thead><tr>
-        <th>Concepto</th>
+        <th>Ítem</th>
+        <th class="num">Cant.</th>
+        <th class="num">Costo unit.</th>
         <th class="num">Costo total</th>
-        <th class="num" style="width:140px">Markup %</th>
-        <th class="num">Precio venta</th>
+        <th class="num" style="width:150px">Precio venta unit.</th>
+        <th class="num">Venta total</th>
+        <th class="num">Ganancia $</th>
+        <th class="num">Ganancia %</th>
       </tr></thead>
       <tbody id="pf-tbody"></tbody>
       <tfoot id="pf-tfoot">
         <tr style="background:linear-gradient(90deg,rgba(61,26,82,.08),transparent)">
-          <td style="font-weight:700;color:var(--text);padding:12px 14px">COSTO TOTAL</td>
+          <td colspan="3" style="font-weight:700;color:var(--text);padding:12px 14px">COSTO TOTAL</td>
           <td class="num" id="pf-total-costo" style="font-weight:700;font-size:14px;color:var(--mp-violet)"></td>
-          <td></td>
-          <td></td>
+          <td colspan="4"></td>
         </tr>
         <tr style="background:linear-gradient(90deg,rgba(200,169,81,.15),transparent)">
-          <td style="font-weight:700;color:var(--text);padding:12px 14px">PRECIO FINAL DE VENTA</td>
-          <td></td>
-          <td></td>
+          <td colspan="5" style="font-weight:700;color:var(--text);padding:12px 14px">PRECIO FINAL DE VENTA</td>
           <td class="num" id="pf-total-precio" style="font-weight:800;font-size:16px;color:var(--mp-gold)"></td>
+          <td colspan="2"></td>
+        </tr>
+        <tr style="background:linear-gradient(90deg,rgba(34,100,70,.12),transparent)">
+          <td colspan="6" style="font-weight:700;color:var(--text);padding:12px 14px">GANANCIA TOTAL</td>
+          <td class="num" id="pf-total-ganancia" style="font-weight:800;font-size:15px;color:var(--green)"></td>
+          <td class="num" id="pf-total-ganancia-pct" style="font-weight:700;color:var(--green)"></td>
         </tr>
       </tfoot>
     </table></div>
 
     <!-- Markup global -->
     <div class="card" style="background:var(--surface2);border:1px solid var(--border)">
-      <div class="card-title" style="font-size:13px;margin-bottom:12px">Markup global (aplica a todos los conceptos)</div>
+      <div class="card-title" style="font-size:13px;margin-bottom:12px">Markup global (para los ítems sin precio de venta escrito)</div>
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:10px">
           <label style="font-size:12px;color:var(--text3);font-weight:600">Markup %</label>
@@ -805,7 +815,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
             oninput="aplicarMarkupGlobal(this.value)">
           <span style="font-size:12px;color:var(--text3)">sobre el costo</span>
         </div>
-        <button class="btn btn-primary" onclick="aplicarMarkupGlobal(document.getElementById('pf-markup-global').value)">
+        <button class="btn btn-primary" title="Borra los precios escritos a mano y aplica este markup a todos los ítems" onclick="aplicarMarkupGlobal(document.getElementById('pf-markup-global').value,true)">
           ↺ Aplicar a todos
         </button>
         <button class="btn btn-outline" onclick="renderPrecioFinal()">↺ Actualizar desde cotizador</button>
@@ -9696,6 +9706,41 @@ function calcCostoTipo(tipo){
   },0);
 }
 
+// Ítems del cotizador con su costo, precio de venta y ganancia.
+// row.precioVenta (por unidad) lo escribe el usuario en Precio Final; si no
+// está, el precio sale del markup del concepto (pfMarkups). No se guarda,
+// igual que el resto del cotizador.
+function pfItems(){
+  const grupos=[];
+  PF_ORDER.forEach(tipo=>{
+    const markup=parseFloat(pfMarkups[tipo])||0;
+    const items=[];
+    costeoRows.filter(r=>(r.tipo||'plato')===tipo).forEach(row=>{
+      let nombre, costoUnit;
+      const cant=parseFloat(row.unidades)||0;
+      if(tipo==='plato'||tipo==='sub'){
+        const info=cotizRecetaInfo(row);
+        nombre=info?info.visible:''; costoUnit=info?info.costoPorcion:0;
+      } else {
+        nombre=row.desc||''; costoUnit=parseFloat(row.montoUnit)||0;
+      }
+      const manual=row.precioVenta!==undefined&&row.precioVenta!==null&&row.precioVenta!=='';
+      const ventaUnit=manual?(parseFloat(row.precioVenta)||0):costoUnit*(1+markup/100);
+      const costo=costoUnit*cant, venta=ventaUnit*cant;
+      if(!costo&&!venta) return;
+      const gan=venta-costo;
+      items.push({row,nombre:nombre||TIPO_LABELS[tipo]||tipo,cant,costoUnit,costo,ventaUnit,venta,manual,
+        gan,pctCosto:costo?gan/costo*100:null,pctVenta:venta?gan/venta*100:null});
+    });
+    if(!items.length) return;
+    const costo=items.reduce((a,i)=>a+i.costo,0), venta=items.reduce((a,i)=>a+i.venta,0);
+    grupos.push({tipo,markup,items,costo,venta,gan:venta-costo,pctCosto:costo?(venta-costo)/costo*100:null});
+  });
+  const costo=grupos.reduce((a,g)=>a+g.costo,0), venta=grupos.reduce((a,g)=>a+g.venta,0);
+  return {grupos,costo,venta,gan:venta-costo,pctCosto:costo?(venta-costo)/costo*100:null,pctVenta:venta?(venta-costo)/venta*100:null};
+}
+const pfPct=v=>v===null?'—':v.toLocaleString('es-AR',{maximumFractionDigits:1})+' %';
+
 function renderPrecioFinal(){
   // Info encabezado
   document.getElementById('pf-titulo').textContent=costeoMeta.titulo||'(Sin nombre)';
@@ -9703,46 +9748,66 @@ function renderPrecioFinal(){
   document.getElementById('pf-cliente').textContent=cli?'Cliente: '+cli:'';
 
   const tbody=document.getElementById('pf-tbody');
-  let totalCosto=0, totalPrecio=0;
-  const rows=[];
-
-  PF_ORDER.forEach(tipo=>{
-    const costo=calcCostoTipo(tipo);
-    if(!costo)return;
-    const markup=parseFloat(pfMarkups[tipo])||0;
-    const precio=costo*(1+markup/100);
-    totalCosto+=costo; totalPrecio+=precio;
-    rows.push({tipo,costo,markup,precio});
-  });
-
-  if(!rows.length){
-    tbody.innerHTML='<tr><td colspan="4" class="empty">No hay ítems en el cotizador todavía.</td></tr>';
-    document.getElementById('pf-total-costo').textContent='';
-    document.getElementById('pf-total-precio').textContent='';
+  const R=pfItems();
+  const totIds=['pf-total-costo','pf-total-precio','pf-total-ganancia','pf-total-ganancia-pct'];
+  if(!R.grupos.length){
+    tbody.innerHTML='<tr><td colspan="8" class="empty">No hay ítems en el cotizador todavía.</td></tr>';
+    totIds.forEach(id=>{document.getElementById(id).textContent='';});
     return;
   }
+  const INP='text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-size:12px;color:var(--text)';
+  const colGan=v=>v<0?'var(--red)':'var(--green)';
+  tbody.innerHTML=R.grupos.map(g=>{
+    const col=TIPO_COLORS[g.tipo]||'var(--text)';
+    const head=`<tr style="background:var(--surface2)">
+      <td colspan="3" style="padding:8px 14px;font-weight:700;color:${col}">${escH(PF_LABELS[g.tipo]||g.tipo)}
+        <span style="font-weight:400;font-size:11px;color:var(--text3);margin-left:10px">markup
+          <input type="number" min="0" max="1000" step="0.1" value="${g.markup}" title="Se usa en los ítems sin precio de venta escrito"
+            style="width:62px;${INP};padding:3px 6px" onchange="pfMarkups['${g.tipo}']=parseFloat(this.value)||0;renderPrecioFinal()"> %</span></td>
+      <td class="num" style="font-weight:700;color:var(--text3)">${fmt(g.costo)}</td>
+      <td></td>
+      <td class="num" style="font-weight:700">${fmt(g.venta)}</td>
+      <td class="num" style="font-weight:700;color:${colGan(g.gan)}">${fmt(g.gan)}</td>
+      <td class="num" style="font-weight:700;color:${colGan(g.gan)}">${pfPct(g.pctCosto)}</td>
+    </tr>`;
+    const filas=g.items.map(i=>`<tr>
+      <td style="padding:6px 14px 6px 26px">${escH(i.nombre)}</td>
+      <td class="num">${fmtN(i.cant,2)}</td>
+      <td class="num" style="color:var(--text3)">${fmt(i.costoUnit)}</td>
+      <td class="num" style="color:var(--text3)">${fmt(i.costo)}</td>
+      <td class="num" style="padding:4px 8px;white-space:nowrap">
+        <input type="number" min="0" step="0.01" value="${Math.round(i.ventaUnit*100)/100}"
+          title="${i.manual?'Precio escrito a mano':'Calculado con el markup del concepto. Escribí otro para cambiarlo.'}"
+          style="width:105px;${INP};${i.manual?'border-color:var(--mp-gold);font-weight:700':''}"
+          onchange="pfSetPrecio(${i.row.id},this.value)">
+        ${i.manual?`<button class="btn btn-outline" style="padding:2px 6px;font-size:10.5px" title="Volver al markup del concepto" onclick="pfSetPrecio(${i.row.id},'')">↺</button>`:''}
+      </td>
+      <td class="num" style="font-weight:600">${fmt(i.venta)}</td>
+      <td class="num" style="font-weight:700;color:${colGan(i.gan)}">${fmt(i.gan)}</td>
+      <td class="num" style="color:${colGan(i.gan)}">${pfPct(i.pctCosto)}
+        <span style="display:block;font-size:10px;color:var(--text3)">${i.pctVenta===null?'':pfPct(i.pctVenta)+' de la venta'}</span></td>
+    </tr>`).join('');
+    return head+filas;
+  }).join('');
 
-  tbody.innerHTML=rows.map(r=>`<tr>
-    <td style="padding:10px 14px;font-weight:600;color:var(--text)">${escH(PF_LABELS[r.tipo]||r.tipo)}</td>
-    <td class="num" style="color:var(--text3)">${fmt(r.costo)}</td>
-    <td class="num" style="padding:6px 10px">
-      <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
-        <input type="number" min="0" max="1000" step="0.1" value="${r.markup}"
-          style="width:70px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-size:12px;color:var(--text)"
-          onchange="pfMarkups['${r.tipo}']=parseFloat(this.value)||0;renderPrecioFinal()">
-        <span style="font-size:11px;color:var(--text3)">%</span>
-      </div>
-    </td>
-    <td class="num" style="font-weight:700;color:var(--green);font-size:13px">${fmt(r.precio)}</td>
-  </tr>`).join('');
-
-  document.getElementById('pf-total-costo').textContent=fmt(totalCosto);
-  document.getElementById('pf-total-precio').textContent=fmt(totalPrecio);
+  document.getElementById('pf-total-costo').textContent=fmt(R.costo);
+  document.getElementById('pf-total-precio').textContent=fmt(R.venta);
+  document.getElementById('pf-total-ganancia').textContent=fmt(R.gan);
+  document.getElementById('pf-total-ganancia-pct').textContent=pfPct(R.pctCosto)+(R.pctVenta===null?'':' ('+pfPct(R.pctVenta)+' de la venta)');
 }
 
-function aplicarMarkupGlobal(val){
+function pfSetPrecio(id,val){
+  const r=costeoRows.find(x=>x.id===id); if(!r) return;
+  if(val===''||val===null||isNaN(parseFloat(val))) delete r.precioVenta;
+  else r.precioVenta=parseFloat(val);
+  renderPrecioFinal();
+}
+
+// pisar=true (botón "Aplicar a todos"): también borra los precios escritos a mano.
+function aplicarMarkupGlobal(val,pisar){
   const pct=parseFloat(val)||0;
   PF_ORDER.forEach(t=>{ pfMarkups[t]=pct; });
+  if(pisar) costeoRows.forEach(r=>{ delete r.precioVenta; });
   renderPrecioFinal();
 }
 
@@ -9752,8 +9817,8 @@ function aplicarMarkupGlobal(val){
 // ══════════════════════════════════════════════════════════════════
 function exportarPrecioFinalPDF(){
   // Verificar que haya datos
-  const hasData=PF_ORDER.some(t=>calcCostoTipo(t)>0);
-  if(!hasData){alert('No hay ítems en el cotizador para exportar.');return;}
+  const R=pfItems();
+  if(!R.grupos.length){alert('No hay ítems en el cotizador para exportar.');return;}
 
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
@@ -9764,16 +9829,13 @@ function exportarPrecioFinalPDF(){
   const cliente=costeoMeta.cliente||'';
 
   // ── ENCABEZADO ────────────────────────────────────────────────────
-  // Fondo oscuro
   doc.setFillColor(30,10,46);
   doc.rect(0,0,W,32,'F');
   doc.setFillColor(61,26,82);
   doc.rect(0,14,W,18,'F');
-  // Línea dorada
   doc.setFillColor(200,169,81);
   doc.rect(0,32,W,1,'F');
 
-  // Marca izquierda
   doc.setTextColor(255,255,255);
   doc.setFont('helvetica','bold');
   doc.setFontSize(16);
@@ -9783,9 +9845,8 @@ function exportarPrecioFinalPDF(){
   doc.setTextColor(200,169,81);
   doc.text('C A T E R I N G',14.5,19);
   doc.setTextColor(180,160,200);
-  doc.text('Propuesta Económica',14,26.5);
+  doc.text('Conformación del precio',14,26.5);
 
-  // Título cotización centrado
   doc.setTextColor(255,255,255);
   doc.setFont('helvetica','bold');
   doc.setFontSize(13);
@@ -9796,81 +9857,76 @@ function exportarPrecioFinalPDF(){
     doc.setTextColor(200,169,81);
     doc.text('Cliente: '+cliente,W/2,24,{align:'center'});
   }
-
-  // Fecha derecha
   doc.setFontSize(7.5);
   doc.setTextColor(180,160,200);
   doc.text('Fecha: '+fecha,W-12,16,{align:'right'});
 
-  // ── TABLA ─────────────────────────────────────────────────────────
-  const x=14;
-  const TW=W-28;
-  // Anchos: Concepto | Markup% | Precio venta
-  const cW=[TW*0.55, TW*0.2, TW*0.25];
+  // ── TABLA POR ÍTEM ────────────────────────────────────────────────
+  const x=10;
+  const TW=W-20;
+  // Ítem | Cant. | Costo total | Venta unit. | Venta total | Ganancia $ | Ganancia %
+  const cR=[0, 0.43, 0.54, 0.66, 0.78, 0.90, 1].map(f=>x+TW*f); // bordes derechos de columnas
+  const pdfPct=v=>v===null?'-':v.toLocaleString('es-AR',{maximumFractionDigits:1})+'%';
+  const tcol={plato:[92,45,110],sub:[138,109,31],vajilla:[123,74,144],personal:[34,100,70],
+              seguro:[26,107,90],descartables:[0,90,150],flete:[150,70,0]};
   let y=42;
-
-  // Header tabla
-  doc.setFillColor(92,45,110);
-  doc.rect(x,y-5,TW,9,'F');
-  doc.setTextColor(255,255,255);
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(8.5);
-  doc.text('Concepto',          x+3,     y,{align:'left'});
-  doc.text('Markup %',          x+cW[0]+cW[1]-2, y,{align:'right'});
-  doc.text('Precio de venta',   x+TW-2,  y,{align:'right'});
-  y+=7;
-
-  let totalCosto=0, totalPrecio=0, rowIdx=0;
-  const rows=[];
-
-  PF_ORDER.forEach(tipo=>{
-    const costo=calcCostoTipo(tipo);
-    if(!costo)return;
-    const markup=parseFloat(pfMarkups[tipo])||0;
-    const precio=costo*(1+markup/100);
-    totalCosto+=costo; totalPrecio+=precio;
-    rows.push({tipo,costo,markup,precio});
-  });
-
-  rows.forEach(r=>{
-    // Fondo alternado
-    if(rowIdx%2===0) doc.setFillColor(248,244,255);
-    else             doc.setFillColor(255,255,255);
-    doc.rect(x,y-4,TW,9,'F');
-    // Franja de color izquierda según concepto
-    const tcol={plato:[92,45,110],vajilla:[123,74,144],personal:[34,100,70],
-                seguro:[26,107,90],descartables:[0,90,150],flete:[150,70,0]};
-    const col=tcol[r.tipo]||[80,80,80];
-    doc.setFillColor(...col);
-    doc.rect(x,y-4,3,9,'F');
-
-    // Texto
-    doc.setTextColor(30,10,46);
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(9);
-    doc.text(PF_LABELS[r.tipo]||r.tipo, x+6, y,{align:'left'});
-
-    // Markup badge
-    doc.setFillColor(...col.map(v=>Math.min(255,v+130)));
-    doc.roundedRect(x+cW[0]+cW[1]-20,y-3.5,18,5.5,1,1,'F');
-    doc.setTextColor(...col.map(v=>Math.max(0,v-20)));
+  const encabezadoTabla=()=>{
+    doc.setFillColor(92,45,110);
+    doc.rect(x,y-5,TW,9,'F');
+    doc.setTextColor(255,255,255);
     doc.setFont('helvetica','bold');
     doc.setFontSize(8);
-    doc.text(r.markup.toFixed(1)+'%', x+cW[0]+cW[1]-2, y,{align:'right'});
+    doc.text('Ítem',x+3,y);
+    ['Cant.','Costo total','Venta unit.','Venta total','Ganancia $','Ganancia %'].forEach((t,k)=>doc.text(t,cR[k+1]-1.5,y,{align:'right'}));
+    y+=7;
+  };
+  const saltoSiHace=(alto,conEncabezado=true)=>{ if(y+alto>H-16){ doc.addPage(); y=16; if(conEncabezado) encabezadoTabla(); } };
+  encabezadoTabla();
 
-    // Precio venta
-    doc.setTextColor(34,100,70);
+  R.grupos.forEach(g=>{
+    const col=tcol[g.tipo]||[80,80,80];
+    saltoSiHace(16);
+    // Fila del concepto con subtotales
+    doc.setFillColor(...col.map(v=>Math.min(255,v+150)));
+    doc.rect(x,y-4,TW,7,'F');
+    doc.setFillColor(...col);
+    doc.rect(x,y-4,2.5,7,'F');
+    doc.setTextColor(...col.map(v=>Math.max(0,v-30)));
     doc.setFont('helvetica','bold');
-    doc.setFontSize(10);
-    doc.text(fmt(r.precio), x+TW-2, y,{align:'right'});
-
-    // Línea separadora
-    doc.setDrawColor(220,212,232);
-    doc.line(x,y+5,x+TW,y+5);
-    y+=10; rowIdx++;
+    doc.setFontSize(8.5);
+    doc.text(PF_LABELS[g.tipo]||g.tipo,x+5,y);
+    doc.text(fmt(g.costo),cR[2]-1.5,y,{align:'right'});
+    doc.text(fmt(g.venta),cR[4]-1.5,y,{align:'right'});
+    doc.text(fmt(g.gan),cR[5]-1.5,y,{align:'right'});
+    doc.text(pdfPct(g.pctCosto),cR[6]-1.5,y,{align:'right'});
+    y+=7;
+    g.items.forEach((i,k)=>{
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(8);
+      const lineas=doc.splitTextToSize(i.nombre,cR[1]-x-22);
+      const alto=Math.max(6,lineas.length*3.6+2.4);
+      saltoSiHace(alto);
+      if(k%2===0){ doc.setFillColor(250,247,255); doc.rect(x,y-4,TW,alto,'F'); }
+      doc.setTextColor(30,10,46);
+      doc.text(lineas,x+6,y);
+      doc.text(fmtN(i.cant,2),cR[1]-1.5,y,{align:'right'});
+      doc.setTextColor(110,100,120);
+      doc.text(fmt(i.costo),cR[2]-1.5,y,{align:'right'});
+      doc.setTextColor(30,10,46);
+      doc.text(fmt(i.ventaUnit),cR[3]-1.5,y,{align:'right'});
+      doc.setFont('helvetica','bold');
+      doc.text(fmt(i.venta),cR[4]-1.5,y,{align:'right'});
+      if(i.gan<0) doc.setTextColor(192,57,43); else doc.setTextColor(34,100,70);
+      doc.text(fmt(i.gan),cR[5]-1.5,y,{align:'right'});
+      doc.setFont('helvetica','normal');
+      doc.text(pdfPct(i.pctCosto),cR[6]-1.5,y,{align:'right'});
+      y+=alto;
+    });
+    y+=2;
   });
 
   y+=4;
+  saltoSiHace(60,false);
 
   // ── COSTO TOTAL (interno, tono gris) ─────────────────────────────
   doc.setFillColor(237,229,245);
@@ -9880,11 +9936,20 @@ function exportarPrecioFinalPDF(){
   doc.setFontSize(9);
   doc.text('Costo total (interno)',x+6,y+1,{align:'left'});
   doc.setFontSize(10);
-  doc.text(fmt(totalCosto),x+TW-2,y+1,{align:'right'});
+  doc.text(fmt(R.costo),x+TW-2,y+1,{align:'right'});
+  y+=12;
+
+  // ── GANANCIA TOTAL ───────────────────────────────────────────────
+  doc.setFillColor(228,242,234);
+  doc.rect(x,y-4,TW,10,'F');
+  doc.setTextColor(34,100,70);
+  doc.setFontSize(9);
+  doc.text('Ganancia total',x+6,y+1,{align:'left'});
+  doc.setFontSize(10);
+  doc.text(fmt(R.gan)+'   ('+pdfPct(R.pctCosto)+' sobre costo · '+pdfPct(R.pctVenta)+' de la venta)',x+TW-2,y+1,{align:'right'});
   y+=14;
 
   // ── PRECIO FINAL DE VENTA (destacado) ────────────────────────────
-  // Caja dorada grande
   doc.setFillColor(30,10,46);
   doc.rect(x,y-5,TW,18,'F');
   doc.setFillColor(200,169,81);
@@ -9895,24 +9960,27 @@ function exportarPrecioFinalPDF(){
   doc.text('PRECIO FINAL DE VENTA',x+10,y+4,{align:'left'});
   doc.setTextColor(255,255,255);
   doc.setFontSize(16);
-  doc.text(fmt(totalPrecio),x+TW-2,y+5,{align:'right'});
+  doc.text(fmt(R.venta),x+TW-2,y+5,{align:'right'});
   y+=26;
 
   // ── NOTA DISCRETA ─────────────────────────────────────────────────
   doc.setFont('helvetica','italic');
   doc.setFontSize(7.5);
   doc.setTextColor(160,140,180);
-  doc.text('Este presupuesto incluye un markup aplicado sobre los costos de producción.',x,y);
-  doc.text('Los precios son orientativos y pueden estar sujetos a revisión.',x,y+5);
+  doc.text('Documento interno: muestra costos y ganancia por ítem.',x,y);
+  doc.text('Ganancia % = ganancia sobre el costo.',x,y+5);
 
   // ── PIE DE PÁGINA ─────────────────────────────────────────────────
-  doc.setFillColor(61,26,82);
-  doc.rect(0,H-9,W,9,'F');
-  doc.setTextColor(180,160,200);
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(7);
-  doc.text('Mariana Pages Catering  ·  Propuesta confidencial',14,H-3.5);
-  doc.text(fecha,W-14,H-3.5,{align:'right'});
+  for(let p=1;p<=doc.getNumberOfPages();p++){
+    doc.setPage(p);
+    doc.setFillColor(61,26,82);
+    doc.rect(0,H-9,W,9,'F');
+    doc.setTextColor(180,160,200);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7);
+    doc.text('Mariana Pages Catering  ·  Uso interno',14,H-3.5);
+    doc.text(fecha,W-14,H-3.5,{align:'right'});
+  }
 
   const fname='PrecioFinal_MP_'+titulo.replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)+'_'+fecha.replace(/\//g,'-')+'.pdf';
   doc.save(fname);
