@@ -567,6 +567,9 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <label class="btn btn-outline" style="cursor:pointer">📤 Importar Excel
         <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleXLSX(event)">
       </label>
+      <label class="btn btn-outline" style="cursor:pointer" title="Cargar una lista de precios de proveedor (Excel) y actualizar los insumos">💲 Actualizar precios desde lista
+        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleListaPrecios(event)">
+      </label>
     </div>
     <div class="tw tw-scroll"><table>
       <thead><tr><th>#</th><th>Key interna</th><th>Nombre</th><th>Formato</th><th class="num">$ Formato</th><th class="num">Kg/Formato</th><th class="num">$ / kg</th><th>Proveedor</th><th></th></tr></thead>
@@ -1472,6 +1475,26 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;border-top:1px solid var(--border);padding-top:16px">
       <button class="btn btn-outline" onclick="cerrarModal('modal-import-excel')">Cancelar</button>
       <button class="btn btn-primary" id="btn-confirmar-import" onclick="confirmarImportExcel()">✓ Confirmar importación</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL ACTUALIZAR PRECIOS DESDE LISTA DE PROVEEDOR ══════════ -->
+<div class="modal-ov" id="modal-lista-precios">
+  <div class="modal" style="max-width:1250px;width:98vw;max-height:90vh;overflow-y:auto">
+    <div class="modal-hd">
+      <span class="modal-title">💲 Actualizar precios desde lista <span id="lp-archivo" style="font-size:12px;color:var(--text3);font-weight:400"></span></span>
+      <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-lista-precios')">✕ Cerrar</button>
+    </div>
+    <div id="lp-resumen" style="font-size:12px;color:var(--text3);margin-bottom:12px"></div>
+    <div class="tw"><table>
+      <thead><tr><th></th><th>Insumo (actual)</th><th>Producto de la lista</th><th>Formato nuevo</th><th class="num">$ sin IVA</th><th class="num">Kg/Formato</th><th class="num">$/kg antes</th><th class="num">$/kg nuevo</th><th class="num">Var.</th></tr></thead>
+      <tbody id="lp-tbody"></tbody>
+    </table></div>
+    <div id="lp-sin" style="font-size:12px;color:var(--text3);margin-top:14px"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;border-top:1px solid var(--border);padding-top:16px">
+      <button class="btn btn-outline" onclick="cerrarModal('modal-lista-precios')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-lp-aplicar" onclick="aplicarListaPrecios()">✓ Aplicar</button>
     </div>
   </div>
 </div>
@@ -2872,6 +2895,207 @@ function delIns(id){
   if(!confirm('¿Eliminar insumo?'))return;
   FB_COL_INSUMOS.doc(String(id)).delete().catch(e=>alert('Error al eliminar el insumo: '+e.message));
 }
+// ── Actualizar precios de insumos desde una lista de proveedor (Excel) ──
+// Lee una lista tipo "LISTA C-DTO" (col A nombre, B descripción, C unidad,
+// D precio, E precio c/descuento), busca para cada insumo del sistema los
+// productos equivalentes, elige el más barato por kg/lt (o por unidad), le
+// saca el IVA (÷1.21) y muestra todo en una pantalla de revisión antes de
+// aplicar. Nada se guarda hasta tocar "Aplicar".
+const LP_IVA=1.21;
+// Abreviaturas de las listas de proveedor → palabra completa. Se aplica a
+// los dos lados (lista e insumos) para que comparen igual.
+const LP_ABREV={
+  ACEIT:'ACEITUNAS',ACEITUN:'ACEITUNAS',ACEITUNA:'ACEITUNAS',ACEI:'ACEITE',OLIV:'OLIVA',GIRA:'GIRASOL',GIRAS:'GIRASOL',
+  MEZ:'MEZCLA',ADER:'ADEREZO',MOL:'MOLIDO',MOLIDA:'MOLIDO',DES:'DESMENUZADO',NAT:'NATURAL',DESG:'DESGRANADO',
+  AMA:'AMARILLO',CHOCO:'CHOCOLATE',CHOC:'CHOCOLATE',CB:'COBERTURA',EXTRAC:'EXTRACTO',TOM:'TOMATE',DOB:'DOBLE',
+  GALLET:'GALLETITAS',GALLETA:'GALLETITAS',GALLETAS:'GALLETITAS',MERMEL:'MERMELADA',FRAMB:'FRAMBUESA',NARA:'NARANJA',
+  DURA:'DURAZNO',MAYO:'MAYONESA',HELLM:'HELLMANNS',SEM:'SEMILLAS',SEMILLA:'SEMILLAS',PEL:'PELADA',CREM:'CREMA',CRE:'CREMA',
+  LECH:'LECHE',CONDENS:'CONDENSADA',ENTE:'ENTERA',MARGA:'MARGARINA',CHEDD:'CHEDDAR',MUZZ:'MOZZARELLA',MUZZA:'MOZZARELLA',
+  MUZZARELLA:'MOZZARELLA',MOZZA:'MOZZARELLA',MOZARELLA:'MOZZARELLA',FRAC:'FRACCIONADO',RALL:'RALLADO',RALLADA:'RALLADO',
+  MASCARP:'MASCARPONE',ESTAC:'ESTACIONADO',COCI:'COCIDO',CRU:'CRUDO',AHU:'AHUMADA',CGL:'CONGELADO',HAMBUR:'HAMBURGUESA',
+  AGRID:'AGRIDULCE',VDE:'VERDE',VERDES:'VERDE',NEG:'NEGRA',NEGRAS:'NEGRA',BCA:'BLANCA',BCO:'BLANCO',FN:'FINA',VINAG:'VINAGRE',
+  ALCOH:'ALCOHOL',WHK:'WHISKY',ARROLL:'ARROLLADA',PIMEN:'PIMIENTA',PIM:'PIMIENTA',PIMENT:'PIMENTON',SALS:'SALSA',
+  ESCARBAD:'ESCARBADIENTES',SAB:'SABOR',MIT:'MITADES',ESENC:'ESENCIA',VAI:'VAINILLA',VAIN:'VAINILLA',PROVOL:'PROVOLETA',
+  ARVEJ:'ARVEJAS',CHAMP:'CHAMPIGNONES',CHAMPIGNON:'CHAMPIGNONES',PALM:'PALMITOS',ALCAP:'ALCAPARRAS',MOST:'MOSTAZA',
+  QSO:'QUESO',QUESOS:'QUESO',ROQ:'ROQUEFORT',GORG:'GORGONZOLA',SALCH:'SALCHICHA',PANC:'PANCETA',MORT:'MORTADELA',
+  BOND:'BONDIOLA',YOG:'YOGUR',YOGURT:'YOGUR',IMPALP:'IMPALPABLE',ALMEND:'ALMENDRAS',AVELL:'AVELLANAS',ORE:'OREGANO',
+  NUECES:'NUEZ',AZUC:'AZUCAR',LEV:'LEVADURA',HUEVOS:'HUEVO',JAMON:'JAMON',DDL:'DULCE LECHE',CALD:'CALDO',
+  DIJ:'DIJON',BALS:'BALSAMICO',ACETO:'ACETO BALSAMICO',FIDEO:'FIDEOS',POROTOS:'POROTO',GARBANZO:'GARBANZOS',
+  LENTEJA:'LENTEJAS',TRIT:'TRITURADO',MOSC:'MOSCADA',DESCR:'DESCREMADA',LENTEJON:'LENTEJAS',PAPAS:'PAPA',TOMATES:'TOMATE',LIMONES:'LIMON'
+};
+// Si el producto de la lista dice una de estas palabras y el insumo no, se
+// descarta (ej. "Aceite de girasol" no debe tomar la mezcla soja-girasol).
+const LP_VARIANTES=new Set(['MEZCLA','MOSCADA','DESCREMADA','TRITURADO','PURE','EXTRACTO','CONDENSADA','POLVO','DIET']);
+const LP_STOP=new Set(['DE','DEL','LA','EL','LOS','LAS','CON','SIN','EN','Y','X','P','PARA','C','S','A','TIPO','MARCA','POR','IMP','IND','UNI','U','UN','KG','GR','LT','CC','ML']);
+function lpNorm(s){
+  return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase()
+    .replace(/(\d),(\d)/g,'$1.$2').replace(/[^A-Z0-9. ]/g,' ').replace(/\s+/g,' ').trim();
+}
+// Tokens canónicos (sin palabras vacías ni medidas tipo "5KG").
+function lpTokens(s){
+  const out=[];
+  s=String(s||'').replace(/(^|[^A-Z])S\/A(?![A-Z])/gi,'$1 SEMIAMARGO ').replace(/(^|[^A-Z])E\/V(?![A-Z])/gi,'$1 EXTRA VIRGEN ');
+  lpNorm(s).replace(/\./g,' ').split(' ').forEach(t=>{
+    if(!t||LP_STOP.has(t)) return;
+    if(/^\d+(KG|K|GR|GRS|G|LT|LTS|L|CC|ML|UNI|U|UN)$/.test(t)) return;
+    if(/^\d+$/.test(t) && !/^0+$/.test(t)) return; // números sueltos no (salvo 000/0000 de harinas)
+    const exp=LP_ABREV[t]||t;
+    exp.split(' ').forEach(w=>out.push(w));
+  });
+  return out;
+}
+function lpTokMatch(a,b){
+  if(a===b) return true;
+  const m=Math.min(a.length,b.length);
+  return m>=4 && (a.startsWith(b)||b.startsWith(a));
+}
+// Cantidad que trae el producto: {q, base:'kg'|'lt'|'u'} o null.
+function lpCantidad(nombre,desc,unidad){
+  if(/^KG/.test(lpNorm(unidad))) return {q:1, base:'kg', porKilo:true};
+  const UN='(KG|K|GRS|GR|G|LTS|LT|L|CC|ML)';
+  const conv=(n,u)=>{ n=parseFloat(n); if(!(n>0)) return null;
+    if(/^(KG|K)$/.test(u)) return {q:n,base:'kg'};
+    if(/^G/.test(u)) return {q:n/1000,base:'kg'};
+    if(/^L/.test(u)) return {q:n,base:'lt'};
+    return {q:n/1000,base:'lt'}; };
+  const reMulti=new RegExp('(\\d+)\\s*[A-Z]*\\s*X\\s*(\\d+(?:\\.\\d+)?)\\s*'+UN+'(?![A-Z])');
+  const reSimple=new RegExp('(\\d+(?:\\.\\d+)?)\\s*'+UN+'(?![A-Z])');
+  const reUni=/(\d+)\s*(UNI|UN|U|SAQ|SOB|SOBRES)(?![A-Z])/;
+  const N=lpNorm(nombre), D=lpNorm(desc), esCaja=/^CAJ/.test(lpNorm(unidad));
+  let m;
+  if((m=N.match(reMulti))){ const c=conv(m[2],m[3]); if(c){c.q*=parseInt(m[1]); return c;} }
+  if(esCaja && (m=D.match(reMulti))){ const c=conv(m[2],m[3]); if(c){c.q*=parseInt(m[1]); return c;} }
+  if((m=N.match(reSimple))) return conv(m[1],m[2]);
+  if((m=D.match(reMulti))) return conv(m[2],m[3]); // "12x1.5LT" en UNI: cada unidad
+  if((m=D.match(reSimple)) && !/APROX/.test(D)) return conv(m[1],m[2]);
+  if((m=N.match(reUni))) return {q:parseInt(m[1]), base:'u'};
+  return null;
+}
+function lpParsearHoja(ws){
+  const filas=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+  const out=[];
+  filas.forEach(r=>{
+    const nombre=String(r[0]||'').trim(); if(!nombre) return;
+    const desc=String(r[1]||'').trim(), unidad=String(r[2]||'').trim();
+    const pDto=parseFloat(String(r[4]).replace(',','.')), pLista=parseFloat(String(r[3]).replace(',','.'));
+    const precio=pDto>0?pDto:(pLista>0?pLista:0);
+    if(!(precio>0)) return; // encabezados de sección, títulos, etc.
+    const neto=Math.round(precio/LP_IVA*100)/100;
+    const cant=lpCantidad(nombre,desc,unidad);
+    out.push({nombre,desc,unidad,precio,neto,cant,
+      porQ:cant&&cant.q>0?neto/cant.q:null,
+      toks:lpTokens(nombre+' '+desc), head:lpTokens(nombre).filter(t=>t!=='CONGELADO')[0]||''});
+  });
+  return out;
+}
+// Candidatos de la lista para un insumo. strict = la primera palabra del
+// insumo es la primera de la lista (ej. "Manteca" → "MANTECA 5KG").
+function lpCandidatos(ins,filas){
+  const it=lpTokens(ins.nombre); if(!it.length) return {cands:[],strict:false};
+  let todos=filas.filter(f=>it.every(t=>f.toks.some(x=>lpTokMatch(t,x))));
+  const limpios=todos.filter(f=>!f.toks.some(x=>LP_VARIANTES.has(x)&&!it.includes(x)));
+  if(limpios.length) todos=limpios;
+  const strict=todos.filter(f=>lpTokMatch(it[0],f.head));
+  const cands=(strict.length?strict:todos).slice();
+  // Más barato primero: por kg/lt si se sabe la cantidad, si no por precio.
+  cands.sort((a,b)=>{
+    const ka=a.porQ!=null&&a.cant.base!=='u', kb=b.porQ!=null&&b.cant.base!=='u';
+    if(ka!==kb) return ka?-1:1;
+    return (a.porQ!=null?a.porQ:a.neto)-(b.porQ!=null?b.porQ:b.neto);
+  });
+  return {cands, strict:strict.length>0};
+}
+function lpFormatoTexto(f){
+  return f.cant&&f.cant.porKilo ? 'x kg · '+f.nombre : f.nombre;
+}
+let _lpPropuestas=[];
+function handleListaPrecios(e){
+  const file=e.target.files[0]; e.target.value=''; if(!file) return;
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      let filas=[]; wb.SheetNames.forEach(n=>{filas=filas.concat(lpParsearHoja(wb.Sheets[n]));});
+      if(!filas.length){ alert('No encontré productos con precio en ese Excel.'); return; }
+      _lpPropuestas=DB.insumos.map(ins=>{
+        const {cands,strict}=lpCandidatos(ins,filas);
+        return {ins,cands,strict,sel:cands.length?0:-1,ok:cands.length>0&&strict};
+      });
+      document.getElementById('lp-archivo').textContent=file.name+' · '+filas.length+' productos';
+      renderListaPrecios();
+      document.getElementById('modal-lista-precios').classList.add('open');
+    }catch(err){ console.error(err); alert('No pude leer el Excel: '+err.message); }
+  };
+  rd.readAsArrayBuffer(file);
+}
+function _lpValores(p){
+  const f=p.cands[p.sel];
+  if(p.edit) return p.edit;
+  return {formato:lpFormatoTexto(f), precio:f.neto, kg:f.cant?Math.round(f.cant.q*1000)/1000:(parseFloat(p.ins.formato_kg)||1)};
+}
+function renderListaPrecios(){
+  const con=_lpPropuestas.filter(p=>p.cands.length), sin=_lpPropuestas.filter(p=>!p.cands.length);
+  const nOk=con.filter(p=>p.ok).length;
+  document.getElementById('lp-resumen').innerHTML=
+    `<b>${con.length}</b> insumos con coincidencia (${nOk} tildados para actualizar) · <b>${sin.length}</b> sin coincidencia en la lista. `+
+    `Precio cargado = columna C/DTO ÷ 1,21 (sin IVA). Por defecto se elige el más barato por kg/lt; podés cambiarlo en cada fila. `+
+    `<span style="color:var(--yellow)">Amarillo</span> = coincidencia dudosa (no tildada), <span style="color:var(--red)">rojo</span> = el $/kg cambia más de 40%.`;
+  const inp='background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:3px 5px;font-size:12px';
+  document.getElementById('lp-tbody').innerHTML=_lpPropuestas.map((p,i)=>{
+    if(!p.cands.length) return '';
+    const x=p.ins, v=_lpValores(p);
+    const pkViejo=parseFloat(x.costo)||0, pkNuevo=v.kg>0?v.precio/v.kg:v.precio;
+    const varPct=pkViejo>0?(pkNuevo/pkViejo-1)*100:null;
+    const alerta=varPct!=null&&Math.abs(varPct)>40;
+    return `<tr style="${p.strict?'':'background:rgba(234,179,8,.08)'}">
+      <td><input type="checkbox" ${p.ok?'checked':''} onchange="_lpPropuestas[${i}].ok=this.checked;renderListaPreciosResumen()"></td>
+      <td style="font-weight:600;${p.strict?'':'color:var(--yellow)'}">${escH(x.nombre)}<div style="font-size:11px;color:var(--text3);font-weight:400">${escH(x.formato||'—')} · $ ${fmtN(parseFloat(x.precio_formato)||0,2)} · ${fmtN(parseFloat(x.formato_kg)||0,3)} kg</div></td>
+      <td><select style="${inp};max-width:330px" onchange="lpElegir(${i},this.value)">
+        ${p.cands.map((f,j)=>`<option value="${j}"${j===p.sel?' selected':''}>${escH(f.nombre)} — $ ${fmtN(f.neto,2)}${f.porQ!=null?' ('+fmtN(f.porQ,0)+'/'+f.cant.base+')':''}</option>`).join('')}
+      </select></td>
+      <td><input type="text" value="${escH(v.formato)}" style="${inp};width:170px" oninput="lpEditar(${i},'formato',this.value)"></td>
+      <td class="num"><input type="number" step="0.01" value="${v.precio}" style="${inp};width:95px;text-align:right" oninput="lpEditar(${i},'precio',this.value)"></td>
+      <td class="num"><input type="number" step="0.001" value="${v.kg}" style="${inp};width:70px;text-align:right" oninput="lpEditar(${i},'kg',this.value)"></td>
+      <td class="num">${fmtN(pkViejo,2)}</td>
+      <td class="num" id="lp-pk${i}" style="font-weight:700;color:var(--green)">${fmtN(pkNuevo,2)}</td>
+      <td class="num" id="lp-var${i}" style="${alerta?'color:var(--red);font-weight:700':''}">${varPct==null?'—':(varPct>0?'+':'')+fmtN(varPct,0)+'%'}</td>
+    </tr>`;
+  }).join('');
+  renderListaPreciosResumen();
+  document.getElementById('lp-sin').innerHTML=sin.length?
+    `<b>Sin coincidencia en la lista (${sin.length}):</b> `+sin.map(p=>escH(p.ins.nombre)).join(' · '):'';
+}
+function renderListaPreciosResumen(){
+  const n=_lpPropuestas.filter(p=>p.ok&&p.cands.length).length;
+  document.getElementById('btn-lp-aplicar').textContent='✓ Aplicar a '+n+' insumos';
+}
+function lpElegir(i,j){ const p=_lpPropuestas[i]; p.sel=parseInt(j); p.edit=null; p.ok=true; renderListaPrecios(); renderListaPreciosResumen(); }
+function lpEditar(i,campo,val){
+  const p=_lpPropuestas[i]; p.edit={..._lpValores(p)};
+  p.edit[campo]=campo==='formato'?val:(parseFloat(val)||0);
+  const v=p.edit, pk=v.kg>0?v.precio/v.kg:v.precio, viejo=parseFloat(p.ins.costo)||0;
+  document.getElementById('lp-pk'+i).textContent=fmtN(pk,2);
+  const varPct=viejo>0?(pk/viejo-1)*100:null, el=document.getElementById('lp-var'+i);
+  el.textContent=varPct==null?'—':(varPct>0?'+':'')+fmtN(varPct,0)+'%';
+  el.style.color=varPct!=null&&Math.abs(varPct)>40?'var(--red)':'';
+}
+function aplicarListaPrecios(){
+  const sel=_lpPropuestas.filter(p=>p.ok&&p.cands.length);
+  if(!sel.length){ alert('No hay insumos tildados.'); return; }
+  if(!confirm('¿Actualizar el precio de '+sel.length+' insumos? También se recalculan las recetas que los usan.')) return;
+  sel.forEach(p=>{
+    const x=DB.insumos.find(i=>i._id===p.ins._id); if(!x) return;
+    const v=_lpValores(p);
+    x.formato=v.formato; x.precio_formato=v.precio; x.formato_kg=v.kg;
+    x.costo=v.kg>0?v.precio/v.kg:v.precio;
+    guardarInsumo(x._id);
+    recalcularRecetasPorInsumo(x.key,false);
+  });
+  cerrarModal('modal-lista-precios');
+  renderInsumos(); _repintarRecetasTrasRecalculo();
+  alert('Listo: '+sel.length+' insumos actualizados.');
+}
+
 let _insumoNuevoId=null; // _id del insumo recién agregado, para resaltar su fila en el próximo render
 // overrides opcional ({nombre,costo,proveedor,formato}) — lo usa también el
 // alta rápida de insumo desde el conteo de stock (mismos campos, mismo
