@@ -3937,15 +3937,15 @@ function buildSubTable(){
       <input class="dd-input" id="si${idx}" type="text" placeholder="Elegí un insumo o sub…" style="width:100%">
     </td>
     <td class="num" style="padding:6px 8px">
-      <input type="number" step="0.0001" min="0" value="${kgNeto||0}"
+      <input type="text" inputmode="decimal" value="${kgTexto(kgNeto)}" placeholder="0,250"
         style="width:100%;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
-        oninput="siKgs(${idx},this.value)">
+        oninput="siKgs(${idx},parseKgCampo(this.value))" onblur="this.value=kgTexto(subItems[${idx}]&&subItems[${idx}].kgs)">
     </td>
     <td class="num" style="padding:6px 8px">
       <div style="display:flex;align-items:center;justify-content:flex-end;gap:3px">
-        <input type="number" step="0.1" min="0" max="99" value="${merma||''}" placeholder="0"
+        <input type="text" inputmode="decimal" value="${merma?kgTexto(merma):''}" placeholder="0"
           style="width:100%;min-width:0;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
-          oninput="siMerma(${idx},this.value)">
+          oninput="siMerma(${idx},parseKgCampo(this.value))">
         <span style="font-size:11px;color:var(--text3);line-height:1;flex-shrink:0">%</span>
       </div>
     </td>
@@ -3976,6 +3976,17 @@ function buildSubTable(){
   rendUpdate('sub');
 }
 
+// Gramaje en kilos: acepta coma o punto como separador ("0,250" o "0.250"
+// = 250 g). Antes el campo era numérico y con coma en algunos navegadores
+// quedaba vacío (0). Si escriben los dos (ej. "1.250,5"), el último manda.
+function parseKgCampo(v){
+  v=String(v==null?'':v).replace(/\s/g,'');
+  const i=Math.max(v.lastIndexOf(','),v.lastIndexOf('.'));
+  if(i>=0) v=v.slice(0,i).replace(/[.,]/g,'')+'.'+v.slice(i+1).replace(/[.,]/g,'');
+  return parseFloat(v)||0;
+}
+// Muestra el número con coma decimal y sin separador de miles.
+function kgTexto(n){ n=parseFloat(n)||0; return String(Math.round(n*10000)/10000).replace('.',','); }
 function siKgs(idx,v){
   subItems[idx].kgs=parseFloat(v)||0;
   recalcSubItem(idx);
@@ -4410,15 +4421,15 @@ function buildPlatoTable(){
         <input class="dd-input" id="pi${idx}" type="text" placeholder="Elegí ${tipoIns?'un insumo':'un subproducto'}…" style="width:100%">
       </td>
       <td class="num" style="padding:6px 6px">
-        <input type="number" step="0.0001" min="0" value="${kgNeto||0}"
+        <input type="text" inputmode="decimal" value="${kgTexto(kgNeto)}" placeholder="0,250"
           style="width:100%;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
-          oninput="piKgs(${idx},this.value)">
+          oninput="piKgs(${idx},parseKgCampo(this.value))" onblur="this.value=kgTexto(platoItems[${idx}]&&platoItems[${idx}].kgs)">
       </td>
       <td class="num" style="padding:6px 6px">
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:3px">
-          <input type="number" step="0.1" min="0" max="99" value="${merma||''}" placeholder="0"
+          <input type="text" inputmode="decimal" value="${merma?kgTexto(merma):''}" placeholder="0"
             style="width:100%;min-width:0;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
-            oninput="piMerma(${idx},this.value)">
+            oninput="piMerma(${idx},parseKgCampo(this.value))">
           <span style="font-size:11px;color:var(--text3);line-height:1;flex-shrink:0">%</span>
         </div>
       </td>
