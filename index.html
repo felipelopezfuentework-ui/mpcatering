@@ -569,7 +569,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       </label>
     </div>
     <div class="tw tw-scroll"><table>
-      <thead><tr><th>#</th><th>Key interna</th><th>Nombre</th><th>Formato</th><th class="num">$ Formato</th><th class="num">Kg/Formato</th><th class="num">$ / kg</th><th>Actualizado</th><th>Proveedor</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('key')" title="Ordenar">Key interna <span class="ins-flecha" data-col="key"></span></th><th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('nombre')" title="Ordenar">Nombre <span class="ins-flecha" data-col="nombre"></span></th><th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('formato')" title="Ordenar">Formato <span class="ins-flecha" data-col="formato"></span></th><th class="num" style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('precio')" title="Ordenar">$ Formato <span class="ins-flecha" data-col="precio"></span></th><th class="num" style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('kg')" title="Ordenar">Kg/Formato <span class="ins-flecha" data-col="kg"></span></th><th class="num" style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('pk')" title="Ordenar">$ / kg <span class="ins-flecha" data-col="pk"></span></th><th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('act')" title="Ordenar">Actualizado <span class="ins-flecha" data-col="act"></span></th><th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('prov')" title="Ordenar">Proveedor <span class="ins-flecha" data-col="prov"></span></th><th></th></tr></thead>
       <tbody id="ins-tbody"></tbody>
     </table></div>
     <div class="pag" id="ins-pag"></div>
@@ -2812,10 +2812,32 @@ function addProveedor(){
 // ══════════════════════════════════════════════════════════════════
 //  INSUMOS
 // ══════════════════════════════════════════════════════════════════
+// Orden de la tabla de insumos: tocar un título ordena de mayor a menor;
+// tocarlo de nuevo, de menor a mayor. La flecha muestra cómo está.
+let insOrden={col:null,dir:'desc'};
+const _insPk=x=>{const kg=parseFloat(x.formato_kg)||0;return kg>0?(parseFloat(x.precio_formato)||0)/kg:(parseFloat(x.costo)||0);};
+const insValorOrden={
+  key:x=>x.key||'', nombre:x=>x.nombre||'', formato:x=>(x.formato||'').toLowerCase(),
+  precio:x=>parseFloat(x.precio_formato)||0, kg:x=>parseFloat(x.formato_kg)||0, pk:_insPk,
+  act:x=>x.precio_actualizado?Date.parse(x.precio_actualizado):0, prov:x=>x.proveedor||''
+};
+function insOrdenar(col){
+  insOrden=insOrden.col===col?{col,dir:insOrden.dir==='desc'?'asc':'desc'}:{col,dir:'desc'};
+  insPage=0; renderInsumos();
+}
 function renderInsumos(){
   _mpUpdateVbarTop(); // alto de la caja con encabezado fijo (.tw-scroll)
   const q=document.getElementById('ins-search').value.toLowerCase();
   const f=DB.insumos.filter(x=>x.nombre.toLowerCase().includes(q)||x.key.toLowerCase().includes(q)||String(x.proveedor).toLowerCase().includes(q));
+  if(insOrden.col){
+    const val=insValorOrden[insOrden.col], m=insOrden.dir==='desc'?-1:1;
+    f.sort((a,b)=>{ const va=val(a), vb=val(b);
+      return m*(typeof va==='number'?va-vb:String(va).localeCompare(String(vb),'es',{numeric:true,sensitivity:'base'})); });
+  }
+  document.querySelectorAll('.ins-flecha').forEach(el=>{
+    el.textContent=el.dataset.col===insOrden.col?(insOrden.dir==='desc'?'▼':'▲'):'⇅';
+    el.style.color=el.dataset.col===insOrden.col?'var(--green)':'var(--text3)';
+  });
   document.getElementById('ins-count').textContent=f.length;
   const pages=Math.ceil(f.length/INS_PER)||1;
   if(insPage>=pages)insPage=0;
