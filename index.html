@@ -1478,21 +1478,19 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 
 <!-- ═══ MODAL ACTUALIZAR PRECIOS DESDE LISTA DE PROVEEDOR ══════════ -->
 <div class="modal-ov" id="modal-lista-precios">
-  <div class="modal" style="max-width:1250px;width:98vw;max-height:90vh;overflow-y:auto">
-    <div class="modal-hd">
-      <span class="modal-title">💲 Actualizar precios desde lista <span id="lp-archivo" style="font-size:12px;color:var(--text3);font-weight:400"></span></span>
-      <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-lista-precios')">✕ Cerrar</button>
+  <div class="modal" style="max-width:1250px;width:98vw;max-height:90vh;overflow-y:auto;padding-top:0">
+    <div class="modal-hd" style="position:sticky;top:0;z-index:2;background:var(--surface);padding-top:16px;padding-bottom:10px;flex-wrap:wrap;gap:8px">
+      <span class="modal-title">💲 Actualizar precios <span id="lp-archivo" style="font-size:12px;color:var(--text3);font-weight:400"></span></span>
+      <span style="display:flex;gap:8px;align-items:center">
+        <span id="lp-estado" style="font-size:12px;font-weight:600"></span>
+        <button class="btn btn-primary" id="btn-lp-todos" style="padding:4px 12px" onclick="lpConfirmarTodos()">✓ Confirmar todos</button>
+        <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModal('modal-lista-precios')">✕ Cerrar</button>
+      </span>
     </div>
     <div id="lp-resumen" style="font-size:12px;color:var(--text3);margin-bottom:12px"></div>
-    <div class="tw"><table>
-      <thead><tr><th></th><th>Insumo (actual)</th><th>Producto de la lista</th><th>Formato nuevo</th><th class="num">$ sin IVA</th><th class="num">Kg/Formato</th><th class="num">$/kg antes</th><th class="num">$/kg nuevo</th><th class="num">Var.</th></tr></thead>
-      <tbody id="lp-tbody"></tbody>
-    </table></div>
+    <div id="lp-pend"></div>
+    <div id="lp-hechos"></div>
     <div id="lp-sin" style="font-size:12px;color:var(--text3);margin-top:14px"></div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;border-top:1px solid var(--border);padding-top:16px">
-      <button class="btn btn-outline" onclick="cerrarModal('modal-lista-precios')">Cancelar</button>
-      <button class="btn btn-primary" id="btn-lp-aplicar" onclick="aplicarListaPrecios()">✓ Aplicar</button>
-    </div>
   </div>
 </div>
 
@@ -3051,7 +3049,16 @@ function lpCandidatos(ins,filas){
 function lpFormatoTexto(f){
   return (f.cant&&f.cant.porKilo ? 'x kg · '+f.nombre : f.nombre).toLowerCase();
 }
-let _lpPropuestas=[], _lpArchivo='';
+// Flujo: al cargar la lista, los insumos con coincidencia segura se
+// actualizan y guardan solos; en el modal quedan arriba solo los dudosos
+// (amarillo = parecido dudoso, rojo = el $/kg cambia más de 40%) para
+// confirmar o descartar de a uno. Cerrar el modal no deshace nada.
+const LP_VAR_MAX=40;
+let _lpPropuestas=[], _lpArchivo='', _lpFecha='', _lpGuardando=0, _lpError='';
+function _lpVar(p){
+  const v=_lpValores(p), viejo=parseFloat(p.ins.costo)||0, pk=v.kg>0?v.precio/v.kg:v.precio;
+  return viejo>0?(pk/viejo-1)*100:null;
+}
 function handleListaPrecios(e){
   const file=e.target.files[0]; e.target.value=''; if(!file) return;
   const rd=new FileReader();
@@ -3060,13 +3067,17 @@ function handleListaPrecios(e){
       const wb=XLSX.read(ev.target.result,{type:'array'});
       let filas=[]; wb.SheetNames.forEach(n=>{filas=filas.concat(lpParsearHoja(wb.Sheets[n]));});
       if(!filas.length){ alert('No encontré productos con precio en ese Excel.'); return; }
+      _lpArchivo=file.name; _lpFecha=new Date().toISOString(); _lpError='';
       _lpPropuestas=DB.insumos.map(ins=>{
         const {cands,strict}=lpCandidatos(ins,filas);
-        return {ins,cands,strict,sel:cands.length?0:-1,ok:cands.length>0&&strict};
+        const p={ins,cands,strict,sel:cands.length?0:-1,estado:cands.length?'pendiente':'sin'};
+        if(cands.length){ const v=_lpVar(p); p.motivo=!strict?'dudoso':(v!=null&&Math.abs(v)>LP_VAR_MAX?'variacion':''); }
+        return p;
       });
-      _lpArchivo=file.name;
       document.getElementById('lp-archivo').textContent=file.name+' · '+filas.length+' productos';
-      document.getElementById('btn-lp-aplicar').style.display='';
+      // Los seguros se aplican ya.
+      _lpPropuestas.filter(p=>p.estado==='pendiente'&&!p.motivo).forEach(p=>lpAplicarUno(p,false));
+      renderInsumos(); _repintarRecetasTrasRecalculo();
       renderListaPrecios();
       document.getElementById('modal-lista-precios').classList.add('open');
     }catch(err){ console.error(err); alert('No pude leer el Excel: '+err.message); }
@@ -3078,100 +3089,91 @@ function _lpValores(p){
   if(p.edit) return p.edit;
   return {formato:lpFormatoTexto(f), precio:f.neto, kg:f.cant?Math.round(f.cant.q*1000)/1000:(parseFloat(p.ins.formato_kg)||1)};
 }
+// Actualiza un insumo, lo guarda directo en la nube y recalcula sus recetas.
+function lpAplicarUno(p,repintar=true){
+  const x=DB.insumos.find(i=>i._id===p.ins._id); if(!x) return;
+  const v=_lpValores(p);
+  p.antes=parseFloat(x.costo)||0;
+  x.formato=v.formato; x.precio_formato=v.precio; x.formato_kg=v.kg;
+  x.costo=v.kg>0?v.precio/v.kg:v.precio;
+  x.precio_actualizado=_lpFecha; x.precio_fuente=_lpArchivo; x.precio_producto=p.cands[p.sel].nombre;
+  p.nuevo=x.costo; p.final=v; p.estado='hecho';
+  const {_id, ...datos}=x;
+  _lpGuardando++;
+  FB_COL_INSUMOS.doc(String(_id)).set({...datos, updated_at:new Date().toISOString()})
+    .then(()=>marcarSincronizado())
+    .catch(e=>{ _lpError=e.message; marcarErrorSincronizacion(e); console.error('Error al guardar precio:', e); })
+    .finally(()=>{ _lpGuardando--; lpPintarEstado(); });
+  recalcularRecetasPorInsumo(x.key,false);
+  if(repintar){ renderInsumos(); _repintarRecetasTrasRecalculo(); }
+}
+function lpConfirmar(i){ lpAplicarUno(_lpPropuestas[i]); renderListaPrecios(); }
+function lpDescartar(i){ _lpPropuestas[i].estado='descartado'; renderListaPrecios(); }
+function lpConfirmarTodos(){
+  _lpPropuestas.filter(p=>p.estado==='pendiente').forEach(p=>lpAplicarUno(p,false));
+  renderInsumos(); _repintarRecetasTrasRecalculo(); renderListaPrecios();
+}
+function lpPintarEstado(){
+  const el=document.getElementById('lp-estado'); if(!el) return;
+  if(_lpError){ el.style.color='var(--red)'; el.textContent='⚠ Error al guardar: '+_lpError; }
+  else if(_lpGuardando>0){ el.style.color='var(--yellow)'; el.textContent='⏳ Guardando en la nube…'; }
+  else { el.style.color='var(--green)'; el.textContent='☁ Todo guardado'; }
+}
 function renderListaPrecios(){
-  const con=_lpPropuestas.filter(p=>p.cands.length), sin=_lpPropuestas.filter(p=>!p.cands.length);
-  const nOk=con.filter(p=>p.ok).length;
+  const pend=_lpPropuestas.filter(p=>p.estado==='pendiente'), hechos=_lpPropuestas.filter(p=>p.estado==='hecho');
+  const desc=_lpPropuestas.filter(p=>p.estado==='descartado'), sin=_lpPropuestas.filter(p=>p.estado==='sin');
   document.getElementById('lp-resumen').innerHTML=
-    `<b>${con.length}</b> insumos con coincidencia (${nOk} tildados para actualizar) · <b>${sin.length}</b> sin coincidencia en la lista. `+
-    `Precio cargado = columna C/DTO ÷ 1,21 (sin IVA). Por defecto se elige el más barato por kg/lt; podés cambiarlo en cada fila. `+
-    `<span style="color:var(--yellow)">Amarillo</span> = coincidencia dudosa (no tildada), <span style="color:var(--red)">rojo</span> = el $/kg cambia más de 40%.`;
+    `<span style="color:var(--green);font-weight:700;font-size:14px">✓ ${hechos.length} insumos actualizados</span>`+
+    (pend.length?` · <span style="color:var(--yellow);font-weight:700;font-size:14px">${pend.length} para confirmar</span>`:` · <b>no queda nada por confirmar</b>, ya podés cerrar`)+
+    `<br>Precio = columna C/DTO ÷ 1,21 (sin IVA), el más barato por kg/lt. <span style="color:var(--yellow)">Amarillo</span> = parecido dudoso · <span style="color:var(--red)">rojo</span> = el $/kg cambia más de ${LP_VAR_MAX}%.`;
+  document.getElementById('btn-lp-todos').style.display=pend.length>1?'':'none';
   const inp='background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:3px 5px;font-size:12px';
-  document.getElementById('lp-tbody').innerHTML=_lpPropuestas.map((p,i)=>{
-    if(!p.cands.length) return '';
-    const x=p.ins, v=_lpValores(p);
-    const pkViejo=parseFloat(x.costo)||0, pkNuevo=v.kg>0?v.precio/v.kg:v.precio;
-    const varPct=pkViejo>0?(pkNuevo/pkViejo-1)*100:null;
-    const alerta=varPct!=null&&Math.abs(varPct)>40;
-    return `<tr style="${p.strict?'':'background:rgba(234,179,8,.08)'}">
-      <td><input type="checkbox" ${p.ok?'checked':''} onchange="_lpPropuestas[${i}].ok=this.checked;renderListaPreciosResumen()"></td>
-      <td style="font-weight:600;${p.strict?'':'color:var(--yellow)'}">${escH(x.nombre)}<div style="font-size:11px;color:var(--text3);font-weight:400">${escH(x.formato||'—')} · $ ${fmtN(parseFloat(x.precio_formato)||0,2)} · ${fmtN(parseFloat(x.formato_kg)||0,3)} kg</div></td>
-      <td><select style="${inp};max-width:330px" onchange="lpElegir(${i},this.value)">
-        ${p.cands.map((f,j)=>`<option value="${j}"${j===p.sel?' selected':''}>${escH(f.nombre)} — $ ${fmtN(f.neto,2)}${f.porQ!=null?' ('+fmtN(f.porQ,0)+'/'+f.cant.base+')':''}</option>`).join('')}
-      </select></td>
-      <td><input type="text" value="${escH(v.formato)}" style="${inp};width:170px" oninput="lpEditar(${i},'formato',this.value)"></td>
-      <td class="num"><input type="number" step="0.01" value="${v.precio}" style="${inp};width:95px;text-align:right" oninput="lpEditar(${i},'precio',this.value)"></td>
-      <td class="num"><input type="number" step="0.001" value="${v.kg}" style="${inp};width:70px;text-align:right" oninput="lpEditar(${i},'kg',this.value)"></td>
-      <td class="num">${fmtN(pkViejo,2)}</td>
-      <td class="num" id="lp-pk${i}" style="font-weight:700;color:var(--green)">${fmtN(pkNuevo,2)}</td>
-      <td class="num" id="lp-var${i}" style="${alerta?'color:var(--red);font-weight:700':''}">${varPct==null?'—':(varPct>0?'+':'')+fmtN(varPct,0)+'%'}</td>
-    </tr>`;
-  }).join('');
-  renderListaPreciosResumen();
-  document.getElementById('lp-sin').innerHTML=sin.length?
-    `<b>Sin coincidencia en la lista (${sin.length}):</b> `+sin.map(p=>escH(p.ins.nombre)).join(' · '):'';
+  const fv=v=>v==null?'—':(v>0?'+':'')+fmtN(v,0)+'%';
+  document.getElementById('lp-pend').innerHTML=pend.length?`<div class="tw"><table>
+    <thead><tr><th></th><th>Insumo (actual)</th><th>Producto de la lista</th><th>Formato nuevo</th><th class="num">$ sin IVA</th><th class="num">Kg/Formato</th><th class="num">$/kg antes</th><th class="num">$/kg nuevo</th><th class="num">Var.</th></tr></thead>
+    <tbody>${_lpPropuestas.map((p,i)=>{
+      if(p.estado!=='pendiente') return '';
+      const x=p.ins, v=_lpValores(p), pkViejo=parseFloat(x.costo)||0, pkNuevo=v.kg>0?v.precio/v.kg:v.precio, vp=_lpVar(p);
+      const alerta=vp!=null&&Math.abs(vp)>LP_VAR_MAX;
+      return `<tr style="${p.strict?'':'background:rgba(234,179,8,.08)'}">
+        <td style="white-space:nowrap"><button class="btn btn-primary" style="padding:3px 9px" title="Confirmar y actualizar" onclick="lpConfirmar(${i})">✓</button>
+          <button class="btn btn-outline" style="padding:3px 9px" title="No actualizar este" onclick="lpDescartar(${i})">✕</button></td>
+        <td style="font-weight:600;${p.strict?'':'color:var(--yellow)'}">${escH(x.nombre)}<div style="font-size:11px;color:var(--text3);font-weight:400">${escH((x.formato||'—').toLowerCase())} · $ ${fmtN(parseFloat(x.precio_formato)||0,2)} · ${fmtN(parseFloat(x.formato_kg)||0,3)} kg</div></td>
+        <td><select style="${inp};max-width:330px" onchange="lpElegir(${i},this.value)">
+          ${p.cands.map((f,j)=>`<option value="${j}"${j===p.sel?' selected':''}>${escH(f.nombre.toLowerCase())} — $ ${fmtN(f.neto,2)}${f.porQ!=null?' ('+fmtN(f.porQ,0)+'/'+f.cant.base+')':''}</option>`).join('')}
+        </select></td>
+        <td><input type="text" value="${escH(v.formato)}" style="${inp};width:190px" oninput="lpEditar(${i},'formato',this.value)"></td>
+        <td class="num"><input type="text" inputmode="decimal" value="${fmtN(v.precio,2)}" style="${inp};width:95px;text-align:right" oninput="lpEditar(${i},'precio',insParseNum(this.value,false))"></td>
+        <td class="num"><input type="text" inputmode="decimal" value="${fmtN(v.kg,3)}" style="${inp};width:70px;text-align:right" oninput="lpEditar(${i},'kg',insParseNum(this.value,true))"></td>
+        <td class="num">${fmtN(pkViejo,2)}</td>
+        <td class="num" id="lp-pk${i}" style="font-weight:700;color:var(--green)">${fmtN(pkNuevo,2)}</td>
+        <td class="num" id="lp-var${i}" style="${alerta?'color:var(--red);font-weight:700':''}">${fv(vp)}</td>
+      </tr>`;}).join('')}</tbody></table></div>`:'';
+  document.getElementById('lp-hechos').innerHTML=hechos.length?`<details style="margin-top:14px"${pend.length?'':' open'}>
+    <summary style="cursor:pointer;font-weight:600;color:var(--green)">✓ Actualizados (${hechos.length}) — tocá para ver el detalle</summary>
+    <div class="tw" style="margin-top:8px"><table>
+      <thead><tr><th>Insumo</th><th>Producto de la lista</th><th class="num">$ sin IVA</th><th class="num">Kg</th><th class="num">$/kg antes</th><th class="num">$/kg nuevo</th><th class="num">Var.</th></tr></thead>
+      <tbody>${hechos.map(p=>{ const v=p.antes>0?(p.nuevo/p.antes-1)*100:null;
+        return `<tr><td style="font-weight:600">${escH(p.ins.nombre)}</td><td>${escH(p.cands[p.sel].nombre.toLowerCase())}</td>
+          <td class="num">$ ${fmtN(p.final.precio,2)}</td><td class="num">${fmtN(p.final.kg,3)}</td><td class="num">${fmtN(p.antes,2)}</td>
+          <td class="num" style="font-weight:700;color:var(--green)">${fmtN(p.nuevo,2)}</td>
+          <td class="num" style="${v!=null&&Math.abs(v)>LP_VAR_MAX?'color:var(--red);font-weight:700':''}">${fv(v)}</td></tr>`;}).join('')}</tbody>
+    </table></div></details>`:'';
+  const otros=[];
+  if(desc.length) otros.push(`<b>Descartados (${desc.length}):</b> `+desc.map(p=>escH(p.ins.nombre)).join(' · '));
+  if(sin.length) otros.push(`<b>Sin coincidencia en la lista (${sin.length}):</b> `+sin.map(p=>escH(p.ins.nombre)).join(' · '));
+  document.getElementById('lp-sin').innerHTML=otros.join('<br>');
+  lpPintarEstado();
 }
-function renderListaPreciosResumen(){
-  const n=_lpPropuestas.filter(p=>p.ok&&p.cands.length).length;
-  document.getElementById('btn-lp-aplicar').textContent='✓ Aplicar a '+n+' insumos';
-}
-function lpElegir(i,j){ const p=_lpPropuestas[i]; p.sel=parseInt(j); p.edit=null; p.ok=true; renderListaPrecios(); renderListaPreciosResumen(); }
+function lpElegir(i,j){ const p=_lpPropuestas[i]; p.sel=parseInt(j); p.edit=null; renderListaPrecios(); }
 function lpEditar(i,campo,val){
   const p=_lpPropuestas[i]; p.edit={..._lpValores(p)};
-  p.edit[campo]=campo==='formato'?val:(parseFloat(val)||0);
-  const v=p.edit, pk=v.kg>0?v.precio/v.kg:v.precio, viejo=parseFloat(p.ins.costo)||0;
+  p.edit[campo]=val;
+  const v=p.edit, pk=v.kg>0?v.precio/v.kg:v.precio, vp=_lpVar(p);
   document.getElementById('lp-pk'+i).textContent=fmtN(pk,2);
-  const varPct=viejo>0?(pk/viejo-1)*100:null, el=document.getElementById('lp-var'+i);
-  el.textContent=varPct==null?'—':(varPct>0?'+':'')+fmtN(varPct,0)+'%';
-  el.style.color=varPct!=null&&Math.abs(varPct)>40?'var(--red)':'';
-}
-function aplicarListaPrecios(){
-  const sel=_lpPropuestas.filter(p=>p.ok&&p.cands.length);
-  if(!sel.length){ alert('No hay insumos tildados.'); return; }
-  if(!confirm('¿Actualizar el precio de '+sel.length+' insumos? También se recalculan las recetas que los usan.')) return;
-  const ahora=new Date().toISOString(), hechos=[], lote=[];
-  sel.forEach(p=>{
-    const x=DB.insumos.find(i=>i._id===p.ins._id); if(!x) return;
-    const v=_lpValores(p), antes=parseFloat(x.costo)||0;
-    x.formato=v.formato; x.precio_formato=v.precio; x.formato_kg=v.kg;
-    x.costo=v.kg>0?v.precio/v.kg:v.precio;
-    x.precio_actualizado=ahora; x.precio_fuente=_lpArchivo; x.precio_producto=p.cands[p.sel].nombre;
-    // Guardado directo e inmediato (sin la espera de guardarInsumo), así no
-    // se pierde nada aunque se recargue la página enseguida.
-    const {_id, ...datos}=x;
-    lote.push(FB_COL_INSUMOS.doc(String(_id)).set({...datos, updated_at:ahora}));
-    recalcularRecetasPorInsumo(x.key,false);
-    hechos.push({nombre:x.nombre, producto:x.precio_producto, formato:v.formato, precio:v.precio, kg:v.kg, antes, nuevo:x.costo});
-  });
-  renderInsumos(); _repintarRecetasTrasRecalculo();
-  _lpMostrarResumen(hechos, _lpPropuestas.filter(p=>!(p.ok&&p.cands.length)).map(p=>p.ins.nombre));
-  const aviso=document.getElementById('lp-resumen');
-  aviso.insertAdjacentHTML('beforeend','<div id="lp-guardando" style="margin-top:6px;color:var(--yellow)">⏳ Guardando en la nube… no cierres ni recargues todavía.</div>');
-  Promise.all(lote).then(()=>{
-    marcarSincronizado();
-    const el=document.getElementById('lp-guardando');
-    if(el){ el.style.color='var(--green)'; el.textContent='☁ Guardado en la nube. Ya podés recargar.'; }
-  }).catch(e=>{
-    marcarErrorSincronizacion(e); console.error('Error al guardar precios:', e);
-    const el=document.getElementById('lp-guardando');
-    if(el){ el.style.color='var(--red)'; el.textContent='⚠ Error al guardar: '+e.message+'. Volvé a aplicar la lista.'; }
-  });
-}
-// Después de aplicar, el mismo modal muestra el resumen de lo que se cambió.
-function _lpMostrarResumen(hechos,noTocados){
-  const f=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  const suben=hechos.filter(h=>h.antes>0&&h.nuevo>h.antes).length, bajan=hechos.filter(h=>h.antes>0&&h.nuevo<h.antes).length;
-  document.getElementById('lp-resumen').innerHTML=
-    `<span style="color:var(--green);font-weight:700;font-size:14px">✓ Se actualizaron ${hechos.length} insumos</span> · ${escH(_lpArchivo)} · ${f}<br>`+
-    `${suben} subieron, ${bajan} bajaron. Las recetas que los usan ya se recalcularon. En la lista de insumos quedan marcados con <b style="color:var(--green)">✓ fecha</b>.`;
-  document.getElementById('lp-tbody').innerHTML=hechos.map(h=>{
-    const v=h.antes>0?(h.nuevo/h.antes-1)*100:null;
-    return `<tr><td style="color:var(--green)">✓</td><td style="font-weight:600">${escH(h.nombre)}</td><td>${escH(h.producto)}</td><td>${escH(h.formato)}</td>
-      <td class="num">$ ${fmtN(h.precio,2)}</td><td class="num">${fmtN(h.kg,3)}</td><td class="num">${fmtN(h.antes,2)}</td>
-      <td class="num" style="font-weight:700;color:var(--green)">${fmtN(h.nuevo,2)}</td>
-      <td class="num" style="${v!=null&&Math.abs(v)>40?'color:var(--red);font-weight:700':''}">${v==null?'—':(v>0?'+':'')+fmtN(v,0)+'%'}</td></tr>`;
-  }).join('');
-  document.getElementById('lp-sin').innerHTML=noTocados.length?`<b>No se tocaron (${noTocados.length}):</b> `+noTocados.map(escH).join(' · '):'';
-  document.getElementById('btn-lp-aplicar').style.display='none';
+  const el=document.getElementById('lp-var'+i);
+  el.textContent=vp==null?'—':(vp>0?'+':'')+fmtN(vp,0)+'%';
+  el.style.color=vp!=null&&Math.abs(vp)>LP_VAR_MAX?'var(--red)':'';
 }
 
 let _insumoNuevoId=null; // _id del insumo recién agregado, para resaltar su fila en el próximo render
