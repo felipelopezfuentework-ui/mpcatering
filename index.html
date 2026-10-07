@@ -56,6 +56,12 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
    una caja que entra en pantalla debajo del header + solapas. El borde de
    abajo del th va como sombra porque con border-collapse se pierde al fijarlo. */
 .tw-scroll{overflow:auto;max-height:calc(100vh - var(--mp-vbar-top,130px) - 70px)}
+.ins-tabla th{white-space:normal;padding:10px 8px}
+.ins-tabla td{padding:6px 8px;white-space:normal;overflow-wrap:anywhere}
+.ins-tabla td:nth-child(1){font-size:11px;min-width:90px}
+.ins-tabla td:nth-child(2){min-width:120px}
+.ins-formato{min-width:150px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 7px;font-size:13px;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+.ins-formato:empty::before{content:attr(data-placeholder);color:var(--text3)}
 .tw-scroll thead th{position:sticky;top:0;z-index:2;box-shadow:inset 0 -2px 0 var(--border)}
 /* KEY FIX: table itself must NOT clip its children */
 table{width:100%;border-collapse:collapse;font-size:12px}
@@ -568,8 +574,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
         <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleListaPrecios(event)">
       </label>
     </div>
-    <div class="tw tw-scroll"><table>
-      <thead><tr><th>#</th><th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('key')" title="Ordenar">Key interna <span class="ins-flecha" data-col="key"></span></th><th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('nombre')" title="Ordenar">Nombre <span class="ins-flecha" data-col="nombre"></span></th><th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('formato')" title="Ordenar">Formato <span class="ins-flecha" data-col="formato"></span></th><th class="num" style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('precio')" title="Ordenar">$ Formato <span class="ins-flecha" data-col="precio"></span></th><th class="num" style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('kg')" title="Ordenar">Kg/Formato <span class="ins-flecha" data-col="kg"></span></th><th class="num" style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('pk')" title="Ordenar">$ / kg <span class="ins-flecha" data-col="pk"></span></th><th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('act')" title="Ordenar">Actualizado <span class="ins-flecha" data-col="act"></span></th><th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="insOrdenar('prov')" title="Ordenar">Proveedor <span class="ins-flecha" data-col="prov"></span></th><th></th></tr></thead>
+    <div class="tw tw-scroll"><table class="ins-tabla">
+      <thead><tr><th style="cursor:pointer;user-select:none" onclick="insOrdenar('key')" title="Ordenar">Key interna <span class="ins-flecha" data-col="key"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('nombre')" title="Ordenar">Nombre <span class="ins-flecha" data-col="nombre"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('formato')" title="Ordenar">Formato <span class="ins-flecha" data-col="formato"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('precio')" title="Ordenar">$ Formato <span class="ins-flecha" data-col="precio"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('kg')" title="Ordenar">Kg/Formato <span class="ins-flecha" data-col="kg"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('pk')" title="Ordenar">$ / kg <span class="ins-flecha" data-col="pk"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('act')" title="Ordenar">Actualizado <span class="ins-flecha" data-col="act"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('prov')" title="Ordenar">Proveedor <span class="ins-flecha" data-col="prov"></span></th><th></th></tr></thead>
       <tbody id="ins-tbody"></tbody>
     </table></div>
     <div class="pag" id="ins-pag"></div>
@@ -2853,28 +2859,26 @@ function renderInsumos(){
     const pkgPrecio=parseFloat(x.precio_formato)||0;
     const precioKg=pkgKg>0?(pkgPrecio/pkgKg):parseFloat(x.costo)||0;
     return `<tr${x._id===_insumoNuevoId?' class="ins-fila-nueva"':''}>
-    <td style="color:var(--text3)">${insPage*INS_PER+i+1}</td>
     <td id="ikey${x._id}" style="font-size:11px;color:var(--text3)">${escH(x.key)}</td>
     <td contenteditable oninput="updInsNombre(${x._id},this.textContent)" style="font-weight:600">${escH(x.nombre)}</td>
     <td>
-      <input type="text" value="${escH((x.formato||'').toLowerCase())}" placeholder="ej: bolsa 5kg" title="${escH((x.formato||'').toLowerCase())}"
-        style="width:240px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 7px;font-size:13px"
-        oninput="updF(DB.insumos,${x._id},'formato',this.value.toLowerCase(),'insumos')">
+      <div contenteditable class="ins-formato" data-placeholder="ej: bolsa 5kg"
+        oninput="updF(DB.insumos,${x._id},'formato',this.textContent.trim().toLowerCase(),'insumos')">${escH((x.formato||'').toLowerCase())}</div>
     </td>
     <td class="num">
       <input type="text" inputmode="decimal" value="${pkgPrecio?fmtN(pkgPrecio,2):''}" placeholder="0"
-        style="width:110px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
+        style="width:92px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
         oninput="updInsPrecioFormato(${x._id},insParseNum(this.value,false))" onblur="this.value=(parseFloat(DB.insumos.find(i=>i._id===${x._id})?.precio_formato)||0)?fmtN(DB.insumos.find(i=>i._id===${x._id}).precio_formato,2):''">
     </td>
     <td class="num">
       <input type="text" inputmode="decimal" value="${pkgKg?fmtN(pkgKg,3):''}" placeholder="0"
-        style="width:80px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
+        style="width:62px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
         oninput="updInsKgFormato(${x._id},insParseNum(this.value,true))" onblur="this.value=(parseFloat(DB.insumos.find(i=>i._id===${x._id})?.formato_kg)||0)?fmtN(DB.insumos.find(i=>i._id===${x._id}).formato_kg,3):''">
     </td>
     <td class="num" id="ipk${x._id}" style="color:var(--green);font-weight:700">${fmtN(precioKg,2)}</td>
     <td id="iact${x._id}">${insMarcaActualizado(x)}</td>
     <td>
-      <select style="background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px;width:100%"
+      <select style="background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px;max-width:150px"
         onchange="updF(DB.insumos,${x._id},'proveedor',this.value,'insumos')">
         <option value="">— Sin proveedor —</option>
         ${DB.proveedores.map(p=>`<option value="${escH(p.proveedor)}"${p.proveedor===x.proveedor?' selected':''}>${escH(p.proveedor)}</option>`).join('')}
