@@ -564,15 +564,12 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div class="toolbar">
       <div class="sbox"><input type="text" id="ins-search" placeholder="Buscar insumo…" oninput="insPage=0;renderInsumos()"></div>
       <button class="btn btn-primary" onclick="addInsumo()">+ Agregar</button>
-      <label class="btn btn-outline" style="cursor:pointer">📤 Importar Excel
-        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleXLSX(event)">
-      </label>
-      <label class="btn btn-outline" style="cursor:pointer" title="Cargar una lista de precios de proveedor (Excel) y actualizar los insumos">💲 Actualizar precios desde lista
+      <label class="btn btn-outline" style="cursor:pointer" title="Cargar una lista de precios de proveedor (Excel) y actualizar los insumos">💲 Actualizar precios
         <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleListaPrecios(event)">
       </label>
     </div>
     <div class="tw tw-scroll"><table>
-      <thead><tr><th>#</th><th>Key interna</th><th>Nombre</th><th>Formato</th><th class="num">$ Formato</th><th class="num">Kg/Formato</th><th class="num">$ / kg</th><th>Proveedor</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>Key interna</th><th>Nombre</th><th>Formato</th><th class="num">$ Formato</th><th class="num">Kg/Formato</th><th class="num">$ / kg</th><th>Actualizado</th><th>Proveedor</th><th></th></tr></thead>
       <tbody id="ins-tbody"></tbody>
     </table></div>
     <div class="pag" id="ins-pag"></div>
@@ -2847,6 +2844,7 @@ function renderInsumos(){
         oninput="updInsKgFormato(${x._id},this.value)">
     </td>
     <td class="num" id="ipk${x._id}" style="color:var(--green);font-weight:700">${fmtN(precioKg,2)}</td>
+    <td id="iact${x._id}">${insMarcaActualizado(x)}</td>
     <td>
       <select style="background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px;width:100%"
         onchange="updF(DB.insumos,${x._id},'proveedor',this.value,'insumos')">
@@ -2862,6 +2860,18 @@ function renderInsumos(){
     <span class="pag-info">Pág ${insPage+1}/${pages} · ${f.length} insumos</span>
     <button class="btn btn-outline" onclick="insPage++;renderInsumos()" ${insPage>=pages-1?'disabled':''}>›</button>`;
 }
+// Marquita de "precio actualizado": fecha + de dónde salió (lista o a mano).
+function insMarcaActualizado(x){
+  if(!x.precio_actualizado) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  const d=new Date(x.precio_actualizado), f=d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'});
+  const deLista=x.precio_fuente&&x.precio_fuente!=='a mano';
+  const tip=deLista?('Lista: '+x.precio_fuente+(x.precio_producto?' · '+x.precio_producto:'')):'Editado a mano';
+  return `<span title="${escH(tip)}" style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap;${deLista?'background:rgba(34,197,94,.15);color:var(--green)':'background:var(--surface2);color:var(--text3)'}">${deLista?'✓':'✎'} ${f}</span>`;
+}
+function insMarcarManual(x){
+  x.precio_actualizado=new Date().toISOString(); x.precio_fuente='a mano'; x.precio_producto='';
+  const el=document.getElementById('iact'+x._id); if(el) el.innerHTML=insMarcaActualizado(x);
+}
 function updInsNombre(id,val){
   const x=DB.insumos.find(i=>i._id===id);if(!x)return;
   x.nombre=val.trim();x.key='INSUMO - '+val.trim().toUpperCase();
@@ -2874,6 +2884,7 @@ function updInsNombre(id,val){
 function updInsPrecioFormato(id,val){
   const x=DB.insumos.find(i=>i._id===id);if(!x)return;
   x.precio_formato=parseFloat(val)||0;
+  insMarcarManual(x);
   const kg=parseFloat(x.formato_kg)||0;
   x.costo=kg>0?(x.precio_formato/kg):x.precio_formato;
   const el=document.getElementById('ipk'+id);
@@ -2884,6 +2895,7 @@ function updInsPrecioFormato(id,val){
 function updInsKgFormato(id,val){
   const x=DB.insumos.find(i=>i._id===id);if(!x)return;
   x.formato_kg=parseFloat(val)||0;
+  insMarcarManual(x);
   const pf=parseFloat(x.precio_formato)||0;
   x.costo=x.formato_kg>0?(pf/x.formato_kg):pf;
   const el=document.getElementById('ipk'+id);
@@ -3008,7 +3020,7 @@ function lpCandidatos(ins,filas){
 function lpFormatoTexto(f){
   return f.cant&&f.cant.porKilo ? 'x kg · '+f.nombre : f.nombre;
 }
-let _lpPropuestas=[];
+let _lpPropuestas=[], _lpArchivo='';
 function handleListaPrecios(e){
   const file=e.target.files[0]; e.target.value=''; if(!file) return;
   const rd=new FileReader();
@@ -3021,7 +3033,9 @@ function handleListaPrecios(e){
         const {cands,strict}=lpCandidatos(ins,filas);
         return {ins,cands,strict,sel:cands.length?0:-1,ok:cands.length>0&&strict};
       });
+      _lpArchivo=file.name;
       document.getElementById('lp-archivo').textContent=file.name+' · '+filas.length+' productos';
+      document.getElementById('btn-lp-aplicar').style.display='';
       renderListaPrecios();
       document.getElementById('modal-lista-precios').classList.add('open');
     }catch(err){ console.error(err); alert('No pude leer el Excel: '+err.message); }
@@ -3083,17 +3097,36 @@ function aplicarListaPrecios(){
   const sel=_lpPropuestas.filter(p=>p.ok&&p.cands.length);
   if(!sel.length){ alert('No hay insumos tildados.'); return; }
   if(!confirm('¿Actualizar el precio de '+sel.length+' insumos? También se recalculan las recetas que los usan.')) return;
+  const ahora=new Date().toISOString(), hechos=[];
   sel.forEach(p=>{
     const x=DB.insumos.find(i=>i._id===p.ins._id); if(!x) return;
-    const v=_lpValores(p);
+    const v=_lpValores(p), antes=parseFloat(x.costo)||0;
     x.formato=v.formato; x.precio_formato=v.precio; x.formato_kg=v.kg;
     x.costo=v.kg>0?v.precio/v.kg:v.precio;
+    x.precio_actualizado=ahora; x.precio_fuente=_lpArchivo; x.precio_producto=p.cands[p.sel].nombre;
     guardarInsumo(x._id);
     recalcularRecetasPorInsumo(x.key,false);
+    hechos.push({nombre:x.nombre, producto:x.precio_producto, formato:v.formato, precio:v.precio, kg:v.kg, antes, nuevo:x.costo});
   });
-  cerrarModal('modal-lista-precios');
   renderInsumos(); _repintarRecetasTrasRecalculo();
-  alert('Listo: '+sel.length+' insumos actualizados.');
+  _lpMostrarResumen(hechos, _lpPropuestas.filter(p=>!(p.ok&&p.cands.length)).map(p=>p.ins.nombre));
+}
+// Después de aplicar, el mismo modal muestra el resumen de lo que se cambió.
+function _lpMostrarResumen(hechos,noTocados){
+  const f=new Date().toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const suben=hechos.filter(h=>h.antes>0&&h.nuevo>h.antes).length, bajan=hechos.filter(h=>h.antes>0&&h.nuevo<h.antes).length;
+  document.getElementById('lp-resumen').innerHTML=
+    `<span style="color:var(--green);font-weight:700;font-size:14px">✓ Se actualizaron ${hechos.length} insumos</span> · ${escH(_lpArchivo)} · ${f}<br>`+
+    `${suben} subieron, ${bajan} bajaron. Las recetas que los usan ya se recalcularon. En la lista de insumos quedan marcados con <b style="color:var(--green)">✓ fecha</b>.`;
+  document.getElementById('lp-tbody').innerHTML=hechos.map(h=>{
+    const v=h.antes>0?(h.nuevo/h.antes-1)*100:null;
+    return `<tr><td style="color:var(--green)">✓</td><td style="font-weight:600">${escH(h.nombre)}</td><td>${escH(h.producto)}</td><td>${escH(h.formato)}</td>
+      <td class="num">$ ${fmtN(h.precio,2)}</td><td class="num">${fmtN(h.kg,3)}</td><td class="num">${fmtN(h.antes,2)}</td>
+      <td class="num" style="font-weight:700;color:var(--green)">${fmtN(h.nuevo,2)}</td>
+      <td class="num" style="${v!=null&&Math.abs(v)>40?'color:var(--red);font-weight:700':''}">${v==null?'—':(v>0?'+':'')+fmtN(v,0)+'%'}</td></tr>`;
+  }).join('');
+  document.getElementById('lp-sin').innerHTML=noTocados.length?`<b>No se tocaron (${noTocados.length}):</b> `+noTocados.map(escH).join(' · '):'';
+  document.getElementById('btn-lp-aplicar').style.display='none';
 }
 
 let _insumoNuevoId=null; // _id del insumo recién agregado, para resaltar su fila en el próximo render
