@@ -2761,30 +2761,19 @@ function _repintarRecetasTrasRecalculo(){
   renderPlatos();
   refrescarModalesAbiertosSiCorresponde();
 }
-// Vuelve a cargar subItems/platoItems desde DB (mismo mapeo que abrirModalSub/
-// abrirModalPlato) y repinta la tabla, solo si ese modal está abierto y
-// corresponde a una receta ya guardada. Se usa tanto para reflejar en el acto
-// un cambio de precio propio como uno recibido en tiempo real de otro usuario.
+// Si el modal de subproducto/plato está abierto, actualiza en el lugar los
+// precios de sus ingredientes (cambio de precio propio o de otro usuario).
+// OJO: NO recarga los ingredientes desde DB: antes lo hacía, y como cada
+// Tab/Enter dispara un guardado general (y su snapshot llega acá), pisaba el
+// gramaje recién escrito y todavía no guardado con el valor viejo.
 function refrescarModalesAbiertosSiCorresponde(){
   const modalSub=document.getElementById('modal-sub');
-  if(modalSub && modalSub.classList.contains('open') && editSubOld){
-    subItems=DB.subproductos.filter(x=>x.subproducto===editSubOld).map(r=>({
-      comp:r.componente,kgs:r.kgs,merma:parseFloat(r.merma)||0,
-      pk:getCompPrice(r.componente),
-      cr:r.costo_receta||(r.kgs||0)*getCompPrice(r.componente)
-    }));
-    buildSubTable();
+  if(modalSub && modalSub.classList.contains('open')){
+    subItems.forEach((it,idx)=>{ if(it.comp){ it.pk=getCompPrice(it.comp); recalcSubItem(idx); } });
   }
   const modalPlato=document.getElementById('modal-plato');
-  if(modalPlato && modalPlato.classList.contains('open') && editPlatoOld){
-    platoItems=DB.recetas_platos.filter(x=>x.plato===editPlatoOld).map(r=>({
-      comp:r.componente,
-      tipo:r.componente.startsWith('SUB - ')?'sub':'ins',
-      kgs:r.kgs,merma:parseFloat(r.merma)||0,
-      pk:getCompPrice(r.componente),
-      cr:(r.kgs||0)*getCompPrice(r.componente)
-    }));
-    buildPlatoTable();
+  if(modalPlato && modalPlato.classList.contains('open')){
+    platoItems.forEach((it,idx)=>{ if(it.comp){ it.pk=getCompPrice(it.comp); recalcPlatoItem(idx); } });
   }
 }
 function insOpts(){return DB.insumos.map(i=>({val:i.key,label:i.nombre}));}
