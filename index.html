@@ -12475,11 +12475,23 @@ function presuDibujarPDF(d, modo){
     ov.querySelector('.mpv-luego').onclick=()=>{ ov.remove(); mostrando=false; posponerHasta=Date.now()+5*60*1000; };
     document.body.appendChild(ov);
   };
+  // Aviso entre compus: la primera que detecta la versión nueva la anota en
+  // mp_data/version_sistema y las demás se enteran al instante (Firestore).
+  const VER_DOC=fbDb.collection('mp_data').doc('version_sistema');
+  let verAnotada=0, verUnsub=null;
+  const anotar=t=>{ if(isNaN(t)||t<=verAnotada||!fbAuth.currentUser) return; verAnotada=t;
+    VER_DOC.set({t,actualizado:new Date().toISOString()}).catch(()=>{}); };
+  fbAuth.onAuthStateChanged(u=>{
+    if(verUnsub){ verUnsub(); verUnsub=null; }
+    if(!u) return;
+    verUnsub=VER_DOC.onSnapshot(d=>{ const t=d.exists?Number(d.data().t):NaN;
+      if(!isNaN(t)){ verAnotada=Math.max(verAnotada,t); if(!isNaN(docT)&&t>docT+60000) mostrar(); } },()=>{});
+  });
   const revisar=async()=>{
     const m=await marca(); if(!m) return;
     if(base===null) base=m.k;
     const nuevaQueLaAbierta=!isNaN(m.t)&&!isNaN(docT)&&m.t>docT+60000;
-    if(nuevaQueLaAbierta||m.k!==base) mostrar();
+    if(nuevaQueLaAbierta||m.k!==base){ anotar(m.t); mostrar(); }
   };
   revisar();
   setInterval(revisar,60*1000);
