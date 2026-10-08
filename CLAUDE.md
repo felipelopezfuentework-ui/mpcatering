@@ -10,6 +10,9 @@ Usuario: dueño del negocio, no técnico. Hablar en español rioplatense, resúm
 - PDFs: arnés en el scratchpad que extrae `presuDibujarPDF` + constantes y lo corre con `jspdf@2.5.1` en node; revisar con `pymupdf` (texto y PNG).
 - Al terminar: commit en español + `git push origin main` sin preguntar. Actualizar este archivo si cambia algo de lo que describe.
 
+## UI
+- Botones agrupados con criterio: buscar a la vista; "⚙ Ver ▾" (mostrar/ordenar/vista); "+ Nuevo ▾" (split); acciones por fila = Editar + "⋯". Menú flotante compartido `mpMenuAbrir(btn, items|html)` (items `{icon,label,accion,peligro}` o `'-'`).
+
 ## Datos
 - `DB` global en memoria. Firestore: doc `mp_data/main` (`FB_DOC`, guarda el resto vía `sbSave`, que **excluye** las colecciones propias) y colecciones `insumos`, `proveedores`, `subproductos`, `platos`, `maestro_subs`/`maestro_platos` (doc `lista`), `comanda_periodos`, `comanda_eventos`, `maestro_clientes`, `stock_conteos`, `presupuestos`. Listeners `iniciarListeners*` en `entrarComo()`.
 - Recetas se identifican por **nombre con prefijo**: `INSUMO - `, `SUB - `, `PLATO - ` (`nombreDocSeguro` para el id del doc).

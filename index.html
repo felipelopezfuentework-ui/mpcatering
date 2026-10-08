@@ -492,6 +492,27 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 /* Vista Tabla: filas compactas */
 .mp-tabla-row td{vertical-align:middle}
 /* Botón flotante "Cargar desde Excel" */
+/* Menú desplegable compartido (Ver ▾, + Nuevo ▾, ⋯) */
+#mp-menu{position:fixed;z-index:10000;background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 14px 36px rgba(40,20,60,.2);padding:6px;min-width:210px;max-width:340px;animation:mpMenuIn .14s ease}
+@keyframes mpMenuIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.mp-menu-item{display:flex;gap:9px;align-items:center;width:100%;border:none;background:none;padding:8px 10px;border-radius:8px;
+  font-size:12.5px;cursor:pointer;color:var(--text);text-align:left;font-family:inherit;white-space:nowrap}
+.mp-menu-item:hover{background:var(--surface2)}
+.mp-menu-item.peligro{color:var(--red)}
+.mp-menu-item.peligro:hover{background:rgba(192,57,43,.08)}
+.mp-menu-sep{height:1px;background:var(--border);margin:5px 4px}
+.mp-menu-tit{font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin:8px 8px 6px}
+.mp-menu-tit:first-child{margin-top:4px}
+.mp-menu-pie{font-size:11px;color:var(--text3);padding:8px 8px 4px;border-top:1px solid var(--border);margin-top:8px}
+#mp-menu .rec-fseg{margin:0 6px;display:flex}
+#mp-menu .rec-fseg button{flex:1}
+.mp-split{display:inline-flex;flex-shrink:0}
+.mp-split>.btn:first-child{border-top-right-radius:0;border-bottom-right-radius:0}
+.mp-split>.btn:last-child{border-top-left-radius:0;border-bottom-left-radius:0;padding-left:10px;padding-right:10px;border-left:1px solid rgba(255,255,255,.3)}
+.mp-ver-btn{flex-shrink:0;white-space:nowrap}
+.mp-ver-badge{display:inline-block;background:var(--mp-gold);color:#fff;border-radius:10px;padding:0 6px;font-size:10px;margin-left:5px;line-height:16px}
+.mp-mas{padding:4px 10px!important;font-size:13px!important;line-height:1;font-weight:700}
 .mp-fab-excel{
   position:fixed;right:26px;bottom:26px;z-index:60;box-shadow:0 6px 20px rgba(30,10,46,.35);
   border-radius:24px;padding:11px 18px
@@ -727,10 +748,11 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div id="upload-alert" class="alert"></div>
     <div class="toolbar">
       <div class="sbox"><input type="text" id="ins-search" placeholder="Buscar insumo…" oninput="insPage=0;renderInsumos()"></div>
-      <button class="btn btn-primary" onclick="addInsumo()">+ Agregar</button>
-      <label class="btn btn-outline" style="cursor:pointer" title="Cargar una lista de precios de proveedor (Excel) y actualizar los insumos">💲 Actualizar precios
-        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleListaPrecios(event)">
-      </label>
+      <div class="mp-split">
+        <button class="btn btn-primary" onclick="addInsumo()">+ Agregar insumo</button>
+        <button class="btn btn-primary" title="Más opciones" onclick="mpMenuAbrir(this,[{icon:'💲',label:'Actualizar precios desde lista de proveedor',accion:()=>document.getElementById('ins-lista-file').click()}])">▾</button>
+      </div>
+      <input type="file" id="ins-lista-file" accept=".xlsx,.xls" style="display:none" onchange="handleListaPrecios(event)">
     </div>
     <div class="tw tw-scroll"><table class="ins-tabla">
       <thead><tr><th style="cursor:pointer;user-select:none" onclick="insOrdenar('nombre')" title="Ordenar">Nombre <span class="ins-flecha" data-col="nombre"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('formato')" title="Ordenar">Formato <span class="ins-flecha" data-col="formato"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('precio')" title="Ordenar">$ Formato <span class="ins-flecha" data-col="precio"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('kg')" title="Ordenar">Kg/Formato <span class="ins-flecha" data-col="kg"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('pk')" title="Ordenar">$ / kg <span class="ins-flecha" data-col="pk"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('act')" title="Ordenar">Actualizado <span class="ins-flecha" data-col="act"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('prov')" title="Ordenar">Proveedor <span class="ins-flecha" data-col="prov"></span></th><th></th></tr></thead>
@@ -746,23 +768,16 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   <div class="card">
     <div class="card-title">🧩 Recetas de Subproductos</div>
     <div class="mp-vista-bar">
-      <div class="mp-vista-btns">
-        <button type="button" class="mp-vista-btn on" data-vista-btn="sub" data-vista="lista" onclick="setVistaReceta('sub','lista')">📋 Lista</button>
-        <button type="button" class="mp-vista-btn" data-vista-btn="sub" data-vista="cards" onclick="setVistaReceta('sub','cards')">▦ Cards</button>
-        <button type="button" class="mp-vista-btn" data-vista-btn="sub" data-vista="tabla" onclick="setVistaReceta('sub','tabla')">≡ Tabla</button>
-      </div>
       <div class="sbox"><input type="text" id="sub-search" placeholder="Buscar por nombre o categoría…" oninput="renderSubproductos()"></div>
-    </div>
-    <div class="rec-filtros" id="sub-filtros"></div>
-    <div class="toolbar">
-      <button class="btn btn-primary" onclick="abrirModalSub(null)">+ Nuevo Subproducto</button>
+      <button type="button" class="btn btn-outline mp-ver-btn" id="sub-ver-btn" onclick="recVerAbrir(this,'sub')">⚙ Ver ▾</button>
+      <div class="mp-split">
+        <button class="btn btn-primary" onclick="abrirModalSub(null)">+ Nuevo subproducto</button>
+        <button class="btn btn-primary" title="Más formas de cargar" onclick="recNuevoMenu(this,'sub')">▾</button>
+      </div>
+      <input type="file" id="sub-import-file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event,'sub')">
     </div>
     <div id="sub-alert" class="alert"></div>
     <div id="sub-list"></div>
-    <label class="btn btn-primary mp-fab-excel" style="cursor:pointer" title="Cargar recetas desde Excel">
-      📊 Cargar desde Excel
-      <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event,'sub')">
-    </label>
   </div>
 </div>
 
@@ -771,23 +786,16 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   <div class="card">
     <div class="card-title">🍴 Recetas de Platos</div>
     <div class="mp-vista-bar">
-      <div class="mp-vista-btns">
-        <button type="button" class="mp-vista-btn on" data-vista-btn="plato" data-vista="lista" onclick="setVistaReceta('plato','lista')">📋 Lista</button>
-        <button type="button" class="mp-vista-btn" data-vista-btn="plato" data-vista="cards" onclick="setVistaReceta('plato','cards')">▦ Cards</button>
-        <button type="button" class="mp-vista-btn" data-vista-btn="plato" data-vista="tabla" onclick="setVistaReceta('plato','tabla')">≡ Tabla</button>
-      </div>
       <div class="sbox"><input type="text" id="plato-search" placeholder="Buscar por nombre o categoría…" oninput="renderPlatos()"></div>
-    </div>
-    <div class="rec-filtros" id="plato-filtros"></div>
-    <div class="toolbar">
-      <button class="btn btn-primary" onclick="abrirModalPlato(null)">+ Nuevo Plato</button>
+      <button type="button" class="btn btn-outline mp-ver-btn" id="plato-ver-btn" onclick="recVerAbrir(this,'plato')">⚙ Ver ▾</button>
+      <div class="mp-split">
+        <button class="btn btn-primary" onclick="abrirModalPlato(null)">+ Nuevo plato</button>
+        <button class="btn btn-primary" title="Más formas de cargar" onclick="recNuevoMenu(this,'plato')">▾</button>
+      </div>
+      <input type="file" id="plato-import-file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event,'plato')">
     </div>
     <div id="plato-alert" class="alert"></div>
     <div id="plato-list"></div>
-    <label class="btn btn-primary mp-fab-excel" style="cursor:pointer" title="Cargar recetas desde Excel">
-      📊 Cargar desde Excel
-      <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event,'plato')">
-    </label>
   </div>
 </div>
 
@@ -2938,7 +2946,7 @@ function renderInsumos(){
     <td><div class="ins-acc">
       <button class="btn btn-outline" title="Recetas que usan este insumo" onclick="insVerUsos(${x._id})">🔗 ${usos}</button>
       <button class="btn btn-outline" title="Historial de precios" onclick="insVerHistorial(${x._id})">📈</button>
-      <button class="btn btn-danger" onclick="delIns(${x._id})">🗑</button></div></td>
+      <button class="btn btn-outline mp-mas" title="Más opciones" onclick="event.stopPropagation();mpMenuAbrir(this,[{icon:'🗑',label:'Eliminar insumo',peligro:true,accion:()=>delIns(${x._id})}])">⋯</button></div></td>
   </tr>`;}).join('');
   _insumoNuevoId=null; // se usa una sola vez por render
   document.getElementById('ins-pag').innerHTML=`
@@ -4320,13 +4328,6 @@ function _tipoMeta(tipo){
     :{prefix:'PLATO - ',emoji:'🍴',ghClass:'plato-gh',totalColor:'var(--mp-gold)',editAttr:'data-edit-plato',delAttr:'data-del-plato',pdfAttr:'data-pdf-plato',
       pasarAttr:'data-pasar-plato',dupAttr:'data-dup-plato',otra:'subproducto'};
 }
-// Botones "⇄ Pasar a…" y "⧉ Duplicar como…" (la otra lista), para las
-// vistas Lista y Cards (la Tabla tiene su versión de solo íconos).
-function _mpBotonesMover(meta,nombre){
-  const n=escH(nombre);
-  return `<button class="btn btn-outline" style="padding:4px 10px;font-size:11px;white-space:nowrap" title="La receta se mueve a la otra lista" ${meta.pasarAttr}="${n}">⇄ Pasar a ${meta.otra}</button>`
-    +`<button class="btn btn-outline" style="padding:4px 10px;font-size:11px;white-space:nowrap" title="Se crea una copia en la otra lista; esta queda" ${meta.dupAttr}="${n}">⧉ Duplicar como ${meta.otra}</button>`;
-}
 function _nombreVisible(meta,nombre){
   return nombre.startsWith(meta.prefix)?nombre.slice(meta.prefix.length):nombre;
 }
@@ -4344,10 +4345,7 @@ function _renderListaRecetas(tipo,nombres){
         ${_mpBotonFecha(d.cfg)}
         ${pesoBadge}
         <span style="color:${meta.totalColor};font-weight:700">${fmt(d.total)}</span>
-        ${_mpBotonesMover(meta,nombre)}
-        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.pdfAttr}="${escH(nombre)}">📄 PDF</button>
-        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.editAttr}="${escH(nombre)}">✏️ Editar</button>
-        <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
+        ${_recBotonesFila(tipo,nombre)}
       </div>
       <div class="tw"><table>
         <thead><tr><th>Componente</th><th class="num">Kg</th><th class="num">% Merma</th><th class="num">Kg que quedan</th><th class="num">Costo unitario</th><th class="num">Costo total</th></tr></thead>
@@ -4378,10 +4376,7 @@ function _renderCardsRecetas(tipo,nombres){
       </div>
       ${_mpBotonFecha(d.cfg)}
       <span style="color:${meta.totalColor};font-weight:700;white-space:nowrap">${fmt(d.total)}</span>
-      ${_mpBotonesMover(meta,nombre)}
-      <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.pdfAttr}="${escH(nombre)}">📄 PDF</button>
-      <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.editAttr}="${escH(nombre)}">✏️ Editar</button>
-      <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
+      ${_recBotonesFila(tipo,nombre)}
     </div>`;
   }).join('');
 }
@@ -4397,13 +4392,7 @@ function _renderTablaRecetas(tipo,nombres){
       <td class="num">${d.porciones>0?fmtN(d.porciones,2):'—'}</td>
       <td class="num" style="color:${meta.totalColor};font-weight:600">${d.costoUnitario!=null?fmt(d.costoUnitario):'—'}</td>
       <td style="white-space:nowrap">${_mpBotonFecha(d.cfg)}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" title="Pasar a ${meta.otra}" ${meta.pasarAttr}="${escH(nombre)}">⇄</button>
-        <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" title="Duplicar como ${meta.otra}" ${meta.dupAttr}="${escH(nombre)}">⧉</button>
-        <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" ${meta.pdfAttr}="${escH(nombre)}">📄</button>
-        <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" ${meta.editAttr}="${escH(nombre)}">✏️</button>
-        <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
-      </td>
+      <td style="white-space:nowrap;text-align:right">${_recBotonesFila(tipo,nombre,true)}</td>
     </tr>`;
   }).join('');
   return `<div class="tw"><table>
@@ -4497,6 +4486,77 @@ function _guardarSubReal(nombre){
   cotizActualizarNumeros();
 }
 
+// ── Menú desplegable compartido ──────────────────────────────────────────
+// mpMenuAbrir(boton, items | html): un solo panel flotante; vuelve a tocar el
+// mismo botón para cerrarlo. items: [{icon,label,accion:function,peligro}] o
+// '-' para un separador. Las acciones quedan en _mpMenuAcc (sin armar código
+// en strings, así nombres con comillas no rompen nada).
+let _mpMenuAcc=[], _mpMenuBtn=null;
+function mpMenuItemsHtml(items){
+  return items.map(it=>{
+    if(it==='-') return '<div class="mp-menu-sep"></div>';
+    const i=_mpMenuAcc.push(it.accion)-1;
+    return `<button type="button" class="mp-menu-item${it.peligro?' peligro':''}" onclick="mpMenuEjec(${i})"><span>${it.icon||''}</span>${it.label}</button>`;
+  }).join('');
+}
+function mpMenuAbrir(btn,contenido){
+  if(_mpMenuBtn===btn&&document.getElementById('mp-menu')){ mpMenuCerrar(); return; }
+  mpMenuCerrar();
+  const el=document.createElement('div'); el.id='mp-menu';
+  el.innerHTML=Array.isArray(contenido)?mpMenuItemsHtml(contenido):contenido;
+  document.body.appendChild(el); _mpMenuBtn=btn;
+  mpMenuPosicionar();
+}
+function mpMenuPosicionar(){
+  const el=document.getElementById('mp-menu'); if(!el||!_mpMenuBtn) return;
+  const r=_mpMenuBtn.getBoundingClientRect(), w=el.offsetWidth, h=el.offsetHeight;
+  let left=Math.min(r.right-w, window.innerWidth-w-8); left=Math.max(8,left);
+  let top=r.bottom+6; if(top+h>window.innerHeight-8 && r.top-h-6>8) top=r.top-h-6;
+  el.style.left=left+'px'; el.style.top=top+'px';
+}
+function mpMenuEjec(i){ const f=_mpMenuAcc[i]; mpMenuCerrar(); if(f) f(); }
+function mpMenuCerrar(){ const el=document.getElementById('mp-menu'); if(el) el.remove(); _mpMenuBtn=null; _mpMenuAcc=[]; }
+document.addEventListener('mousedown',e=>{
+  const el=document.getElementById('mp-menu'); if(!el) return;
+  if(el.contains(e.target)||(_mpMenuBtn&&_mpMenuBtn.contains(e.target))) return;
+  mpMenuCerrar();
+},true);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') mpMenuCerrar(); });
+window.addEventListener('resize',mpMenuCerrar);
+window.addEventListener('scroll',e=>{ const el=document.getElementById('mp-menu'); if(el&&!el.contains(e.target)) mpMenuCerrar(); },true);
+
+// ── Recetas: "⚙ Ver ▾" (mostrar / ordenar / vista), "+ Nuevo ▾" y "⋯" por receta ──
+const _recConteo={sub:'',plato:''};
+function recVerHtml(tipo){
+  const f=_recFiltro[tipo], vista=tipo==='sub'?_subVista:_platoVista;
+  const seg=(ops,activo,fn)=>`<div class="rec-fseg">${ops.map(([v,l])=>`<button type="button" class="${activo===v?'on':''}" onclick="${fn}('${v}')">${l}</button>`).join('')}</div>`;
+  return `<div class="mp-menu-tit">Mostrar</div>${seg([['todas','Todas'],['con','Con porciones'],['sin','Sin porciones']],f.porc,`recVerSet.bind(null,'${tipo}','porc')`)}
+    <div class="mp-menu-tit">Ordenar por</div>${seg([['nombre','Nombre'],['caro','$ x porción ↓'],['barato','$ x porción ↑']],f.orden,`recVerSet.bind(null,'${tipo}','orden')`)}
+    <div class="mp-menu-tit">Vista</div>${seg([['lista','📋 Lista'],['cards','▦ Cards'],['tabla','≡ Tabla']],vista,`recVerSet.bind(null,'${tipo}','vista')`)}
+    <div class="mp-menu-pie">${_recConteo[tipo]}${f.porc!=='todas'?` · <a href="#" onclick="event.preventDefault();recVerSet('${tipo}','porc','todas')">Quitar filtro</a>`:''}</div>`;
+}
+function recVerSet(tipo,campo,valor){
+  if(campo==='vista') setVistaReceta(tipo,valor); else setRecFiltro(tipo,campo,valor);
+  const el=document.getElementById('mp-menu'); if(el){ el.innerHTML=recVerHtml(tipo); mpMenuPosicionar(); }
+}
+function recVerAbrir(btn,tipo){ mpMenuAbrir(btn,recVerHtml(tipo)); }
+function recNuevoMenu(btn,tipo){
+  mpMenuAbrir(btn,[{icon:'📊',label:'Cargar recetas desde Excel',accion:()=>document.getElementById(tipo+'-import-file').click()}]);
+}
+function recMenuMas(btn,tipo){
+  const n=btn.dataset.receta, meta=_tipoMeta(tipo);
+  mpMenuAbrir(btn,[
+    {icon:'📄',label:'Descargar PDF',accion:()=>descargarRecetaPDFPorNombre(tipo,n)},
+    {icon:'⇄',label:'Pasar a '+meta.otra,accion:()=>moverRecetaEntreListas(tipo,n,'pasar')},
+    {icon:'⧉',label:'Duplicar como '+meta.otra,accion:()=>moverRecetaEntreListas(tipo,n,'duplicar')},
+    '-',
+    {icon:'🗑',label:'Eliminar',peligro:true,accion:()=>tipo==='sub'?delSub(n):delPlato(n)}]);
+}
+function _recBotonesFila(tipo,nombre,chico){
+  const meta=_tipoMeta(tipo), n=escH(nombre);
+  return `<button class="btn btn-outline" style="padding:${chico?'3px 9px;font-size:10.5px':'4px 10px;font-size:11px'}" ${meta.editAttr}="${n}">✏️ Editar</button>`
+    +`<button class="btn btn-outline mp-mas" title="Más opciones" data-receta="${n}" onclick="event.stopPropagation();recMenuMas(this,'${tipo}')">⋯</button>`;
+}
 // Filtros de la lista de recetas (Subproductos / Platos): porciones y orden.
 const _recFiltro={sub:{porc:'todas',orden:'nombre'},plato:{porc:'todas',orden:'nombre'}};
 function setRecFiltro(tipo,campo,valor){ _recFiltro[tipo][campo]=valor; tipo==='sub'?renderSubproductos():renderPlatos(); }
@@ -4507,14 +4567,9 @@ function _recAplicarFiltros(tipo,nombres,total){
   else if(f.porc==='sin') datos=datos.filter(d=>!d.porc);
   if(f.orden==='nombre') datos.sort((a,b)=>a.n.localeCompare(b.n,'es'));
   else datos.sort((a,b)=>{ if(a.cpp===null) return b.cpp===null?0:1; if(b.cpp===null) return -1; return f.orden==='caro'?b.cpp-a.cpp:a.cpp-b.cpp; });
-  const el=document.getElementById(tipo+'-filtros');
-  if(el){
-    const seg=(campo,ops)=>`<div class="rec-fseg">${ops.map(([v,l])=>`<button type="button" class="${f[campo]===v?'on':''}" onclick="setRecFiltro('${tipo}','${campo}','${v}')">${l}</button>`).join('')}</div>`;
-    const sinPorc=nombres.filter(n=>!(_recetaViewData(tipo,n).porciones>0)).length;
-    el.innerHTML=`<div class="rec-fgrupo"><span>Mostrar</span>${seg('porc',[['todas','Todas'],['con','Con porciones'],['sin','Sin porciones ('+sinPorc+')']])}</div>
-      <div class="rec-fgrupo"><span>Ordenar por</span>${seg('orden',[['nombre','Nombre A-Z'],['caro','Costo x porción: mayor a menor'],['barato','menor a mayor']])}</div>
-      <div class="rec-fcuenta">${datos.length===total?total+' recetas':'Mostrando '+datos.length+' de '+total}</div>`;
-  }
+  _recConteo[tipo]=datos.length===total?total+' recetas':'Mostrando '+datos.length+' de '+total;
+  const vb=document.getElementById(tipo+'-ver-btn');
+  if(vb) vb.innerHTML='⚙ Ver ▾'+(f.porc!=='todas'?'<span class="mp-ver-badge">1</span>':'');
   return datos.map(d=>d.n);
 }
 function renderSubproductos(){
@@ -9666,8 +9721,7 @@ function renderCotizLista(){
       <td class="num" style="color:var(--green);font-weight:600">${k&&k.precioPP&&k.pers?fmt(k.ganTotal):'—'}</td>
       <td style="white-space:nowrap;width:1%"><div style="display:flex;gap:6px">
         <button class="btn ${f.est==='pendiente'?'btn-primary':'btn-outline'}" style="padding:4px 10px;font-size:11px" onclick="${abrir}">${etiqueta}</button>
-        ${f.c?`<button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="cotizDuplicar(${f.c._id})" title="Copiar como cotización nueva">⧉</button>
-        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="cotizBorrar(${f.c._id})" title="Borrar cotización">🗑</button>`:''}
+        ${f.c?`<button class="btn btn-outline mp-mas" title="Más opciones" onclick="cotizMenuMas(this,${f.c._id})">⋯</button>`:''}
       </div></td>
     </tr>`;
   }).join('')||`<tr><td colspan="9" class="empty">${_cotizFiltro==='pendientes'?'No hay eventos pendientes de cotizar 🎉':'No hay cotizaciones acá.'}</td></tr>`;
@@ -9700,6 +9754,10 @@ function cotizDuplicar(id){
   const c=COTIZACIONES.find(x=>x._id===id); if(!c) return;
   const {_id,presupuestoId,creado,actualizado,...resto}=JSON.parse(JSON.stringify(c));
   cotizAbrir(cotizNueva({...resto,titulo:(resto.titulo||'Cotización')+' (copia)'})._id);
+}
+function cotizMenuMas(btn,id){
+  mpMenuAbrir(btn,[{icon:'⧉',label:'Duplicar como cotización nueva',accion:()=>cotizDuplicar(id)},'-',
+    {icon:'🗑',label:'Borrar cotización',peligro:true,accion:()=>cotizBorrar(id)}]);
 }
 function cotizBorrar(id){
   const c=COTIZACIONES.find(x=>x._id===id); if(!c) return;
@@ -9847,8 +9905,7 @@ function renderCotizEditor(){
     <span id="cotiz-estado"></span>
     <div style="margin-left:auto;display:flex;gap:8px">
       <button class="btn btn-outline" onclick="exportarCotizPDF()">📄 PDF interno</button>
-      <button class="btn btn-outline" onclick="cotizDuplicar(${c._id})">⧉ Duplicar</button>
-      <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="cotizBorrar(${c._id})">🗑 Borrar</button>
+      <button class="btn btn-outline mp-mas" title="Más opciones" onclick="cotizMenuMas(this,${c._id})">⋯</button>
     </div>
   </div>
 
@@ -10458,10 +10515,8 @@ function renderPresupuestos(){
           ` <button class="btn btn-outline" style="padding:3px 8px;font-size:11px" onclick="cotizIrDesdePresupuesto(${p._id})">${est==='pendiente'?'🧾 Cotizar':'Ver'}</button>`;})()}</td>
       <td style="white-space:nowrap;width:1%"><div style="display:flex;flex-wrap:nowrap;gap:6px">
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="abrirModalPresupuesto(${p._id})">✎ Editar</button>
-        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="generarPresupuestoPDF(${p._id},'ver')">👁 Ver PDF</button>
-        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF(${p._id},'descargar')">⬇ Descargar PDF</button>
-        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="duplicarPresupuesto(${p._id})">⧉ Duplicar</button>
-        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="delPresupuesto(${p._id})">🗑</button>
+        <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="mpMenuAbrir(this,[{icon:'👁',label:'Ver PDF',accion:()=>generarPresupuestoPDF(${p._id},'ver')},{icon:'⬇',label:'Descargar PDF',accion:()=>generarPresupuestoPDF(${p._id},'descargar')}])">📄 PDF ▾</button>
+        <button class="btn btn-outline mp-mas" title="Más opciones" onclick="mpMenuAbrir(this,[{icon:'⧉',label:'Duplicar',accion:()=>duplicarPresupuesto(${p._id})},'-',{icon:'🗑',label:'Eliminar',peligro:true,accion:()=>delPresupuesto(${p._id})}])">⋯</button>
       </div></td>
     </tr>`).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Todavía no hay presupuestos. Hacé clic en "+ Nuevo presupuesto".</td></tr>`;
 }
