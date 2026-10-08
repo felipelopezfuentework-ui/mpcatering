@@ -768,6 +768,7 @@ tr.rec-clic:hover td{background:var(--accent-light)}
     <div id="upload-alert" class="alert"></div>
     <div class="toolbar">
       <div class="sbox"><input type="text" id="ins-search" placeholder="Buscar insumo…" oninput="insPage=0;renderInsumos()"></div>
+      <button type="button" class="btn btn-outline mp-ver-btn" id="ins-ver-btn" onclick="mpMenuAbrir(this,insVerHtml())">⚙ Ver ▾</button>
       <div class="mp-split">
         <button class="btn btn-primary" onclick="addInsumo()">+ Agregar insumo</button>
         <button class="btn btn-primary" title="Más opciones" onclick="mpMenuAbrir(this,[{icon:'💲',label:'Actualizar precios desde lista de proveedor',accion:()=>document.getElementById('ins-lista-file').click()}])">▾</button>
@@ -2907,10 +2908,61 @@ function insOrdenar(col){
   insOrden=insOrden.col===col?{col,dir:insOrden.dir==='desc'?'asc':'desc'}:{col,dir:'desc'};
   insPage=0; renderInsumos();
 }
+// ── Filtros de Insumos (botón "⚙ Ver ▾") ──
+const INS_FILTRO_DEF={precio:'todos',act:'todos',origen:'todos',prov:'',uso:'todos'};
+let _insFiltro={...INS_FILTRO_DEF}, _insConteo='';
+const INS_DIAS_VIEJO=30;
+function insPasaFiltros(x,usos){
+  const f=_insFiltro, conPrecio=parseFloat(x.costo)>0;
+  if(f.precio==='con'&&!conPrecio) return false;
+  if(f.precio==='sin'&&conPrecio) return false;
+  if(f.act!=='todos'){
+    const t=x.precio_actualizado?Date.parse(x.precio_actualizado):NaN;
+    const reciente=!isNaN(t)&&(Date.now()-t)<=INS_DIAS_VIEJO*864e5;
+    if(f.act==='reciente'&&!reciente) return false;
+    if(f.act==='viejo'&&reciente) return false;
+  }
+  if(f.origen!=='todos'){
+    const deLista=!!(x.precio_fuente&&x.precio_fuente!=='a mano');
+    if(f.origen==='lista'&&!deLista) return false;
+    if(f.origen==='mano'&&deLista) return false;
+  }
+  if(f.prov==='__sin__'){ if(String(x.proveedor||'').trim()) return false; }
+  else if(f.prov&&x.proveedor!==f.prov) return false;
+  if(f.uso==='usados'&&!(usos[x.key]>0)) return false;
+  if(f.uso==='sinuso'&&usos[x.key]>0) return false;
+  return true;
+}
+function insVerHtml(){
+  const f=_insFiltro;
+  const seg=(campo,ops)=>`<div class="rec-fseg">${ops.map(([v,l])=>`<button type="button" class="${f[campo]===v?'on':''}" onclick="insFiltroSet('${campo}','${v}')">${l}</button>`).join('')}</div>`;
+  const provs=[...new Set(DB.proveedores.map(p=>p.proveedor).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  const nAct=Object.keys(f).filter(k=>f[k]!==INS_FILTRO_DEF[k]).length;
+  return `<div class="mp-menu-tit">Precio</div>${seg('precio',[['todos','Todos'],['con','Con precio'],['sin','Sin precio']])}
+    <div class="mp-menu-tit">Última actualización del precio</div>${seg('act',[['todos','Cualquiera'],['reciente','≤ '+INS_DIAS_VIEJO+' días'],['viejo','> '+INS_DIAS_VIEJO+' días o nunca']])}
+    <div class="mp-menu-tit">Origen del precio</div>${seg('origen',[['todos','Todos'],['lista','De lista'],['mano','A mano']])}
+    <div class="mp-menu-tit">Proveedor</div>
+    <div style="margin:0 6px"><select style="width:100%;font-size:12px" onchange="this.blur();insFiltroSet('prov',this.value)">
+      <option value="">Todos los proveedores</option><option value="__sin__"${f.prov==='__sin__'?' selected':''}>— Sin proveedor —</option>
+      ${provs.map(p=>`<option value="${escH(p)}"${f.prov===p?' selected':''}>${escH(p)}</option>`).join('')}</select></div>
+    <div class="mp-menu-tit">Uso en recetas</div>${seg('uso',[['todos','Todos'],['usados','Usados'],['sinuso','Sin usar']])}
+    <div class="mp-menu-pie">${_insConteo}${nAct?` · <a href="#" onclick="event.preventDefault();insFiltroLimpiar()">Quitar filtros</a>`:''}</div>`;
+}
+function insFiltroSet(campo,valor){
+  _insFiltro[campo]=valor; insPage=0; renderInsumos();
+  const el=document.getElementById('mp-menu'); if(el){ el.innerHTML=insVerHtml(); mpMenuPosicionar(); }
+}
+function insFiltroLimpiar(){ _insFiltro={...INS_FILTRO_DEF}; insFiltroSet('precio','todos'); }
 function renderInsumos(){
   _mpUpdateVbarTop(); // alto de la caja con encabezado fijo (.tw-scroll)
   const q=document.getElementById('ins-search').value.toLowerCase();
-  const f=DB.insumos.filter(x=>x.nombre.toLowerCase().includes(q)||x.key.toLowerCase().includes(q)||String(x.proveedor).toLowerCase().includes(q));
+  const usosPorInsumo=insContarUsos();
+  const f=DB.insumos.filter(x=>x.nombre.toLowerCase().includes(q)||x.key.toLowerCase().includes(q)||String(x.proveedor).toLowerCase().includes(q))
+    .filter(x=>insPasaFiltros(x,usosPorInsumo));
+  _insConteo=f.length===DB.insumos.length?DB.insumos.length+' insumos':'Mostrando '+f.length+' de '+DB.insumos.length;
+  const nAct=Object.keys(_insFiltro).filter(k=>_insFiltro[k]!==INS_FILTRO_DEF[k]).length;
+  const vb=document.getElementById('ins-ver-btn');
+  if(vb) vb.innerHTML='⚙ Ver ▾'+(nAct?`<span class="mp-ver-badge">${nAct}</span>`:'');
   if(insOrden.col){
     const val=insValorOrden[insOrden.col], m=insOrden.dir==='desc'?-1:1;
     f.sort((a,b)=>{ const va=val(a), vb=val(b);
@@ -2931,7 +2983,6 @@ function renderInsumos(){
   const pages=Math.ceil(f.length/INS_PER)||1;
   if(insPage>=pages)insPage=0;
   const sl=f.slice(insPage*INS_PER,(insPage+1)*INS_PER);
-  const usosPorInsumo=insContarUsos();
   document.getElementById('ins-tbody').innerHTML=sl.map((x,i)=>{
     const pkgKg=parseFloat(x.formato_kg)||0;
     const pkgPrecio=parseFloat(x.precio_formato)||0;
@@ -6198,7 +6249,7 @@ let _guardadoAutoTimer=null;
 // vez de a sbSave(), o quedarían editados en memoria pero sin persistir
 // nunca. El resto de los módulos sigue exactamente igual que antes.
 function programarGuardadoAutomatico(el){
-  if(el && el.closest && el.closest('#tab-costeo,#tab-cotizaciones')) return; // Cotización guarda por su cuenta
+  if(el && el.closest && el.closest('#tab-costeo,#tab-cotizaciones,#mp-menu')) return; // Cotización guarda por su cuenta
   clearTimeout(_guardadoAutoTimer);
   const esCampoDeEvento = el && el.closest && el.closest('#modal-evento-detalle');
   _guardadoAutoTimer=setTimeout(()=>{
