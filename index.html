@@ -721,7 +721,6 @@ tr.rec-clic:hover td{background:var(--accent-light)}
           <input type="file" accept=".json" style="display:none" onchange="importarJSON(event)">
         </label>
         <button class="btn btn-outline" style="color:var(--text2)" onclick="exportData()">⬇ Exportar JSON</button>
-        <button class="btn btn-outline" style="color:var(--text3);font-size:11px" onclick="insSinUsoAbrir()">🧹 Eliminar insumos sin uso</button>
       </div>
     </div>
     <span id="autosave-indicator" class="header-sync">autoguardado cada 2 min</span>
@@ -3700,43 +3699,6 @@ function facHistorialDetalle(i){
   el.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
-// ── Herramienta escondida (⚙ del encabezado): eliminar insumos sin uso ──
-// Muestra la lista, descarga un respaldo en Excel y borra recién al confirmar.
-function insSinUsoAbrir(){
-  document.getElementById('header-settings-menu')?.classList.remove('open');
-  const usados=new Set([...DB.subproductos.map(r=>r.componente),...DB.recetas_platos.map(r=>r.componente)]);
-  const lista=DB.insumos.filter(x=>!usados.has(x.key)).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),'es'));
-  if(!DB.subproductos.length&&!DB.recetas_platos.length){ alert('Todavía no se cargaron las recetas. Esperá unos segundos y probá de nuevo.'); return; }
-  if(!lista.length){ mpModalGen('🧹 Insumos sin uso','<div class="empty">Todos los insumos se usan en alguna receta.</div>',520); return; }
-  mpModalGen('🧹 Eliminar insumos sin uso', `
-    <div style="font-size:13px;margin-bottom:10px">Hay <b>${lista.length}</b> insumos (de ${DB.insumos.length}) que no se usan en ningún subproducto ni plato. Si tienen conteos de Stock, esos conteos quedan sin nombre.</div>
-    <div style="max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12.5px;columns:2;column-gap:24px">
-      ${lista.map(x=>`<div style="padding:3px 0;break-inside:avoid">${escH(x.nombre)}</div>`).join('')}</div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-      <button class="btn btn-outline" onclick="mpCerrarModalGen()">Cancelar</button>
-      <button class="btn btn-danger" style="padding:8px 16px" onclick="insSinUsoEliminar()">⬇ Descargar respaldo y eliminar ${lista.length}</button>
-    </div>`, 760);
-}
-async function insSinUsoEliminar(){
-  const usados=new Set([...DB.subproductos.map(r=>r.componente),...DB.recetas_platos.map(r=>r.componente)]);
-  const lista=DB.insumos.filter(x=>!usados.has(x.key));
-  if(!lista.length) return;
-  if(!confirm('¿Eliminar definitivamente '+lista.length+' insumos?\n\nAntes se descarga un Excel de respaldo.')) return;
-  try{
-    const filas=lista.map(x=>({Nombre:x.nombre,Key:x.key,Formato:x.formato||'','$ Formato':x.precio_formato||0,'Kg/Formato':x.formato_kg||0,'$ / kg':x.costo||0,Proveedor:x.proveedor||'','Actualizado':x.precio_actualizado||'',Id:x._id}));
-    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(filas),'Insumos eliminados');
-    XLSX.writeFile(wb,'Respaldo_insumos_sin_uso_'+new Date().toISOString().slice(0,10)+'.xlsx');
-  }catch(e){ if(!confirm('No se pudo descargar el respaldo ('+e.message+').\n¿Eliminar igual?')) return; }
-  try{
-    for(let i=0;i<lista.length;i+=400){
-      const lote=fbDb.batch();
-      lista.slice(i,i+400).forEach(x=>lote.delete(FB_COL_INSUMOS.doc(String(x._id))));
-      await lote.commit();
-    }
-    mpCerrarModalGen(); marcarSincronizado();
-    showAlert('upload-alert','success','Se eliminaron '+lista.length+' insumos sin uso.');
-  }catch(e){ marcarErrorSincronizacion(e); alert('Error al eliminar: '+e.message); }
-}
 
 // Flujo: al cargar la lista, los insumos con coincidencia segura se
 // actualizan y guardan solos; en el modal quedan arriba solo los dudosos
