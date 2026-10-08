@@ -532,6 +532,13 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .rec-clic{cursor:pointer;transition:box-shadow .2s,transform .2s,background .2s}
 .card.rec-clic:hover{box-shadow:0 6px 20px rgba(61,26,82,.12);transform:translateY(-1px)}
 tr.rec-clic:hover td{background:var(--accent-light)}
+#mp-version-nueva{position:fixed;inset:0;z-index:100000;background:rgba(13,4,24,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;animation:mpAparece .3s ease}
+#mp-version-nueva .mpv-card{background:var(--surface);border-radius:20px;padding:30px 34px 22px;max-width:440px;width:100%;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.45);border:2px solid var(--mp-gold);animation:mpModal .45s cubic-bezier(.2,.9,.3,1.1)}
+#mp-version-nueva .mpv-ico{font-size:44px;line-height:1;margin-bottom:10px}
+#mp-version-nueva .mpv-tit{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--mp-plum);line-height:1.25}
+#mp-version-nueva .mpv-txt{font-size:14px;color:var(--text2);margin:8px 0 20px}
+#mp-version-nueva .mpv-btn{width:100%;padding:13px;font-size:16px;font-weight:700;border-radius:12px;justify-content:center}
+#mp-version-nueva .mpv-luego{margin-top:12px;background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit}
 .fac-spin{width:38px;height:38px;margin:0 auto;border-radius:50%;border:4px solid var(--surface2);border-top-color:var(--accent);animation:facGira .8s linear infinite}
 @keyframes facGira{to{transform:rotate(360deg)}}
 .mp-mas{padding:4px 10px!important;font-size:13px!important;line-height:1;font-weight:700}
@@ -12447,39 +12454,56 @@ function presuDibujarPDF(d, modo){
 }
 
 // ── Aviso de versión nueva ─────────────────────────────────────────────
-// Una pestaña abierta sigue con el código viejo hasta recargar. Se guarda la
-// marca de la página al abrir (ETag/Last-Modified de GitHub Pages) y cada
-// 5 min, o al volver a la pestaña, se compara; si cambió, cartel con botón
-// "Actualizar" (no recarga solo para no perder lo que se esté cargando).
+// Solo cuando se publica una versión nueva del SISTEMA (el archivo cambia en
+// GitHub Pages), no por cambios de datos (precios, recetas: esos llegan solos
+// por Firestore). Se compara la fecha del archivo publicado (Last-Modified)
+// con la de la página abierta (document.lastModified) y, por las dudas, con
+// la primera que se vio. Al abrir la pestaña, cada 2 min y al volver a ella.
+// Cartel grande para todos; "Actualizar" baja la versión nueva sin caché.
 (function avisoVersionNueva(){
   if(!/^https?:/.test(location.protocol)) return;
-  let base=null, avisado=false;
+  // Si se entró con ?v=… (recarga forzada), se limpia la dirección.
+  if(/[?&]v=\d+/.test(location.search)) history.replaceState(null,'',location.pathname+location.hash);
+  const docT=Date.parse(document.lastModified);
+  let base=null, mostrando=false, posponerHasta=0;
   const marca=async()=>{
     try{
       const r=await fetch(location.pathname,{method:'HEAD',cache:'no-store'});
       if(!r.ok) return null;
-      // Last-Modified primero (estable); el ETag puede venir con o sin "W/"
-      // según la compresión y daba avisos falsos.
       const lm=r.headers.get('last-modified');
-      if(lm) return lm;
+      if(lm) return {k:lm,t:Date.parse(lm)};
       const et=r.headers.get('etag');
-      return et ? et.replace(/^W\//,'') : null;
+      return et?{k:et.replace(/^W\//,''),t:NaN}:null;
     }catch(e){ return null; }
   };
+  const actualizar=async btn=>{
+    btn.disabled=true; btn.textContent='Actualizando…';
+    try{ await fetch(location.pathname,{cache:'reload'}); }catch(e){}
+    location.replace(location.pathname+'?v='+Date.now()+location.hash);
+  };
+  const mostrar=()=>{
+    if(mostrando||Date.now()<posponerHasta) return;
+    mostrando=true;
+    const ov=document.createElement('div');
+    ov.id='mp-version-nueva';
+    ov.innerHTML=`<div class="mpv-card">
+      <div class="mpv-ico">✨</div>
+      <div class="mpv-tit">Se han hecho modificaciones en el sistema</div>
+      <div class="mpv-txt">Actualizá para tener la última versión.</div>
+      <button type="button" class="btn btn-primary mpv-btn">⟳ Actualizar</button>
+      <button type="button" class="mpv-luego">Más tarde</button></div>`;
+    ov.querySelector('.mpv-btn').onclick=e=>actualizar(e.currentTarget);
+    ov.querySelector('.mpv-luego').onclick=()=>{ ov.remove(); mostrando=false; posponerHasta=Date.now()+5*60*1000; };
+    document.body.appendChild(ov);
+  };
   const revisar=async()=>{
-    if(avisado) return;
     const m=await marca(); if(!m) return;
-    if(base===null){ base=m; return; }
-    if(m===base) return;
-    avisado=true;
-    const el=document.createElement('div');
-    el.style.cssText='position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99999;background:#2E2A24;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.25);font-size:13px;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 32px)';
-    el.innerHTML='<span>Hay una versión nueva del sistema.</span><button class="btn btn-primary" style="padding:5px 12px;font-size:12px">Actualizar</button>';
-    el.querySelector('button').onclick=()=>location.reload();
-    document.body.appendChild(el);
+    if(base===null) base=m.k;
+    const nuevaQueLaAbierta=!isNaN(m.t)&&!isNaN(docT)&&m.t>docT+60000;
+    if(nuevaQueLaAbierta||m.k!==base) mostrar();
   };
   revisar();
-  setInterval(revisar,5*60*1000);
+  setInterval(revisar,2*60*1000);
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') revisar(); });
 })();
 
