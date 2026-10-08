@@ -12436,7 +12436,8 @@ function presuDibujarPDF(d, modo){
 // GitHub Pages), no por cambios de datos (precios, recetas: esos llegan solos
 // por Firestore). Se compara la fecha del archivo publicado (Last-Modified)
 // con la de la página abierta (document.lastModified) y, por las dudas, con
-// la primera que se vio. Al abrir la pestaña, cada 2 min y al volver a ella.
+// la primera que se vio. Al abrir, cada 1 min, al volver a la pestaña o a la
+// ventana y al reconectarse a internet.
 // Cartel grande para todos; "Actualizar" baja la versión nueva sin caché.
 (function avisoVersionNueva(){
   if(!/^https?:/.test(location.protocol)) return;
@@ -12481,8 +12482,10 @@ function presuDibujarPDF(d, modo){
     if(nuevaQueLaAbierta||m.k!==base) mostrar();
   };
   revisar();
-  setInterval(revisar,2*60*1000);
+  setInterval(revisar,60*1000);
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') revisar(); });
+  window.addEventListener('focus',revisar);
+  window.addEventListener('online',revisar);
 })();
 
 </script>
