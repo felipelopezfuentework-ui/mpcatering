@@ -772,11 +772,9 @@ tr.rec-clic:hover td{background:var(--accent-light)}
     <div class="toolbar">
       <div class="sbox"><input type="text" id="ins-search" placeholder="Buscar insumo…" oninput="insPage=0;renderInsumos()"></div>
       <button type="button" class="btn btn-outline mp-ver-btn" id="ins-ver-btn" onclick="mpMenuAbrir(this,insVerHtml())">⚙ Ver ▾</button>
-      <div class="mp-split">
-        <button class="btn btn-primary" onclick="addInsumo()">+ Agregar insumo</button>
-        <button class="btn btn-primary" title="Más opciones" onclick="mpMenuAbrir(this,[{icon:'🧾',label:'Cargar precios desde factura (PDF o foto)',accion:()=>document.getElementById('ins-factura-file').click()},{icon:'✍️',label:'Cargar factura a mano',accion:()=>facManual('Carga manual')},{icon:'💲',label:'Actualizar precios desde lista de proveedor',accion:()=>document.getElementById('ins-lista-file').click()}])">▾</button>
-      </div>
-      <input type="file" id="ins-lista-file" accept=".xlsx,.xls" style="display:none" onchange="handleListaPrecios(event)">
+      <button class="btn btn-primary" style="flex-shrink:0" onclick="addInsumo()">+ Agregar insumo</button>
+      <button class="btn btn-outline" style="flex-shrink:0" onclick="mpMenuAbrir(this,[{icon:'📋',label:'Desde lista de proveedor (Excel, CSV, PDF o foto)',accion:()=>document.getElementById('ins-lista-file').click()},{icon:'🧾',label:'Desde factura (PDF o foto)',accion:()=>document.getElementById('ins-factura-file').click()},'-',{icon:'✍️',label:'Cargar factura a mano',accion:()=>facManual('Carga manual')}])">💲 Actualizar precios ▾</button>
+      <input type="file" id="ins-lista-file" accept=".xlsx,.xls,.xlsm,.csv,.ods,.pdf,application/pdf,image/*,.heic,.heif" style="display:none" onchange="handleListaPrecios(event)">
       <input type="file" id="ins-factura-file" accept=".pdf,application/pdf,image/*,.heic,.heif" style="display:none" onchange="handleFactura(event)">
     </div>
     <div class="tw tw-scroll"><table class="ins-tabla">
@@ -3743,29 +3741,151 @@ function _lpVar(p){
   const v=_lpValores(p), viejo=parseFloat(p.ins.costo)||0, pk=v.kg>0?v.precio/v.kg:v.precio;
   return viejo>0?(pk/viejo-1)*100:null;
 }
-function handleListaPrecios(e){
-  const file=e.target.files[0]; e.target.value=''; if(!file) return;
-  const rd=new FileReader();
-  rd.onload=ev=>{
-    try{
-      const wb=XLSX.read(ev.target.result,{type:'array'});
-      let filas=[]; wb.SheetNames.forEach(n=>{filas=filas.concat(lpParsearHoja(wb.Sheets[n]));});
-      if(!filas.length){ alert('No encontré productos con precio en ese Excel.'); return; }
-      _lpArchivo=file.name; _lpFecha=new Date().toISOString(); _lpError='';
-      _lpPropuestas=DB.insumos.map(ins=>{
-        const {cands,strict}=lpCandidatos(ins,filas);
-        const p={ins,cands,strict,sel:cands.length?0:-1,estado:cands.length?'pendiente':'sin'};
-        if(cands.length){ const v=_lpVar(p); p.motivo=!strict?'dudoso':(v!=null&&Math.abs(v)>LP_VAR_MAX?'variacion':''); }
-        return p;
-      });
-      document.getElementById('lp-archivo').textContent=file.name+' · '+filas.length+' productos';
-      // Los seguros se aplican ya.
-      lpAplicarVarios(_lpPropuestas.filter(p=>p.estado==='pendiente'&&!p.motivo));
-      document.getElementById('modal-lista-precios').classList.add('open');
-    }catch(err){ console.error(err); alert('No pude leer el Excel: '+err.message); }
-  };
-  rd.readAsArrayBuffer(file);
+// ── Listas de proveedor en CUALQUIER formato ──────────────────────────────
+// Excel/CSV: se toma la hoja como tabla. PDF o foto: se lee con el Lector
+// Facturas MP (texto u OCR) y cada renglón queda como [texto, números…].
+// lpDetectarColumnas adivina producto / descripción / unidad / precio e IVA
+// (por los títulos de las columnas o, si no hay títulos, por el contenido) y
+// se muestra para confirmar o corregir antes de buscar los insumos.
+let _lpLectura=null; // {archivo, matrices:[[...filas]], cfg}
+const LP_KW={
+  nombre:/(PRODUCTO|DESCRIPCI|ART[IÍ]CULO|DETALLE|NOMBRE|ITEM|MERCADER)/i,
+  precio:/(PRECIO|IMPORTE|VALOR|^\$|P\.? ?UNIT|COSTO|LISTA|DTO|NETO|FINAL|OFERTA)/i,
+  unidad:/(UNIDAD|^U\.? ?M|MEDIDA|PRESENTACI|ENVASE|BULTO|^UN\.?$|^UNID)/i
+};
+function lpCelNum(v){ if(typeof v==='number') return v; const n=facNum(String(v||'').trim()); return n; }
+function lpCelTexto(v){ return typeof v==='string'&&/[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}/.test(v); }
+function lpDetectarColumnas(m){
+  const ncol=Math.max(0,...m.slice(0,200).map(r=>r.length));
+  let hdr=-1, mejor=0;
+  m.slice(0,25).forEach((r,i)=>{ const p=r.filter(c=>typeof c==='string'&&(LP_KW.nombre.test(c)||LP_KW.precio.test(c)||LP_KW.unidad.test(c))).length; if(p>mejor&&p>=2){ mejor=p; hdr=i; } });
+  const datos=m.slice(hdr+1).filter(r=>r.some(c=>String(c).trim()));
+  const stat=[...Array(ncol)].map((_,c)=>({c,txt:datos.filter(r=>lpCelTexto(r[c])).length,num:datos.filter(r=>{const n=lpCelNum(r[c]);return n!==null&&n>0;}).length,
+    uni:datos.filter(r=>/^(KG|KGS|K|UN|UNI|UNID|UNIDAD|U|LT|LTS|CAJ\w*|BOLSA|BULTO|PACK|DOC\w*|GR|ML)\.?$/i.test(String(r[c]||'').trim())).length}));
+  const cab=c=>hdr>=0?String(m[hdr][c]||''):'';
+  const cfg={hdr,nombre:-1,desc:-1,unidad:-1,precio:-1,conIva:true};
+  if(hdr>=0){
+    const cols=[...Array(ncol).keys()];
+    const nom=cols.filter(c=>LP_KW.nombre.test(cab(c)));
+    cfg.nombre=nom[0]??-1; cfg.desc=nom[1]??-1;
+    cfg.unidad=cols.find(c=>LP_KW.unidad.test(cab(c)))??-1;
+    const pre=cols.filter(c=>LP_KW.precio.test(cab(c))&&stat[c].num>0);
+    cfg.precio=pre.find(c=>/(DTO|DESC|NETO|FINAL|OFERTA|C\/ ?D)/i.test(cab(c)))??pre[pre.length-1]??-1;
+    const h=cab(cfg.precio)+' '+m[hdr].join(' ');
+    if(/(S\/ ?IVA|SIN IVA|\bNETO\b|\+ ?IVA)/i.test(cab(cfg.precio))) cfg.conIva=false;
+    else if(/(C\/ ?IVA|CON IVA|IVA INCL|FINAL)/i.test(h)) cfg.conIva=true;
+  }
+  const porTexto=stat.filter(s=>s.txt>datos.length*0.3).sort((a,b)=>b.txt-a.txt);
+  if(cfg.nombre<0) cfg.nombre=porTexto[0]?porTexto[0].c:0;
+  if(cfg.desc<0&&porTexto[1]&&porTexto[1].c!==cfg.unidad) cfg.desc=porTexto[1].c;
+  if(cfg.unidad<0){ const u=stat.filter(s=>s.uni>datos.length*0.3).sort((a,b)=>b.uni-a.uni)[0]; if(u) cfg.unidad=u.c; }
+  if(cfg.desc===cfg.unidad) cfg.desc=-1;
+  if(cfg.precio<0){
+    // Columnas con números; se descartan las de valores chicos comparados con
+    // la mayor (stock, cantidades) y de las que quedan, la de más a la derecha
+    // (suele ser el precio con descuento).
+    const mediana=c=>{ const v=datos.map(r=>lpCelNum(r[c])).filter(n=>n>0).sort((a,b)=>a-b); return v.length?v[Math.floor(v.length/2)]:0; };
+    const n=stat.filter(s=>s.num>datos.length*0.5&&s.c!==cfg.nombre).map(s=>({c:s.c,med:mediana(s.c)}));
+    const tope=Math.max(0,...n.map(x=>x.med));
+    const ok=n.filter(x=>x.med>=tope*0.5);
+    cfg.precio=ok.length?ok[ok.length-1].c:-1;
+  }
+  return cfg;
 }
+function lpFilasDesdeMatriz(m,cfg){
+  const out=[];
+  m.forEach((r,i)=>{
+    if(i<=cfg.hdr) return;
+    const nombre=String(r[cfg.nombre]??'').trim(); if(!nombre||!lpCelTexto(nombre)) return;
+    const precio=lpCelNum(r[cfg.precio]); if(!(precio>0)) return;
+    const desc=cfg.desc>=0?String(r[cfg.desc]??'').trim():'', unidad=cfg.unidad>=0?String(r[cfg.unidad]??'').trim():'';
+    const neto=Math.round((cfg.conIva?precio/LP_IVA:precio)*100)/100;
+    const cant=lpCantidad(nombre,desc,unidad);
+    out.push({nombre,desc,unidad,precio,neto,cant,porQ:cant&&cant.q>0?neto/cant.q:null,
+      toks:lpTokens(nombre+' '+desc), head:lpTokens(nombre).filter(t=>t!=='CONGELADO')[0]||''});
+  });
+  return out;
+}
+async function handleListaPrecios(e){
+  const file=e.target.files[0]; e.target.value=''; if(!file) return;
+  try{
+    let matrices=[];
+    if(/\.(xlsx|xls|xlsm|csv|ods)$/i.test(file.name)){
+      const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+      matrices=wb.SheetNames.map(n=>XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:''})).filter(mm=>mm.length);
+    } else {
+      // PDF o foto: cada renglón → [texto del producto, unidad, números…]
+      const renglones=await facLeerArchivo(file);
+      mpCerrarModalGen();
+      const filas=renglones.map(celdas=>{
+        const texto=[], nums=[]; let unidad='';
+        celdas.forEach(c=>c.split(/\s{2,}/).forEach(t=>{ t=t.trim(); if(!t) return; const n=facNum(t);
+          if(n!==null) nums.push(n); else if(/^(KG|KGS|UN|UNI|UNID|UNIDAD|U|LT|LTS|CAJA|BOLSA|BULTO)\.?$/i.test(t)) unidad=t; else texto.push(t); }));
+        return {texto:texto.join(' '),unidad,nums};
+      });
+      // Números alineados a la derecha: el último (el precio) cae siempre en la misma columna.
+      const maxN=Math.max(0,...filas.map(f=>f.nums.length));
+      matrices=[filas.map(f=>[f.texto,f.unidad,...Array(maxN-f.nums.length).fill(''),...f.nums])];
+    }
+    if(!matrices.length) throw new Error('vacía');
+    const grande=matrices.slice().sort((a,b)=>b.length-a.length)[0];
+    _lpLectura={archivo:file.name,matrices,cfg:lpDetectarColumnas(grande),grande};
+    lpLecturaRender();
+  }catch(err){
+    console.error(err);
+    mpModalGen('📋 Lista de proveedor',`<div style="text-align:center;padding:14px 6px"><div style="font-size:40px">🤔</div>
+      <div style="font-size:16px;font-weight:700;margin:10px 0 6px">No pude leer la lista</div>
+      <div style="font-size:13px;color:var(--text3)">${escH(file.name)}. Probá con el Excel del proveedor, un PDF o una foto más nítida.</div>
+      <div style="margin-top:16px"><button class="btn btn-outline" onclick="mpCerrarModalGen();document.getElementById('ins-lista-file').click()">📎 Probar con otro archivo</button></div></div>`,500);
+  }
+}
+function lpLecturaSet(campo,valor){ _lpLectura.cfg[campo]=campo==='conIva'?valor==='1':parseInt(valor,10); lpLecturaRender(); }
+function lpLecturaRender(){
+  const L=_lpLectura, cfg=L.cfg, m=L.grande;
+  const ncol=Math.max(0,...m.slice(0,200).map(r=>r.length));
+  const letra=c=>String.fromCharCode(65+(c%26));
+  const ejemplo=c=>{ const r=m.slice(cfg.hdr+1).find(r=>String(r[c]??'').trim()); return r?String(r[c]).slice(0,28):''; };
+  const opcion=(c,sel)=>`<option value="${c}"${sel===c?' selected':''}>${letra(c)}${cfg.hdr>=0&&m[cfg.hdr][c]?' · '+escH(String(m[cfg.hdr][c]).slice(0,22)):''}${ejemplo(c)?' — '+escH(ejemplo(c)):''}</option>`;
+  const sel=(campo,opcional)=>`<select style="font-size:12px;max-width:260px" onchange="lpLecturaSet('${campo}',this.value)">${opcional?`<option value="-1"${cfg[campo]<0?' selected':''}>— ninguna —</option>`:''}${[...Array(ncol).keys()].map(c=>opcion(c,cfg[campo])).join('')}</select>`;
+  const filas=L.matrices.flatMap(mm=>lpFilasDesdeMatriz(mm,cfg));
+  const muestra=filas.slice(0,6).map(f=>`<tr><td>${escH(f.nombre)}${f.desc?`<span style="color:var(--text3)"> · ${escH(f.desc)}</span>`:''}</td><td>${escH(f.unidad||'—')}</td><td class="num">${fmt(f.precio)}</td><td class="num" style="font-weight:600">${fmt(f.neto)}</td><td class="num">${f.cant?fmtN(f.cant.q,3)+' '+f.cant.base:'—'}</td></tr>`).join('');
+  const html=`<div style="font-size:12.5px;color:var(--text3);margin-bottom:12px">Así leí <b style="color:var(--text)">${escH(L.archivo)}</b>. Si alguna columna no es la correcta, cambiala acá; después busco los insumos.</div>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:center;font-size:12.5px;margin-bottom:14px">
+      <b>Producto</b>${sel('nombre')}<b>Descripción</b>${sel('desc',true)}<b>Unidad / presentación</b>${sel('unidad',true)}<b>Precio</b>${sel('precio')}
+      <b>El precio viene</b><select style="font-size:12px;max-width:260px" onchange="lpLecturaSet('conIva',this.value)"><option value="1"${cfg.conIva?' selected':''}>con IVA (se le saca el 21%)</option><option value="0"${!cfg.conIva?' selected':''}>sin IVA</option></select>
+    </div>
+    <div style="font-size:12px;font-weight:700;margin-bottom:6px">Ejemplos (${filas.length} productos con precio)</div>
+    <div class="tw"><table style="font-size:12px"><thead><tr><th>Producto</th><th>Unidad</th><th class="num">Precio lista</th><th class="num">Sin IVA</th><th class="num">Contenido</th></tr></thead>
+    <tbody>${muestra||'<tr><td colspan="5" class="empty">Con estas columnas no encontré productos con precio.</td></tr>'}</tbody></table></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+      <button class="btn btn-outline" onclick="mpCerrarModalGen();_lpLectura=null">Cancelar</button>
+      <button class="btn btn-primary" ${filas.length?'':'disabled'} onclick="lpLecturaConfirmar()">🔍 Buscar precios de los insumos</button>
+    </div>`;
+  const abierto=document.querySelector('#mp-modal-gen .modal>div:last-child');
+  if(abierto&&document.getElementById('mp-modal-gen').dataset.lp==='1') abierto.innerHTML=html;
+  else { mpModalGen('📋 Lista de proveedor · revisar columnas',html,900); document.getElementById('mp-modal-gen').dataset.lp='1'; }
+}
+function lpLecturaConfirmar(){
+  const L=_lpLectura; if(!L) return;
+  const filas=L.matrices.flatMap(mm=>lpFilasDesdeMatriz(mm,L.cfg));
+  mpCerrarModalGen(); _lpLectura=null;
+  lpProcesarFilas(filas,L.archivo);
+}
+function lpProcesarFilas(filas,archivo){
+  if(!filas.length){ alert('No encontré productos con precio en esa lista.'); return; }
+  _lpArchivo=archivo; _lpFecha=new Date().toISOString(); _lpError='';
+  _lpPropuestas=DB.insumos.map(ins=>{
+    const {cands,strict}=lpCandidatos(ins,filas);
+    const p={ins,cands,strict,sel:cands.length?0:-1,estado:cands.length?'pendiente':'sin'};
+    if(cands.length){ const v=_lpVar(p); p.motivo=!strict?'dudoso':(v!=null&&Math.abs(v)>LP_VAR_MAX?'variacion':''); }
+    return p;
+  });
+  document.getElementById('lp-archivo').textContent=archivo+' · '+filas.length+' productos';
+  // Los seguros se aplican ya.
+  lpAplicarVarios(_lpPropuestas.filter(p=>p.estado==='pendiente'&&!p.motivo));
+  document.getElementById('modal-lista-precios').classList.add('open');
+}
+
 function _lpValores(p){
   const f=p.cands[p.sel];
   if(p.edit) return p.edit;
