@@ -4013,7 +4013,9 @@ function calcMerma(kgNeto, merma, pk){
   const kgBruto = m>0 ? kgNeto*(1+m/100) : kgNeto;
   const costoMerma = pk*(m/100);
   const pkConMerma = pk + costoMerma;            // pk * (1 + m/100)
-  const costoTotal = pkConMerma * kgBruto;
+  // La merma ya está en el precio: se multiplica por el kg NETO (antes por el
+  // bruto, que cobraba la merma dos veces). kgBruto queda solo como dato.
+  const costoTotal = pkConMerma * kgNeto;
   return {kgBruto, costoMerma, pkConMerma, costoTotal};
 }
 
@@ -5847,6 +5849,7 @@ function iniciarListenersRecetas(){
     DB.subproductos=filas;
     DB.subs_config=config;
     DB.procedimientos={...DB.procedimientos, ...procedimientos};
+    _subsCargados=true; recetasCorregirCostoNeto();
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar subproductos:', err));
   _unsubPlatos=FB_COL_PLATOS.onSnapshot((snap)=>{
@@ -5861,6 +5864,7 @@ function iniciarListenersRecetas(){
     DB.recetas_platos=filas;
     DB.platos_config=config;
     DB.procedimientos={...DB.procedimientos, ...procedimientos};
+    _platosCargados=true; recetasCorregirCostoNeto();
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar platos:', err));
   _unsubMaestroSubs=FB_COL_MAESTRO_SUBS.doc('lista').onSnapshot((doc)=>{
@@ -5871,6 +5875,56 @@ function iniciarListenersRecetas(){
     DB.maestro_platos=(doc.exists&&doc.data().nombres)||[];
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar maestro_platos:', err));
+}
+// Corrección de recetas guardadas con la cuenta vieja (precio con merma × kg
+// bruto). Una vez por sesión, apenas llegan subs y platos: recalcula cada
+// ingrediente como precio con merma × kg neto y guarda solo las recetas cuyo
+// costo cambió. Insumos: usa el precio con merma ya guardado en la fila (no
+// depende de que los insumos hayan cargado). Subs dentro de platos: toma el
+// costo del sub ya corregido. Si ya está todo bien, no guarda nada.
+let _subsCargados=false, _platosCargados=false, _costoNetoRevisado=false;
+function recetasCorregirCostoNeto(){
+  if(_costoNetoRevisado || !_subsCargados || !_platosCargados) return;
+  _costoNetoRevisado=true;
+  const subs=new Set(), platos=new Set();
+  const fijar=(r,nuevo,set,nombre)=>{
+    if(Math.abs((parseFloat(r.costo_receta)||0)-nuevo)>0.005){ r.costo_receta=nuevo; set.add(nombre); }
+  };
+  DB.subproductos.forEach(r=>{
+    const pkm=parseFloat(r.precio_kg)||0;
+    if(pkm>0) fijar(r, pkm*(parseFloat(r.kgs)||0), subs, r.subproducto);
+  });
+  DB.recetas_platos.forEach(r=>{
+    if(String(r.componente||'').startsWith('SUB - ')){
+      const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(parseFloat(r.kgs)||0, parseFloat(r.merma)||0, getCompPrice(r.componente));
+      if(Math.abs((parseFloat(r.costo_receta)||0)-costoTotal)>0.005){
+        r.kgBruto=kgBruto; r.costoMerma=costoMerma; r.precio_kg=pkConMerma; r.costo_receta=costoTotal; platos.add(r.plato);
+      }
+    } else {
+      const pkm=parseFloat(r.precio_kg)||0;
+      if(pkm>0) fijar(r, pkm*(parseFloat(r.kgs)||0), platos, r.plato);
+    }
+  });
+  const recetas=[...[...subs].map(n=>['sub',n]), ...[...platos].map(n=>['plato',n])];
+  if(!recetas.length) return;
+  _repintarRecetasTrasRecalculo();
+  (async ()=>{
+    const ahora=new Date().toISOString();
+    for(let i=0;i<recetas.length;i+=50){
+      const lote=fbDb.batch();
+      recetas.slice(i,i+50).forEach(([tipo,nombre])=>{
+        if(tipo==='sub'){
+          const componentes=DB.subproductos.filter(x=>x.subproducto===nombre).map(({subproducto,_id,...resto})=>resto);
+          lote.set(FB_COL_SUBPRODUCTOS.doc(nombreDocSeguro(nombre)),{nombre,componentes,config:DB.subs_config[nombre]||{},updated_at:ahora});
+        }else{
+          const componentes=DB.recetas_platos.filter(x=>x.plato===nombre).map(({plato,_id,...resto})=>resto);
+          lote.set(FB_COL_PLATOS.doc(nombreDocSeguro(nombre)),{nombre,componentes,config:DB.platos_config[nombre]||{},updated_at:ahora});
+        }
+      });
+      await lote.commit();
+    }
+    marcarSincronizado();
+  })().catch(e=>{ marcarErrorSincronizacion(e); console.error('Error al corregir costos de recetas:', e); });
 }
 function detenerListenersRecetas(){
   [_unsubSubproductos,_unsubPlatos,_unsubMaestroSubs,_unsubMaestroPlatos].forEach(u=>{try{u&&u();}catch(e){}});
