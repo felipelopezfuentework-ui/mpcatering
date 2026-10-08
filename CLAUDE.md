@@ -12,6 +12,7 @@ Usuario: dueño del negocio, no técnico. Hablar en español rioplatense, resúm
 
 ## UI
 - Botones agrupados con criterio: buscar a la vista; "⚙ Ver ▾" (mostrar/ordenar/vista); "+ Nuevo ▾" (split); acciones por fila = Editar + "⋯". Menú flotante compartido `mpMenuAbrir(btn, items|html)` (items `{icon,label,accion,peligro}` o `'-'`).
+- Transiciones: todo lo que aparece entra con fundido por CSS (`.content.active`, `.tabs`, header, modales); salidas de pantalla completa con `mpSalida(els, fn)` (selección de módulo → app, volver, salir); `cerrarModal` cierra con fundido (`.mp-cerrando`).
 
 ## Datos
 - `DB` global en memoria. Firestore: doc `mp_data/main` (`FB_DOC`, guarda el resto vía `sbSave`, que **excluye** las colecciones propias) y colecciones `insumos`, `proveedores`, `subproductos`, `platos`, `maestro_subs`/`maestro_platos` (doc `lista`), `comanda_periodos`, `comanda_eventos`, `maestro_clientes`, `stock_conteos`, `presupuestos`. Listeners `iniciarListeners*` en `entrarComo()`.
