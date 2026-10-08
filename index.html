@@ -435,8 +435,21 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .mp-tot-row td{font-size:11px!important;color:var(--text2);font-weight:600;background:var(--surface2);border-top:1px solid var(--border)}
 .mp-tot{font-size:11px;color:var(--text3);margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 14px}
 .mp-tot b{color:var(--text2);font-weight:600}
-.cost-summary-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0}
-.cost-summary-row+.cost-summary-row{border-top:1px dashed var(--border)}
+.cost-summary{display:flex;gap:0;padding:0 4px!important}
+.cost-summary-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;flex:1}
+.cost-summary-row+.cost-summary-row{border-left:1px dashed var(--border)}
+.cost-summary-row .csr-value{font-size:13px!important}
+.cost-summary-row.cost-summary-total .csr-value{font-size:15px!important}
+.rec-tipo{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 7px;border-radius:10px;background:var(--surface2);color:var(--text3)}
+.rec-tipo-ins{background:rgba(34,100,70,.12);color:var(--green)}
+.rec-tipo-sub{background:rgba(200,169,81,.22);color:#8a6800}
+/* Panel de procedimiento plegable */
+.proc-toggle{margin-left:auto;border:1px solid var(--border);background:var(--surface2);border-radius:6px;cursor:pointer;font-size:11px;padding:2px 7px;color:var(--text2)}
+.modal-2col.proc-plegado .modal-col-proc{width:44px;padding-left:6px}
+.modal-2col.proc-plegado .modal-col-proc>*:not(.proc-hd){display:none}
+.modal-2col.proc-plegado .proc-hd{writing-mode:vertical-rl;transform:rotate(180deg);cursor:pointer;gap:10px;margin:0}
+.modal-2col.proc-plegado .proc-toggle{margin:0}
+.modal-2col.proc-plegado .proc-hd.nota-chef-hd{display:none}
 .cost-summary-row .csr-label{font-size:12px;color:var(--text2);font-weight:600}
 .cost-summary-row .csr-value{font-size:14px;font-weight:700;color:var(--text)}
 .cost-summary-row .csr-value.is-merma{color:var(--red)}
@@ -1173,14 +1186,14 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
         </div>
 
         <div class="recipe-section">
-          <div class="card-title" style="font-size:13px;margin-bottom:10px">Resumen de costos</div>
+          <div class="card-title" style="font-size:12px;margin-bottom:6px;color:var(--text3)">Resumen de costos</div>
           <div id="sub-costo-summary" class="cost-summary"></div>
         </div>
 
       </div>
       <!-- Derecha: procedimiento -->
       <div class="modal-col-proc">
-        <div class="proc-hd">📋 Procedimiento</div>
+        <div class="proc-hd" onclick="if(this.closest('.proc-plegado'))toggleProcPanel()">📋 Procedimiento <button type="button" class="proc-toggle" title="Plegar / desplegar" onclick="event.stopPropagation();toggleProcPanel()">⟩</button></div>
         <div class="proc-list" id="sub-proc-list">
           <div class="proc-empty">Agregá pasos del procedimiento.</div>
         </div>
@@ -1281,14 +1294,14 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
         </div>
 
         <div class="recipe-section">
-          <div class="card-title" style="font-size:13px;margin-bottom:10px">Resumen de costos</div>
+          <div class="card-title" style="font-size:12px;margin-bottom:6px;color:var(--text3)">Resumen de costos</div>
           <div id="plato-costo-summary" class="cost-summary"></div>
         </div>
 
       </div>
       <!-- Derecha: procedimiento -->
       <div class="modal-col-proc">
-        <div class="proc-hd">📋 Procedimiento</div>
+        <div class="proc-hd" onclick="if(this.closest('.proc-plegado'))toggleProcPanel()">📋 Procedimiento <button type="button" class="proc-toggle" title="Plegar / desplegar" onclick="event.stopPropagation();toggleProcPanel()">⟩</button></div>
         <div class="proc-list" id="plato-proc-list">
           <div class="proc-empty">Agregá pasos del procedimiento.</div>
         </div>
@@ -3981,6 +3994,7 @@ function _confirmDuplicadoReemplazar(){
 
 function abrirModalSub(subName){
   ddClose();
+  aplicarProcPanel();
   editSubOld=subName;
   document.getElementById('modal-sub-nombre').value=subName?subName.replace('SUB - ',''):'';
   document.getElementById('modal-sub-title').textContent=subName?'Editar: '+subName.replace('SUB - ',''):'Nuevo Subproducto';
@@ -4409,8 +4423,20 @@ function delSub(sub){
 // ══════════════════════════════════════════════════════════════════
 let platoItems=[], editPlatoOld=null;
 
+// Panel de procedimiento: plegado/desplegado, recordado en este navegador.
+function toggleProcPanel(){
+  let pleg=false; try{ pleg=localStorage.getItem('mp_proc_plegado')==='1'; }catch(e){}
+  try{ localStorage.setItem('mp_proc_plegado',pleg?'0':'1'); }catch(e){}
+  aplicarProcPanel();
+}
+function aplicarProcPanel(){
+  let pleg=false; try{ pleg=localStorage.getItem('mp_proc_plegado')==='1'; }catch(e){}
+  document.querySelectorAll('#modal-sub .modal-2col,#modal-plato .modal-2col').forEach(el=>el.classList.toggle('proc-plegado',pleg));
+  document.querySelectorAll('.proc-toggle').forEach(b=>b.textContent=pleg?'⟨':'⟩');
+}
 function abrirModalPlato(platoName){
   ddClose();
+  aplicarProcPanel();
   editPlatoOld=platoName;
   document.getElementById('modal-plato-nombre').value=platoName?platoName.replace('PLATO - ',''):'';
   document.getElementById('modal-plato-title').textContent=platoName?'Editar: '+platoName.replace('PLATO - ',''):'Nuevo Plato';
@@ -4450,14 +4476,9 @@ function buildPlatoTable(){
     const {pkUnit,costoTotal}=calcCostoIng(kgNeto,item.pk);
     item.cr=costoTotal;
     return `<tr id="pr${idx}">
-      <td style="padding:6px 6px;white-space:nowrap">
-        <div class="ttog">
-          <button id="tins${idx}" class="${tipoIns?'on':''}" onclick="setPlatoTipo(${idx},'ins')">Ins</button>
-          <button id="tsub${idx}" class="${!tipoIns?'on':''}" onclick="setPlatoTipo(${idx},'sub')">Sub</button>
-        </div>
-      </td>
+      <td style="padding:6px 6px;white-space:nowrap" id="pitipo${idx}">${recTipoBadge(item)}</td>
       <td style="padding:6px 6px">
-        <input class="dd-input" id="pi${idx}" type="text" placeholder="Elegí ${tipoIns?'un insumo':'un subproducto'}…" style="width:100%">
+        <input class="dd-input" id="pi${idx}" type="text" placeholder="Buscá un insumo o subproducto…" style="width:100%">
       </td>
       <td class="num" style="padding:6px 6px">
         <input type="text" inputmode="decimal" value="${kgTexto(kgNeto)}" placeholder="0,250"
@@ -4484,13 +4505,14 @@ function buildPlatoTable(){
     if(!inp)return;
     const cv=item.comp||'';
     inp.dataset.val=cv;
-    const opts=item.tipo==='sub'?subOpts():insOpts();
-    inp.value=opts.find(o=>o.val===cv)?.label||cv||'';
+    inp.value=recOpcionesPlato().find(o=>o.val===cv)?.label||cv||'';
     attachDD(inp,
-      ()=>(platoItems[idx].tipo==='sub'?subOpts():insOpts()),
+      recOpcionesPlato,
       ()=>inp.dataset.val||'',
       val=>{
         platoItems[idx].comp=val;
+        platoItems[idx].tipo=String(val).startsWith('SUB - ')?'sub':'ins';
+        const tb=document.getElementById('pitipo'+idx); if(tb) tb.innerHTML=recTipoBadge(platoItems[idx]);
         platoItems[idx].pk=getCompPrice(val);
         recalcPlatoItem(idx);
       }
@@ -4499,6 +4521,15 @@ function buildPlatoTable(){
   rendUpdate('plato');
 }
 
+// Un solo buscador en la receta del plato: insumos (🥕) y subproductos (🧩)
+// juntos; el tipo de la fila se deduce de lo elegido y se muestra en la marca.
+function recOpcionesPlato(){
+  return [...insOpts().map(o=>({val:o.val,label:'🥕 '+o.label})), ...subOpts().map(o=>({val:o.val,label:'🧩 '+o.label}))];
+}
+function recTipoBadge(item){
+  if(!item||!item.comp) return '<span class="rec-tipo">—</span>';
+  return item.tipo==='sub'?'<span class="rec-tipo rec-tipo-sub">🧩 Sub</span>':'<span class="rec-tipo rec-tipo-ins">🥕 Insumo</span>';
+}
 function setPlatoTipo(idx,tipo){
   ddClose();
   platoItems[idx].tipo=tipo;
