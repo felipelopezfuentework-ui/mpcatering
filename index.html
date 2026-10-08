@@ -712,6 +712,7 @@ tr.rec-clic:hover td{background:var(--accent-light)}
           <input type="file" accept=".json" style="display:none" onchange="importarJSON(event)">
         </label>
         <button class="btn btn-outline" style="color:var(--text2)" onclick="exportData()">⬇ Exportar JSON</button>
+        <button class="btn btn-outline" style="color:var(--text3);font-size:11px" onclick="insSinUsoAbrir()">🧹 Eliminar insumos sin uso</button>
       </div>
     </div>
     <span id="autosave-indicator" class="header-sync">autoguardado cada 2 min</span>
@@ -771,9 +772,10 @@ tr.rec-clic:hover td{background:var(--accent-light)}
       <button type="button" class="btn btn-outline mp-ver-btn" id="ins-ver-btn" onclick="mpMenuAbrir(this,insVerHtml())">⚙ Ver ▾</button>
       <div class="mp-split">
         <button class="btn btn-primary" onclick="addInsumo()">+ Agregar insumo</button>
-        <button class="btn btn-primary" title="Más opciones" onclick="mpMenuAbrir(this,[{icon:'💲',label:'Actualizar precios desde lista de proveedor',accion:()=>document.getElementById('ins-lista-file').click()}])">▾</button>
+        <button class="btn btn-primary" title="Más opciones" onclick="mpMenuAbrir(this,[{icon:'🧾',label:'Cargar precios desde factura (PDF)',accion:()=>document.getElementById('ins-factura-file').click()},{icon:'💲',label:'Actualizar precios desde lista de proveedor',accion:()=>document.getElementById('ins-lista-file').click()}])">▾</button>
       </div>
       <input type="file" id="ins-lista-file" accept=".xlsx,.xls" style="display:none" onchange="handleListaPrecios(event)">
+      <input type="file" id="ins-factura-file" accept=".pdf,application/pdf" style="display:none" onchange="handleFactura(event)">
     </div>
     <div class="tw tw-scroll"><table class="ins-tabla">
       <thead><tr><th style="cursor:pointer;user-select:none" onclick="insOrdenar('nombre')" title="Ordenar">Nombre <span class="ins-flecha" data-col="nombre"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('formato')" title="Ordenar">Formato <span class="ins-flecha" data-col="formato"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('precio')" title="Ordenar">$ Formato <span class="ins-flecha" data-col="precio"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('kg')" title="Ordenar">Kg/Formato <span class="ins-flecha" data-col="kg"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('pk')" title="Ordenar">$ / kg <span class="ins-flecha" data-col="pk"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('act')" title="Ordenar">Actualizado <span class="ins-flecha" data-col="act"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('prov')" title="Ordenar">Proveedor <span class="ins-flecha" data-col="prov"></span></th><th></th></tr></thead>
@@ -3125,7 +3127,7 @@ function insVerHistorial(id){
   const filas=h.map((p,i)=>{ const ant=i?h[i-1].c:null, v=ant?((p.c-ant)/ant*100):null;
     return `<tr><td>${fFecha(p.t)}</td><td class="num">${fmt(p.c)}</td>
       <td class="num" style="color:${v===null?'var(--text3)':v>0?'var(--red)':'var(--green)'}">${v===null?'—':(v>=0?'+':'')+fmtN(v,1)+'%'}</td>
-      <td style="font-size:11px;color:var(--text3)">${escH(p.o==='a mano'?'✎ a mano':'✓ lista: '+p.o)}</td></tr>`; }).reverse().join('');
+      <td style="font-size:11px;color:var(--text3)">${escH(p.o==='a mano'?'✎ a mano':/^factura/.test(p.o)?'🧾 '+p.o:'✓ lista: '+p.o)}</td></tr>`; }).reverse().join('');
   mpModalGen('📈 Historial de precios · '+escH(x.nombre), `
     <div class="hist-resumen">
       <div>Precio actual<b>${fmt(ultimo)} / kg</b></div>
@@ -3305,6 +3307,258 @@ function lpCandidatos(ins,filas){
 function lpFormatoTexto(f){
   return (f.cant&&f.cant.porKilo ? 'x kg · '+f.nombre : f.nombre).toLowerCase();
 }
+// ── Cargar precios desde una FACTURA (PDF electrónico) ──────────────────
+// 1) Lee el texto del PDF (pdf.js) y lo arma en renglones por posición.
+// 2) Toma los renglones de productos (texto + números) y saca cantidad,
+//    precio unitario efectivo (subtotal ÷ cantidad, ya con bonificación) y
+//    alícuota de IVA si aparece.
+// 3) Busca el insumo equivalente: primero por equivalencias ya confirmadas
+//    (`alias_factura` en el insumo), después con el mismo buscador de las
+//    listas de proveedor (lpTokens/lpTokMatch/LP_ABREV).
+// 4) Todo SIN IVA: Factura A ya viene sin IVA; B/C se divide por 1+alícuota
+//    (21% por defecto, 10,5% si el renglón lo dice). Se puede cambiar.
+// 5) Nada se guarda sin confirmar: pantalla de revisión, se aplica lo tildado
+//    y se recuerdan las equivalencias para la próxima.
+let _fac=null; // {archivo, tipo, conIva, filas:[...]}
+function facNum(t){ // "1.234,56" / "1234,56" / "10,00" / "3" → número
+  t=String(t).replace(/[$\s]/g,'');
+  if(!/^-?\d{1,3}(\.\d{3})*(,\d+)?$|^-?\d+(,\d+)?$|^-?\d+\.\d{1,2}$/.test(t)) return null;
+  if(t.includes(',')) t=t.replace(/\./g,'').replace(',','.');
+  else if(/^\d{1,3}(\.\d{3})+$/.test(t)) t=t.replace(/\./g,'');
+  const n=parseFloat(t); return isNaN(n)?null:n;
+}
+async function facLeerRenglones(file){
+  const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+  const renglones=[];
+  for(let pg=1;pg<=pdf.numPages;pg++){
+    const page=await pdf.getPage(pg), tc=await page.getTextContent();
+    const items=tc.items.filter(i=>String(i.str).trim()).map(i=>({s:String(i.str).trim(),x:i.transform[4],y:Math.round(i.transform[5])}));
+    const grupos=[];
+    items.sort((a,b)=>b.y-a.y||a.x-b.x).forEach(it=>{
+      const g=grupos.find(g=>Math.abs(g.y-it.y)<=3); if(g) g.items.push(it); else grupos.push({y:it.y,items:[it]});
+    });
+    grupos.forEach(g=>renglones.push(g.items.sort((a,b)=>a.x-b.x).map(i=>i.s)));
+  }
+  return renglones;
+}
+const FAC_NO_ITEM=/CUIT|TOTAL|SUBTOTAL|IMPORTE|I\.?V\.?A\.? ?(INSCRIPTO|RESP|\d)|FECHA|PUNTO DE VENTA|COMP\.? ?NRO|COMPROBANTE|CAE|INGRESOS BRUTOS|DOMICILIO|CONDICI|RAZ[OÓ]N SOCIAL|PERCEPC|TRIBUTO|P[AÁ]GINA|VENCIMIENTO|INICIO DE ACT|CODIGO|CÓDIGO|DESCRIPCI|PRECIO UNIT|BONIF|ORIGINAL|DUPLICADO|TELEF|E-?MAIL|CBU|SON PESOS/i;
+function facParsear(renglones){
+  const todo=renglones.map(r=>r.join(' ')).join('\n').toUpperCase();
+  let tipo='';
+  const m=todo.match(/FACTURA\s*[:\-]?\s*([ABC])\b/)||todo.match(/\b([ABC])\s*COD\.?\s*0?(01|06|11)\b/);
+  if(m) tipo=m[1]; else if(/COD\.?\s*0?01\b/.test(todo)) tipo='A'; else if(/COD\.?\s*0?06\b/.test(todo)) tipo='B'; else if(/COD\.?\s*0?11\b/.test(todo)) tipo='C';
+  const filas=[];
+  renglones.forEach(celdas=>{
+    const linea=celdas.join(' ');
+    if(FAC_NO_ITEM.test(linea)) return;
+    const nums=[], texto=[]; let alic=null, unidad='';
+    celdas.forEach(c=>c.split(/\s{2,}/).forEach(tok=>{
+      const t=tok.trim(); if(!t) return;
+      const pct=t.match(/^(21|10[.,]5|27|0)\s*%$/); if(pct){ alic=parseFloat(pct[1].replace(',','.')); return; }
+      const n=facNum(t);
+      if(n!==null){ nums.push(n); return; }
+      if(/^(KG|KGS|KILO|KILOS|KILOGRAMO|KILOGRAMOS|UN|UNI|UNID|UNIDAD|UNIDADES|U|LT|LTS|LITRO|LITROS|BOLSA|CAJA|BULTO)\.?$/i.test(t)){ unidad=t.toUpperCase(); return; }
+      if(/[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}/.test(t)) texto.push(t);
+    }));
+    if(!texto.length||nums.length<2) return;
+    // alícuota suelta como número (21,00 / 10,50) entre los importes
+    const nn=nums.filter(n=>{ if(alic===null&&(n===21||n===10.5)&&nums.length>3){ alic=n; return false; } return true; });
+    // cantidad × precio ≈ subtotal (tolerancia 2%; con bonificación, subtotal menor)
+    let q=null, pu=null, sub=null;
+    for(let i=0;i<nn.length&&q===null;i++) for(let j=i+1;j<nn.length&&q===null;j++) for(let k=j+1;k<nn.length;k++){
+      const a=nn[i],b=nn[j],c=nn[k];
+      if(a>0&&a<100000&&b>0&&c>0&&a*b>=c*0.98&&a*b<=c*1.02+0.01){ q=a; pu=b; sub=c; break; }
+      if(a>0&&a<100000&&b>0&&c>0&&c<a*b&&c>a*b*0.5&&nn.slice(j+1,k).some(x=>x>0&&x<100&&Math.abs(a*b*(1-x/100)-c)<=c*0.02+0.01)){ q=a; pu=b; sub=c; break; }
+    }
+    if(q===null){ q=nn[0]; sub=nn[nn.length-1]; pu=q>0?sub/q:sub; }
+    if(!(q>0)||!(sub>0)) return;
+    const desc=texto.join(' ').replace(/\s+/g,' ').trim();
+    filas.push({desc,q,unidad,puFactura:Math.round(sub/q*100)/100,alic});
+  });
+  return {tipo,filas};
+}
+function facNormDesc(d){ return lpNorm(d).replace(/\b\d+(\.\d+)?\b/g,'').replace(/\s+/g,' ').trim(); }
+// Insumo equivalente: alias confirmado → si no, el insumo con más palabras
+// en común (todas las del insumo tienen que estar en el renglón).
+function facBuscarInsumo(desc){
+  const nd=facNormDesc(desc);
+  const porAlias=DB.insumos.find(x=>Array.isArray(x.alias_factura)&&x.alias_factura.includes(nd));
+  if(porAlias) return {ins:porAlias,seguro:true};
+  const toks=lpTokens(desc), head=toks[0]||'';
+  let mejor=null, puntos=0, empate=false;
+  DB.insumos.forEach(x=>{
+    const it=lpTokens(x.nombre); if(!it.length) return;
+    if(!it.every(t=>toks.some(y=>lpTokMatch(t,y)))) return;
+    if(toks.some(y=>LP_VARIANTES.has(y)&&!it.includes(y))) return;
+    const p=it.length*10+(lpTokMatch(it[0],head)?5:0);
+    if(p>puntos){ mejor=x; puntos=p; empate=false; } else if(p===puntos) empate=true;
+  });
+  return mejor?{ins:mejor,seguro:!empate&&lpTokMatch(lpTokens(mejor.nombre)[0],head)}:{ins:null,seguro:false};
+}
+async function handleFactura(e){
+  const file=e.target.files[0]; e.target.value=''; if(!file) return;
+  if(!window.pdfjsLib){ alert('No se pudo cargar el lector de PDF. Revisá la conexión y probá de nuevo.'); return; }
+  try{
+    const {tipo,filas}=facParsear(await facLeerRenglones(file));
+    if(!filas.length){ alert('No encontré renglones de productos en esa factura.\n\nTiene que ser el PDF electrónico (el que manda el proveedor), no una foto o escaneo.'); return; }
+    const conIva=tipo!=='A';
+    _fac={archivo:file.name,tipo,conIva,filas:filas.map((f,i)=>{
+      const {ins,seguro}=facBuscarInsumo(f.desc);
+      const cant=lpCantidad(f.desc,'',f.unidad);
+      const porKilo=/^(KG|KGS|KILO|KILOS)/.test(f.unidad);
+      const kg=porKilo?1:(cant&&cant.base!=='u'?Math.round(cant.q*1000)/1000:(ins?parseFloat(ins.formato_kg)||1:1));
+      return {i,...f,ins:ins?ins._id:null,seguro,kg,iva:conIva?(f.alic===10.5?10.5:21):0,ok:!!ins};
+    })};
+    // Cambios de más de 40% vienen destildados: hay que confirmarlos a propósito.
+    _fac.filas.forEach(f=>{ const c=facCalc(f); if(c.var!==null&&Math.abs(c.var)>40) f.ok=false; });
+    facRender();
+  }catch(err){ console.error(err); alert('No pude leer la factura: '+err.message); }
+}
+function facCalc(f){
+  const neto=f.puFactura/(1+(f.iva||0)/100);
+  const pk=f.kg>0?neto/f.kg:neto;
+  const ins=DB.insumos.find(x=>x._id===f.ins);
+  const viejo=ins?parseFloat(ins.costo)||0:0;
+  return {neto,pk,viejo,var:viejo>0?(pk/viejo-1)*100:null};
+}
+function facRender(){
+  if(!_fac) return;
+  const ivaOps=v=>[[0,'Sin IVA'],[21,'21%'],[10.5,'10,5%']].map(([n,l])=>`<option value="${n}"${v===n?' selected':''}>${l}</option>`).join('');
+  const filas=_fac.filas.map(f=>{
+    const c=facCalc(f), ins=DB.insumos.find(x=>x._id===f.ins);
+    const alerta=c.var!==null&&Math.abs(c.var)>40;
+    return `<tr style="${!f.ins?'opacity:.6':''}${alerta?';background:rgba(192,57,43,.06)':(!f.seguro&&f.ins?';background:rgba(200,169,81,.12)':'')}">
+      <td><input type="checkbox" ${f.ok?'checked':''} ${f.ins?'':'disabled'} onchange="_fac.filas[${f.i}].ok=this.checked;facRender()"></td>
+      <td style="font-size:11.5px;max-width:230px">${escH(f.desc)}<span style="display:block;color:var(--text3);font-size:10.5px">${fmtN(f.q,2)} ${escH(f.unidad||'')} × ${fmt(f.puFactura)}</span></td>
+      <td style="min-width:190px"><input class="dd-input" id="fac-ins${f.i}" type="text" placeholder="Elegí el insumo…" style="width:100%;font-size:12px" value="${escH(ins?ins.nombre:'')}">
+        ${f.ins&&!f.seguro?'<span style="font-size:10px;color:#8a6800">⚠ revisá la equivalencia</span>':''}</td>
+      <td class="num"><input type="text" inputmode="decimal" value="${kgTexto(f.kg)}" style="width:62px;text-align:right;font-size:12px" onchange="_fac.filas[${f.i}].kg=parseKgCampo(this.value);facRender()"></td>
+      <td><select style="font-size:12px" onchange="_fac.filas[${f.i}].iva=parseFloat(this.value);facRender()">${ivaOps(f.iva)}</select></td>
+      <td class="num">${fmt(c.neto)}</td>
+      <td class="num" style="font-weight:700">${fmt(c.pk)}</td>
+      <td class="num" style="color:var(--text3)">${c.viejo?fmt(c.viejo):'—'}</td>
+      <td class="num" style="font-weight:600;color:${c.var===null?'var(--text3)':alerta?'var(--red)':c.var>0?'#b5651d':'var(--green)'}">${c.var===null?'—':(c.var>=0?'+':'')+fmtN(c.var,1)+'%'}</td>
+    </tr>`;
+  }).join('');
+  const n=_fac.filas.filter(f=>f.ok&&f.ins).length;
+  const html=`
+    <div style="display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:12px;color:var(--text3);margin-bottom:12px">
+      <span>📄 <b style="color:var(--text)">${escH(_fac.archivo)}</b></span>
+      <span>Tipo: <b style="color:var(--text)">${_fac.tipo?'Factura '+_fac.tipo:'no detectado'}</b></span>
+      <span>Los precios de la factura vienen
+        <select style="font-size:12px" onchange="facSetConIva(this.value==='1')"><option value="1"${_fac.conIva?' selected':''}>con IVA (B / C)</option><option value="0"${!_fac.conIva?' selected':''}>sin IVA (A)</option></select></span>
+    </div>
+    <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">Todo se guarda <b>sin IVA</b>. Revisá cada renglón: el insumo, los <b>kg por unidad</b> y el IVA. Amarillo = equivalencia dudosa · rojo = el precio cambia más de 40%. Lo que no tenga insumo no se aplica.</div>
+    <div class="tw"><table style="font-size:12px"><thead><tr><th></th><th>Renglón de la factura</th><th>Insumo</th><th class="num">Kg x unidad</th><th>IVA</th><th class="num">$ unit. sin IVA</th><th class="num">$/kg nuevo</th><th class="num">$/kg actual</th><th class="num">Var.</th></tr></thead>
+    <tbody>${filas}</tbody></table></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+      <button class="btn btn-outline" onclick="mpCerrarModalGen();_fac=null">Cancelar</button>
+      <button class="btn btn-primary" ${n?'':'disabled'} onclick="facAplicar()">✓ Actualizar ${n} precio${n===1?'':'s'}</button>
+    </div>`;
+  const abierto=document.querySelector('#mp-modal-gen .modal>div:last-child');
+  if(abierto&&document.getElementById('mp-modal-gen').dataset.fac==='1'){ abierto.innerHTML=html; }
+  else { mpModalGen('🧾 Precios desde factura',html,1250); document.getElementById('mp-modal-gen').dataset.fac='1'; }
+  _fac.filas.forEach(f=>{
+    const inp=document.getElementById('fac-ins'+f.i); if(!inp) return;
+    attachDD(inp,()=>insOpts().map(o=>({val:String(DB.insumos.find(x=>x.key===o.val)?._id),label:o.label})),()=>f.ins?String(f.ins):'',
+      val=>{ const id=Number(val); f.ins=id; f.seguro=true; f.ok=true;
+        const ins=DB.insumos.find(x=>x._id===id);
+        if(ins&&!/^(KG|KGS|KILO|KILOS)/.test(f.unidad)&&!lpCantidad(f.desc,'',f.unidad)) f.kg=parseFloat(ins.formato_kg)||1;
+        setTimeout(facRender,0); });
+  });
+}
+function facSetConIva(v){ _fac.conIva=v; _fac.filas.forEach(f=>{ f.iva=v?(f.alic===10.5?10.5:21):0; }); facRender(); }
+function facAplicar(){
+  if(!_fac) return;
+  const aplicar=_fac.filas.filter(f=>f.ok&&f.ins);
+  if(!aplicar.length) return;
+  const fecha=new Date().toISOString(), fuente='factura: '+_fac.archivo;
+  _recetasDiferidas={subs:new Set(), platos:new Set()};
+  const guardar=[];
+  try{
+    aplicar.forEach(f=>{
+      const x=DB.insumos.find(i=>i._id===f.ins); if(!x) return;
+      const c=facCalc(f);
+      insHistSemilla(x);
+      x.precio_formato=Math.round(c.neto*100)/100; x.formato_kg=f.kg; x.costo=c.pk;
+      x.formato=f.desc.toLowerCase();
+      x.precio_actualizado=fecha; x.precio_fuente=fuente; x.precio_producto=f.desc;
+      const nd=facNormDesc(f.desc);
+      x.alias_factura=[...new Set([...(Array.isArray(x.alias_factura)?x.alias_factura:[]),nd])];
+      insHistRegistrar(x);
+      guardar.push(x);
+      recalcularRecetasPorInsumo(x.key,false);
+    });
+  } finally {
+    var subs=[..._recetasDiferidas.subs], platos=[..._recetasDiferidas.platos];
+    _recetasDiferidas=null;
+  }
+  mpCerrarModalGen(); _fac=null;
+  renderInsumos(); _repintarRecetasTrasRecalculo();
+  (async ()=>{
+    const ahora=new Date().toISOString();
+    for(let i=0;i<guardar.length;i+=400){
+      const lote=fbDb.batch();
+      guardar.slice(i,i+400).forEach(x=>{ const {_id,...datos}=x; lote.set(FB_COL_INSUMOS.doc(String(_id)),{...datos,updated_at:ahora}); });
+      await lote.commit();
+    }
+    const recetas=[...subs.map(n=>['sub',n]), ...platos.map(n=>['plato',n])];
+    for(let i=0;i<recetas.length;i+=50){
+      const lote=fbDb.batch();
+      recetas.slice(i,i+50).forEach(([tipo,nombre])=>{
+        if(tipo==='sub'){
+          const componentes=DB.subproductos.filter(x=>x.subproducto===nombre).map(({subproducto,_id,...resto})=>resto);
+          lote.set(FB_COL_SUBPRODUCTOS.doc(nombreDocSeguro(nombre)),{nombre,componentes,config:DB.subs_config[nombre]||{},updated_at:ahora});
+        }else{
+          const componentes=DB.recetas_platos.filter(x=>x.plato===nombre).map(({plato,_id,...resto})=>resto);
+          lote.set(FB_COL_PLATOS.doc(nombreDocSeguro(nombre)),{nombre,componentes,config:DB.platos_config[nombre]||{},updated_at:ahora});
+        }
+      });
+      await lote.commit();
+    }
+    marcarSincronizado();
+    showAlert('upload-alert','success','✓ Se actualizaron '+guardar.length+' precios desde la factura (sin IVA).');
+  })().catch(e=>{ marcarErrorSincronizacion(e); console.error('Error al guardar precios de factura:',e); alert('No se pudieron guardar los precios: '+e.message); });
+}
+
+// ── Herramienta escondida (⚙ del encabezado): eliminar insumos sin uso ──
+// Muestra la lista, descarga un respaldo en Excel y borra recién al confirmar.
+function insSinUsoAbrir(){
+  document.getElementById('header-settings-menu')?.classList.remove('open');
+  const usados=new Set([...DB.subproductos.map(r=>r.componente),...DB.recetas_platos.map(r=>r.componente)]);
+  const lista=DB.insumos.filter(x=>!usados.has(x.key)).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),'es'));
+  if(!DB.subproductos.length&&!DB.recetas_platos.length){ alert('Todavía no se cargaron las recetas. Esperá unos segundos y probá de nuevo.'); return; }
+  if(!lista.length){ mpModalGen('🧹 Insumos sin uso','<div class="empty">Todos los insumos se usan en alguna receta.</div>',520); return; }
+  mpModalGen('🧹 Eliminar insumos sin uso', `
+    <div style="font-size:13px;margin-bottom:10px">Hay <b>${lista.length}</b> insumos (de ${DB.insumos.length}) que no se usan en ningún subproducto ni plato. Si tienen conteos de Stock, esos conteos quedan sin nombre.</div>
+    <div style="max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12.5px;columns:2;column-gap:24px">
+      ${lista.map(x=>`<div style="padding:3px 0;break-inside:avoid">${escH(x.nombre)}</div>`).join('')}</div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+      <button class="btn btn-outline" onclick="mpCerrarModalGen()">Cancelar</button>
+      <button class="btn btn-danger" style="padding:8px 16px" onclick="insSinUsoEliminar()">⬇ Descargar respaldo y eliminar ${lista.length}</button>
+    </div>`, 760);
+}
+async function insSinUsoEliminar(){
+  const usados=new Set([...DB.subproductos.map(r=>r.componente),...DB.recetas_platos.map(r=>r.componente)]);
+  const lista=DB.insumos.filter(x=>!usados.has(x.key));
+  if(!lista.length) return;
+  if(!confirm('¿Eliminar definitivamente '+lista.length+' insumos?\n\nAntes se descarga un Excel de respaldo.')) return;
+  try{
+    const filas=lista.map(x=>({Nombre:x.nombre,Key:x.key,Formato:x.formato||'','$ Formato':x.precio_formato||0,'Kg/Formato':x.formato_kg||0,'$ / kg':x.costo||0,Proveedor:x.proveedor||'','Actualizado':x.precio_actualizado||'',Id:x._id}));
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(filas),'Insumos eliminados');
+    XLSX.writeFile(wb,'Respaldo_insumos_sin_uso_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  }catch(e){ if(!confirm('No se pudo descargar el respaldo ('+e.message+').\n¿Eliminar igual?')) return; }
+  try{
+    for(let i=0;i<lista.length;i+=400){
+      const lote=fbDb.batch();
+      lista.slice(i,i+400).forEach(x=>lote.delete(FB_COL_INSUMOS.doc(String(x._id))));
+      await lote.commit();
+    }
+    mpCerrarModalGen(); marcarSincronizado();
+    showAlert('upload-alert','success','Se eliminaron '+lista.length+' insumos sin uso.');
+  }catch(e){ marcarErrorSincronizacion(e); alert('Error al eliminar: '+e.message); }
+}
+
 // Flujo: al cargar la lista, los insumos con coincidencia segura se
 // actualizan y guardan solos; en el modal quedan arriba solo los dudosos
 // (amarillo = parecido dudoso, rojo = el $/kg cambia más de 40%) para
