@@ -404,6 +404,9 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   background:var(--surface2);border:1px solid var(--border);
   border-radius:var(--radius);padding:2px 16px;
 }
+.mp-tot-row td{font-size:11px!important;color:var(--text2);font-weight:600;background:var(--surface2);border-top:1px solid var(--border)}
+.mp-tot{font-size:11px;color:var(--text3);margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 14px}
+.mp-tot b{color:var(--text2);font-weight:600}
 .cost-summary-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0}
 .cost-summary-row+.cost-summary-row{border-top:1px dashed var(--border)}
 .cost-summary-row .csr-label{font-size:12px;color:var(--text2);font-weight:600}
@@ -578,6 +581,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <thead><tr><th style="cursor:pointer;user-select:none" onclick="insOrdenar('key')" title="Ordenar">Key interna <span class="ins-flecha" data-col="key"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('nombre')" title="Ordenar">Nombre <span class="ins-flecha" data-col="nombre"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('formato')" title="Ordenar">Formato <span class="ins-flecha" data-col="formato"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('precio')" title="Ordenar">$ Formato <span class="ins-flecha" data-col="precio"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('kg')" title="Ordenar">Kg/Formato <span class="ins-flecha" data-col="kg"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('pk')" title="Ordenar">$ / kg <span class="ins-flecha" data-col="pk"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('act')" title="Ordenar">Actualizado <span class="ins-flecha" data-col="act"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('prov')" title="Ordenar">Proveedor <span class="ins-flecha" data-col="prov"></span></th><th></th></tr></thead>
       <tbody id="ins-tbody"></tbody>
     </table></div>
+    <div id="ins-tot" class="mp-tot"></div>
     <div class="pag" id="ins-pag"></div>
   </div>
 </div>
@@ -598,6 +602,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <button class="btn btn-primary" onclick="abrirModalSub(null)">+ Nuevo Subproducto</button>
     </div>
     <div id="sub-alert" class="alert"></div>
+    <div id="sub-tot" class="mp-tot" style="margin:0 0 10px"></div>
     <div id="sub-list"></div>
     <label class="btn btn-primary mp-fab-excel" style="cursor:pointer" title="Cargar recetas desde Excel">
       📊 Cargar desde Excel
@@ -622,6 +627,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <button class="btn btn-primary" onclick="abrirModalPlato(null)">+ Nuevo Plato</button>
     </div>
     <div id="plato-alert" class="alert"></div>
+    <div id="plato-tot" class="mp-tot" style="margin:0 0 10px"></div>
     <div id="plato-list"></div>
     <label class="btn btn-primary mp-fab-excel" style="cursor:pointer" title="Cargar recetas desde Excel">
       📊 Cargar desde Excel
@@ -1225,7 +1231,9 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
               <th></th>
             </tr></thead>
             <tbody id="sub-items-tbody"></tbody>
+            <tfoot id="sub-items-tfoot"></tfoot>
           </table></div>
+          <div id="sub-tot-bar" class="mp-tot"></div>
           <button class="btn btn-outline" style="margin-top:10px;font-size:11px" onclick="addSubItem()">+ Agregar componente</button>
         </div>
 
@@ -1339,7 +1347,9 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
               <th></th>
             </tr></thead>
             <tbody id="plato-items-tbody"></tbody>
+            <tfoot id="plato-items-tfoot"></tfoot>
           </table></div>
+          <div id="plato-tot-bar" class="mp-tot"></div>
           <button class="btn btn-outline" style="margin-top:10px;font-size:11px" onclick="addPlatoItem()">+ Agregar componente</button>
         </div>
 
@@ -2848,6 +2858,13 @@ function renderInsumos(){
     el.style.color=el.dataset.col===insOrden.col?'var(--green)':'var(--text3)';
   });
   document.getElementById('ins-count').textContent=f.length;
+  const insTot=document.getElementById('ins-tot');
+  if(insTot){
+    const sinPrecio=DB.insumos.filter(x=>!(parseFloat(x.costo)>0)).length;
+    const deLista=DB.insumos.filter(x=>x.precio_fuente).length;
+    insTot.innerHTML=`<span><b>${DB.insumos.length}</b> insumos</span>`+(f.length!==DB.insumos.length?`<span>Mostrando <b>${f.length}</b></span>`:'')+
+      `<span>Sin precio <b${sinPrecio?' style="color:var(--red)"':''}>${sinPrecio}</b></span><span>Precio desde lista de proveedor <b>${deLista}</b></span>`;
+  }
   const pages=Math.ceil(f.length/INS_PER)||1;
   if(insPage>=pages)insPage=0;
   const sl=f.slice(insPage*INS_PER,(insPage+1)*INS_PER);
@@ -3861,6 +3878,40 @@ function rendUpdate(tipo){
   rendUpdateCosto(tipo);
 }
 
+// Totalizadores discretos: fila "Total" al pie de la tabla de ingredientes y
+// una línea chica de resumen (costo, merma general, porciones, por porción).
+// rows: [{kgs, merma, costo}]. Se usa en los modales y en la vista Lista.
+function _totReceta(rows){
+  return rows.reduce((t,r)=>{
+    const neto=parseFloat(r.kgs)||0;
+    t.n++; t.neto+=neto; t.bruto+=calcMerma(neto,parseFloat(r.merma)||0,0).kgBruto; t.costo+=parseFloat(r.costo)||0;
+    return t;
+  },{n:0,neto:0,bruto:0,costo:0});
+}
+function _totFilaHtml(t,colsAntes,conBorrar){
+  return `<tr class="mp-tot-row"><td${colsAntes>1?` colspan="${colsAntes}"`:''}>Total · ${t.n} ingrediente${t.n===1?'':'s'}</td>`+
+    `<td class="num">${fmtN(t.neto,3)} kg</td><td></td><td class="num">${fmtN(t.bruto,3)} kg</td><td></td>`+
+    `<td class="num">${fmt(t.costo)}</td>${conBorrar?'<td></td>':''}</tr>`;
+}
+function _totBarraHtml(costo,mermaGral,porciones,unidadLbl){
+  const conMerma=costo*(1+(mermaGral||0)/100);
+  const partes=[`Costo ingredientes <b>${fmt(costo)}</b>`];
+  if(mermaGral>0) partes.push(`Merma general ${fmtN(mermaGral,1)}% → <b>${fmt(conMerma)}</b>`);
+  partes.push(porciones>0?`Rinde <b>${fmtN(porciones,2)}</b> ${unidadLbl||'porciones'}`:'Rinde <b>—</b>');
+  partes.push(`Por porción <b>${porciones>0?fmt(conMerma/porciones):'—'}</b>`);
+  return partes.map(x=>`<span>${x}</span>`).join('');
+}
+function _totModal(tipo){
+  const items=_rendItems(tipo).filter(x=>x.comp||parseFloat(x.kgs));
+  const pre=tipo==='sub'?'sub':'plato';
+  const tf=document.getElementById(pre+'-items-tfoot'), bar=document.getElementById(pre+'-tot-bar');
+  if(!tf||!bar) return;
+  const t=_totReceta(items.map(x=>({kgs:x.kgs,merma:x.merma,costo:x.cr})));
+  tf.innerHTML=items.length?_totFilaHtml(t,tipo==='sub'?1:2,true):'';
+  const st=_rendState(tipo);
+  bar.innerHTML=items.length?_totBarraHtml(t.costo,st.merma,st.calcUnidades||0,UNIDAD_LABELS[st.tipo_unidad]):'';
+}
+
 function rendUpdateCosto(tipo){
   const st=_rendState(tipo);
   const ids=_rendIds(tipo);
@@ -3871,6 +3922,7 @@ function rendUpdateCosto(tipo){
   const costoConMerma=costoSinMerma*(1+merma/100);
   const unidades=st.calcUnidades||0;
   const costoUnitario=unidades>0?costoConMerma/unidades:0;
+  _totModal(tipo);
   const summaryEl=document.getElementById(ids.summary);
   if(!summaryEl)return;
   summaryEl.innerHTML=
@@ -4195,7 +4247,9 @@ function _renderListaRecetas(tipo,nombres){
           <td class="num">${fmt(r.precio_kg)}</td>
           <td class="num" style="color:var(--green);font-weight:600">${fmt(r.costo_receta)}</td>
         </tr>`}).join('')}</tbody>
+        <tfoot>${_totFilaHtml(_totReceta(d.rows.map(r=>({kgs:r.kgs,merma:r.merma,costo:r.costo_receta}))),1,false)}</tfoot>
       </table></div>
+      <div class="mp-tot">${_totBarraHtml(d.total,parseFloat(d.cfg.merma_receta)||0,d.porciones,UNIDAD_LABELS[d.cfg.tipo_unidad])}</div>
     </div>`;
   }).join('');
 }
@@ -4335,11 +4389,25 @@ function _guardarSubReal(nombre){
   renderCosteoTable();
 }
 
+// Línea de resumen de una pestaña de recetas: cantidad, incompletas, costo
+// por porción promedio (de las que tienen porciones cargadas).
+function _totPestanaRecetas(tipo,todos,mostrados){
+  const el=document.getElementById(tipo+'-tot'); if(!el) return;
+  const datos=todos.map(n=>_recetaViewData(tipo,n));
+  const conPorc=datos.filter(d=>d.porciones>0);
+  const promedio=conPorc.length?conPorc.reduce((s,d)=>s+d.total*(1+(parseFloat(d.cfg.merma_receta)||0)/100)/d.porciones,0)/conPorc.length:0;
+  const incompletas=datos.filter(d=>d.faltantes.length).length;
+  el.innerHTML=`<span><b>${todos.length}</b> ${tipo==='sub'?'subproductos':'platos'}</span>`+
+    (mostrados!==todos.length?`<span>Mostrando <b>${mostrados}</b></span>`:'')+
+    `<span>Con datos faltantes <b${incompletas?' style="color:var(--red)"':''}>${incompletas}</b></span>`+
+    `<span>Costo promedio por porción <b>${conPorc.length?fmt(promedio):'—'}</b></span>`;
+}
 function renderSubproductos(){
   _mpUpdateVbarTop();
   const q=document.getElementById('sub-search').value.trim();
   const subs=_filtrarRecetasPorBusqueda('sub',[...new Set(DB.subproductos.map(x=>x.subproducto))],q);
   const c=document.getElementById('sub-list');
+  _totPestanaRecetas('sub',[...new Set(DB.subproductos.map(x=>x.subproducto))],subs.length);
   if(!subs.length){c.innerHTML='<div class="empty">Sin subproductos.</div>';return;}
   const vista=_subVista;
   c.innerHTML = vista==='cards'?_renderCardsRecetas('sub',subs)
@@ -4573,6 +4641,7 @@ function renderPlatos(){
   const q=document.getElementById('plato-search').value.trim();
   const platos=_filtrarRecetasPorBusqueda('plato',[...new Set(DB.recetas_platos.map(x=>x.plato))],q);
   const c=document.getElementById('plato-list');
+  _totPestanaRecetas('plato',[...new Set(DB.recetas_platos.map(x=>x.plato))],platos.length);
   if(!platos.length){c.innerHTML='<div class="empty">Sin platos.</div>';return;}
   const vista=_platoVista;
   c.innerHTML = vista==='cards'?_renderCardsRecetas('plato',platos)
@@ -5309,8 +5378,7 @@ function toggleCDet(id){
       <td class="num">${fmt(r.precio_kg)}</td>
       <td class="num" style="color:var(--green);font-weight:600">${fmt(r.costo_receta)}</td>
     </tr>`}).join('')}
-    <tr class="total-row"><td colspan="5" style="text-align:right">TOTAL RECETA:</td>
-      <td class="num">${fmt(rows.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0))}</td></tr>
+    ${_totFilaHtml(_totReceta(rows.map(r=>({kgs:r.kgs,merma:r.merma,costo:r.costo_receta}))),1,false)}
     </tbody></table></div>`;
   document.getElementById('costeo-det-wrap').appendChild(div);
 }
