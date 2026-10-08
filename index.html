@@ -4341,7 +4341,6 @@ function _guardarSubReal(nombre){
   if(editSubOld&&editSubOld!==nombre)delete DB.procedimientos[editSubOld];
   DB.procedimientos[nombre]=leerProcList('sub');
   ddClose();cerrarModal('modal-sub');renderSubproductos();renderMaestros();renderMaestros();
-  showAlert('sub-alert','success','Subproducto "'+nombre.replace('SUB - ','')+'" guardado.');
   const seRenombroSub=editSubOld&&editSubOld!==nombre;
   if(seRenombroSub) eliminarSubproductoDoc(editSubOld);
   guardarSubproductoDoc(nombre);
@@ -4572,7 +4571,6 @@ function _guardarPlatoReal(nombre){
   if(editPlatoOld&&editPlatoOld!==nombre)delete DB.procedimientos[editPlatoOld];
   DB.procedimientos[nombre]=leerProcList('plato');
   ddClose();cerrarModal('modal-plato');renderPlatos();renderMaestros();renderMaestros();
-  showAlert('plato-alert','success','Plato "'+nombre.replace('PLATO - ','')+'" guardado.');
   const seRenombroPlato=editPlatoOld&&editPlatoOld!==nombre;
   if(seRenombroPlato) eliminarPlatoDoc(editPlatoOld);
   guardarPlatoDoc(nombre);
@@ -11774,7 +11772,13 @@ function presuDibujarPDF(d, modo){
   const marca=async()=>{
     try{
       const r=await fetch(location.pathname,{method:'HEAD',cache:'no-store'});
-      return r.ok ? (r.headers.get('etag')||r.headers.get('last-modified')||null) : null;
+      if(!r.ok) return null;
+      // Last-Modified primero (estable); el ETag puede venir con o sin "W/"
+      // según la compresión y daba avisos falsos.
+      const lm=r.headers.get('last-modified');
+      if(lm) return lm;
+      const et=r.headers.get('etag');
+      return et ? et.replace(/^W\//,'') : null;
     }catch(e){ return null; }
   };
   const revisar=async()=>{
