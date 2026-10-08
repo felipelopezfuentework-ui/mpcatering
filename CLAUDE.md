@@ -11,7 +11,7 @@ Usuario: dueño del negocio, no técnico. Hablar en español rioplatense, resúm
 - Al terminar: commit en español + `git push origin main` sin preguntar. Actualizar este archivo si cambia algo de lo que describe.
 
 ## UI
-- Botones agrupados con criterio: buscar a la vista; "⚙ Ver ▾" (mostrar/ordenar/vista); "+ Nuevo ▾" (split); acciones por fila = Editar + "⋯". Menú flotante compartido `mpMenuAbrir(btn, items|html)` (items `{icon,label,accion,peligro}` o `'-'`).
+- Botones agrupados con criterio: buscar a la vista; "⚙ Ver ▾" (mostrar/ordenar/vista); "+ Nuevo" (Excel queda como botón flotante); acciones por fila = Editar + "⋯"; un clic en la receta la abre (`recActivarClic`). Menú flotante compartido `mpMenuAbrir(btn, items|html)` (items `{icon,label,accion,peligro}` o `'-'`).
 - Transiciones: todo lo que aparece entra con fundido por CSS (`.content.active`, `.tabs`, header, modales); salidas de pantalla completa con `mpSalida(els, fn)` (selección de módulo → app, volver, salir); `cerrarModal` cierra con fundido (`.mp-cerrando`).
 
 ## Datos

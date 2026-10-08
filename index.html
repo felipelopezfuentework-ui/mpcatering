@@ -58,7 +58,8 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 #login-screen,#modulo-select-screen{animation:mpAparece .45s ease}
 .modal-ov.open{animation:mpAparece .22s ease}
 .modal-ov.open>.modal{animation:mpModal .38s cubic-bezier(.2,.9,.3,1.08)}
-.modal-ov.mp-cerrando{animation:mpSale .2s ease forwards}
+.modal-ov.mp-cerrando{display:flex;animation:mpSale .2s ease forwards;pointer-events:none}
+.modal-ov.open.mp-cerrando{animation:mpAparece .22s ease;pointer-events:auto}
 .mp-sale{animation:mpSale .26s ease forwards!important;pointer-events:none}
 @media (prefers-reduced-motion:reduce){.content.active,.tabs,#app-header,#login-screen,#modulo-select-screen,.modal-ov.open,.modal-ov.open>.modal{animation:none}}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
@@ -528,6 +529,9 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .mp-split>.btn:last-child{border-top-left-radius:0;border-bottom-left-radius:0;padding-left:10px;padding-right:10px;border-left:1px solid rgba(255,255,255,.3)}
 .mp-ver-btn{flex-shrink:0;white-space:nowrap}
 .mp-ver-badge{display:inline-block;background:var(--mp-gold);color:#fff;border-radius:10px;padding:0 6px;font-size:10px;margin-left:5px;line-height:16px}
+.rec-clic{cursor:pointer;transition:box-shadow .2s,transform .2s,background .2s}
+.card.rec-clic:hover{box-shadow:0 6px 20px rgba(61,26,82,.12);transform:translateY(-1px)}
+tr.rec-clic:hover td{background:var(--accent-light)}
 .mp-mas{padding:4px 10px!important;font-size:13px!important;line-height:1;font-weight:700}
 .mp-fab-excel{
   position:fixed;right:26px;bottom:26px;z-index:60;box-shadow:0 6px 20px rgba(30,10,46,.35);
@@ -786,14 +790,14 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div class="mp-vista-bar">
       <div class="sbox"><input type="text" id="sub-search" placeholder="Buscar por nombre o categoría…" oninput="renderSubproductos()"></div>
       <button type="button" class="btn btn-outline mp-ver-btn" id="sub-ver-btn" onclick="recVerAbrir(this,'sub')">⚙ Ver ▾</button>
-      <div class="mp-split">
-        <button class="btn btn-primary" onclick="abrirModalSub(null)">+ Nuevo subproducto</button>
-        <button class="btn btn-primary" title="Más formas de cargar" onclick="recNuevoMenu(this,'sub')">▾</button>
-      </div>
-      <input type="file" id="sub-import-file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event,'sub')">
+      <button class="btn btn-primary" style="flex-shrink:0" onclick="abrirModalSub(null)">+ Nuevo subproducto</button>
     </div>
     <div id="sub-alert" class="alert"></div>
     <div id="sub-list"></div>
+    <label class="btn btn-primary mp-fab-excel" style="cursor:pointer" title="Cargar recetas desde Excel">
+      📊 Cargar desde Excel
+      <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event,'sub')">
+    </label>
   </div>
 </div>
 
@@ -804,14 +808,14 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
     <div class="mp-vista-bar">
       <div class="sbox"><input type="text" id="plato-search" placeholder="Buscar por nombre o categoría…" oninput="renderPlatos()"></div>
       <button type="button" class="btn btn-outline mp-ver-btn" id="plato-ver-btn" onclick="recVerAbrir(this,'plato')">⚙ Ver ▾</button>
-      <div class="mp-split">
-        <button class="btn btn-primary" onclick="abrirModalPlato(null)">+ Nuevo plato</button>
-        <button class="btn btn-primary" title="Más formas de cargar" onclick="recNuevoMenu(this,'plato')">▾</button>
-      </div>
-      <input type="file" id="plato-import-file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event,'plato')">
+      <button class="btn btn-primary" style="flex-shrink:0" onclick="abrirModalPlato(null)">+ Nuevo plato</button>
     </div>
     <div id="plato-alert" class="alert"></div>
     <div id="plato-list"></div>
+    <label class="btn btn-primary mp-fab-excel" style="cursor:pointer" title="Cargar recetas desde Excel">
+      📊 Cargar desde Excel
+      <input type="file" accept=".xlsx" style="display:none" onchange="handleImportRecetasFile(event,'plato')">
+    </label>
   </div>
 </div>
 
@@ -4354,7 +4358,7 @@ function _renderListaRecetas(tipo,nombres){
   return nombres.map(nombre=>{
     const d=_recetaViewData(tipo,nombre);
     const pesoBadge=(tipo==='plato'&&d.cfg.peso_porcion)?`<span class="badge" style="background:rgba(92,45,110,.12);color:var(--mp-violet);font-size:10px">${d.cfg.peso_porcion}g/porción</span>`:'';
-    return `<div class="card" style="margin-bottom:12px">
+    return `<div class="card rec-clic" style="margin-bottom:12px" data-abrir-receta="${escH(nombre)}">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
         <span class="${meta.ghClass}" style="flex:1;min-width:0">${meta.emoji} ${escH(_nombreVisible(meta,nombre))}</span>
         ${_mpCategoriaBadge(d.categoria)}
@@ -4385,7 +4389,7 @@ function _renderCardsRecetas(tipo,nombres){
   const meta=_tipoMeta(tipo);
   return nombres.map(nombre=>{
     const d=_recetaViewData(tipo,nombre);
-    return `<div class="card" style="margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    return `<div class="card rec-clic" style="margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap" data-abrir-receta="${escH(nombre)}">
       <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span class="${meta.ghClass}">${meta.emoji} ${escH(_nombreVisible(meta,nombre))}</span>
         ${_mpCategoriaBadge(d.categoria)}
@@ -4402,7 +4406,7 @@ function _renderTablaRecetas(tipo,nombres){
   const meta=_tipoMeta(tipo);
   const rowsHtml=nombres.map(nombre=>{
     const d=_recetaViewData(tipo,nombre);
-    return `<tr class="mp-tabla-row">
+    return `<tr class="mp-tabla-row rec-clic" data-abrir-receta="${escH(nombre)}">
       <td><span style="font-weight:600">${escH(_nombreVisible(meta,nombre))}</span></td>
       <td>${d.categoria?escH(d.categoria):'—'}</td>
       <td class="num">${d.porciones>0?fmtN(d.porciones,2):'—'}</td>
@@ -4556,8 +4560,14 @@ function recVerSet(tipo,campo,valor){
   const el=document.getElementById('mp-menu'); if(el){ el.innerHTML=recVerHtml(tipo); mpMenuPosicionar(); }
 }
 function recVerAbrir(btn,tipo){ mpMenuAbrir(btn,recVerHtml(tipo)); }
-function recNuevoMenu(btn,tipo){
-  mpMenuAbrir(btn,[{icon:'📊',label:'Cargar recetas desde Excel',accion:()=>document.getElementById(tipo+'-import-file').click()}]);
+// Un clic en cualquier parte de la receta (card o fila) la abre, salvo que
+// se toque un botón, un enlace o un campo.
+function recActivarClic(cont,abrir){
+  cont.querySelectorAll('[data-abrir-receta]').forEach(el=>el.addEventListener('click',e=>{
+    if(e.target.closest('button,a,input,select,textarea,label,[contenteditable]')) return;
+    if(window.getSelection&&String(window.getSelection())) return; // estaba seleccionando texto
+    abrir(el.dataset.abrirReceta);
+  }));
 }
 function recMenuMas(btn,tipo){
   const n=btn.dataset.receta, meta=_tipoMeta(tipo);
@@ -4600,6 +4610,7 @@ function renderSubproductos(){
     : vista==='tabla'?_renderTablaRecetas('sub',subs)
     : _renderListaRecetas('sub',subs);
   c.querySelectorAll('[data-edit-sub]').forEach(b=>b.addEventListener('click',()=>abrirModalSub(b.dataset.editSub)));
+  recActivarClic(c,abrirModalSub);
   c.querySelectorAll('[data-del-sub]').forEach(b=>b.addEventListener('click',()=>delSub(b.dataset.delSub)));
   c.querySelectorAll('[data-pdf-sub]').forEach(b=>b.addEventListener('click',()=>descargarRecetaPDFPorNombre('sub',b.dataset.pdfSub)));
   c.querySelectorAll('[data-pasar-sub]').forEach(b=>b.addEventListener('click',()=>moverRecetaEntreListas('sub',b.dataset.pasarSub,'pasar')));
@@ -4848,6 +4859,7 @@ function renderPlatos(){
     : vista==='tabla'?_renderTablaRecetas('plato',platos)
     : _renderListaRecetas('plato',platos);
   c.querySelectorAll('[data-edit-plato]').forEach(b=>b.addEventListener('click',()=>abrirModalPlato(b.dataset.editPlato)));
+  recActivarClic(c,abrirModalPlato);
   c.querySelectorAll('[data-del-plato]').forEach(b=>b.addEventListener('click',()=>delPlato(b.dataset.delPlato)));
   c.querySelectorAll('[data-pdf-plato]').forEach(b=>b.addEventListener('click',()=>descargarRecetaPDFPorNombre('plato',b.dataset.pdfPlato)));
   c.querySelectorAll('[data-pasar-plato]').forEach(b=>b.addEventListener('click',()=>moverRecetaEntreListas('plato',b.dataset.pasarPlato,'pasar')));
@@ -5488,16 +5500,17 @@ function delMaestroSub(i){DB.maestro_subs.splice(i,1);renderMaestros();guardarMa
 // ══════════════════════════════════════════════════════════════════
 //  UTILS
 // ══════════════════════════════════════════════════════════════════
+// Cierra con fundido: deja de estar "open" al instante (el resto del código
+// lo ve cerrado) y .mp-cerrando lo mantiene visible mientras se desvanece.
+// Si se vuelve a abrir en ese lapso, .open gana y se ve normal.
 function cerrarModal(id){
   ddClose();
   const el=document.getElementById(id); if(!el) return;
-  el.classList.add('mp-cerrando');
-  setTimeout(()=>{ if(el.classList.contains('mp-cerrando')){ el.classList.remove('open','mp-cerrando'); } },190);
+  if(!el.classList.contains('open')) return;
+  el.classList.remove('open'); el.classList.add('mp-cerrando');
+  clearTimeout(el._mpCierre);
+  el._mpCierre=setTimeout(()=>el.classList.remove('mp-cerrando'),200);
 }
-// Al abrir un modal se cancela un cierre en curso.
-new MutationObserver(ms=>ms.forEach(m=>{ const el=m.target;
-  if(el.classList&&el.classList.contains('modal-ov')&&el.classList.contains('open')&&el.classList.contains('mp-cerrando')&&m.oldValue&&!m.oldValue.split(' ').includes('open')) el.classList.remove('mp-cerrando'); }))
-  .observe(document.body,{subtree:true,attributes:true,attributeFilter:['class'],attributeOldValue:true});
 // Botón "✕ Cerrar" de las recetas: si se estaba editando una receta ya
 // existente, guarda los cambios (ej: cantidad de un ingrediente) antes de
 // cerrar, en vez de descartarlos en silencio. Si es una receta nueva sin
