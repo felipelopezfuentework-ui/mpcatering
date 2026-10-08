@@ -532,6 +532,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .rec-clic{cursor:pointer;transition:box-shadow .2s,transform .2s,background .2s}
 .card.rec-clic:hover{box-shadow:0 6px 20px rgba(61,26,82,.12);transform:translateY(-1px)}
 tr.rec-clic:hover td{background:var(--accent-light)}
+.fac-spin{width:38px;height:38px;margin:0 auto;border-radius:50%;border:4px solid var(--surface2);border-top-color:var(--accent);animation:facGira .8s linear infinite}
+@keyframes facGira{to{transform:rotate(360deg)}}
 .mp-mas{padding:4px 10px!important;font-size:13px!important;line-height:1;font-weight:700}
 .mp-fab-excel{
   position:fixed;right:26px;bottom:26px;z-index:60;box-shadow:0 6px 20px rgba(30,10,46,.35);
@@ -772,10 +774,10 @@ tr.rec-clic:hover td{background:var(--accent-light)}
       <button type="button" class="btn btn-outline mp-ver-btn" id="ins-ver-btn" onclick="mpMenuAbrir(this,insVerHtml())">⚙ Ver ▾</button>
       <div class="mp-split">
         <button class="btn btn-primary" onclick="addInsumo()">+ Agregar insumo</button>
-        <button class="btn btn-primary" title="Más opciones" onclick="mpMenuAbrir(this,[{icon:'🧾',label:'Cargar precios desde factura (PDF)',accion:()=>document.getElementById('ins-factura-file').click()},{icon:'💲',label:'Actualizar precios desde lista de proveedor',accion:()=>document.getElementById('ins-lista-file').click()}])">▾</button>
+        <button class="btn btn-primary" title="Más opciones" onclick="mpMenuAbrir(this,[{icon:'🧾',label:'Cargar precios desde factura (PDF o foto)',accion:()=>document.getElementById('ins-factura-file').click()},{icon:'✍️',label:'Cargar factura a mano',accion:()=>facManual('Carga manual')},{icon:'💲',label:'Actualizar precios desde lista de proveedor',accion:()=>document.getElementById('ins-lista-file').click()}])">▾</button>
       </div>
       <input type="file" id="ins-lista-file" accept=".xlsx,.xls" style="display:none" onchange="handleListaPrecios(event)">
-      <input type="file" id="ins-factura-file" accept=".pdf,application/pdf" style="display:none" onchange="handleFactura(event)">
+      <input type="file" id="ins-factura-file" accept=".pdf,application/pdf,image/*,.heic,.heif" style="display:none" onchange="handleFactura(event)">
     </div>
     <div class="tw tw-scroll"><table class="ins-tabla">
       <thead><tr><th style="cursor:pointer;user-select:none" onclick="insOrdenar('nombre')" title="Ordenar">Nombre <span class="ins-flecha" data-col="nombre"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('formato')" title="Ordenar">Formato <span class="ins-flecha" data-col="formato"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('precio')" title="Ordenar">$ Formato <span class="ins-flecha" data-col="precio"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('kg')" title="Ordenar">Kg/Formato <span class="ins-flecha" data-col="kg"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('pk')" title="Ordenar">$ / kg <span class="ins-flecha" data-col="pk"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('act')" title="Ordenar">Actualizado <span class="ins-flecha" data-col="act"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('prov')" title="Ordenar">Proveedor <span class="ins-flecha" data-col="prov"></span></th><th></th></tr></thead>
@@ -2980,7 +2982,8 @@ function renderInsumos(){
     const sinPrecio=DB.insumos.filter(x=>!(parseFloat(x.costo)>0)).length;
     const deLista=DB.insumos.filter(x=>x.precio_fuente).length;
     insTot.innerHTML=`<span><b>${DB.insumos.length}</b> insumos</span>`+(f.length!==DB.insumos.length?`<span>Mostrando <b>${f.length}</b></span>`:'')+
-      `<span>Sin precio <b${sinPrecio?' style="color:var(--red)"':''}>${sinPrecio}</b></span><span>Precio desde lista de proveedor <b>${deLista}</b></span>`;
+      `<span>Sin precio <b${sinPrecio?' style="color:var(--red)"':''}>${sinPrecio}</b></span><span>Precio desde lista o factura <b>${deLista}</b></span>`+
+      `<span><a href="#" onclick="event.preventDefault();facHistorialAbrir()" style="color:var(--accent)">📜 Facturas cargadas</a></span>`;
   }
   const pages=Math.ceil(f.length/INS_PER)||1;
   if(insPage>=pages)insPage=0;
@@ -3351,12 +3354,19 @@ function facParsear(renglones){
   renglones.forEach(celdas=>{
     const linea=celdas.join(' ');
     if(FAC_NO_ITEM.test(linea)) return;
-    const nums=[], texto=[]; let alic=null, unidad='';
+    const nums=[], texto=[]; let alic=null, unidad='', ultNum=null;
     celdas.forEach(c=>c.split(/\s{2,}/).forEach(tok=>{
       const t=tok.trim(); if(!t) return;
+      const previo=ultNum; ultNum=null;
+      // Medidas de la descripción: "10KG", "500GR", "1,5LT" pegadas, o "500" + "GR"
+      // separadas (pasa en fotos). Un número entero (sin ",00") seguido de una
+      // unidad es medida del producto; "2,00 KG" es la cantidad de la factura.
+      if(/^\d+([.,]\d+)?(KG|K|GRS?|G|LTS?|L|CC|ML)$/i.test(t)){ texto.push(t.toUpperCase()); return; }
+      if(/^(KG|GRS?|G|LTS?|CC|ML)$/i.test(t)&&previo&&/^\d+$/.test(previo.raw)){ nums.splice(nums.lastIndexOf(previo.n),1); texto.push(previo.raw+t.toUpperCase()); return; }
+      if(/^X$/i.test(t)){ texto.push('X'); return; }
       const pct=t.match(/^(21|10[.,]5|27|0)\s*%$/); if(pct){ alic=parseFloat(pct[1].replace(',','.')); return; }
       const n=facNum(t);
-      if(n!==null){ nums.push(n); return; }
+      if(n!==null){ nums.push(n); ultNum={n,raw:t}; return; }
       if(/^(KG|KGS|KILO|KILOS|KILOGRAMO|KILOGRAMOS|UN|UNI|UNID|UNIDAD|UNIDADES|U|LT|LTS|LITRO|LITROS|BOLSA|CAJA|BULTO)\.?$/i.test(t)){ unidad=t.toUpperCase(); return; }
       if(/[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}/.test(t)) texto.push(t);
     }));
@@ -3395,84 +3405,219 @@ function facBuscarInsumo(desc){
   });
   return mejor?{ins:mejor,seguro:!empate&&lpTokMatch(lpTokens(mejor.nombre)[0],head)}:{ins:null,seguro:false};
 }
+// ── Lector Facturas MP: PDF con texto, PDF escaneado o imagen (foto) ──
+// PDF electrónico → texto directo (facLeerRenglones). Si no hay renglones
+// de productos (PDF escaneado) o es una imagen → reconocimiento de texto
+// (OCR, Tesseract.js) en el navegador; la imagen no se sube a ningún lado.
+// HEIC (iPhone) se convierte antes con heic2any. Las librerías se cargan
+// recién la primera vez que se usan.
+const FAC_TESSERACT='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+const FAC_HEIC='https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+const _facScripts={};
+function facCargarScript(url){
+  if(!_facScripts[url]) _facScripts[url]=new Promise((ok,mal)=>{ const sc=document.createElement('script'); sc.src=url; sc.onload=ok; sc.onerror=()=>mal(new Error('No se pudo cargar '+url)); document.head.appendChild(sc); });
+  return _facScripts[url];
+}
+function facEstado(msg){
+  const el=document.getElementById('fac-estado');
+  if(el){ el.textContent=msg; return; }
+  mpModalGen('🧾 Lector Facturas MP',`<div style="padding:26px 6px;text-align:center"><div class="fac-spin"></div><div id="fac-estado" style="margin-top:14px;font-size:13px;color:var(--text2)">${escH(msg)}</div></div>`,460);
+}
+async function facOCR(imagenes){
+  await facCargarScript(FAC_TESSERACT);
+  const worker=await Tesseract.createWorker('spa',1,{logger:m=>{ if(m.status==='recognizing text') facEstado('Leyendo la factura… '+Math.round((m.progress||0)*100)+'%'); }});
+  const renglones=[];
+  try{
+    for(const img of imagenes){
+      const {data}=await worker.recognize(img);
+      (data.lines||[]).forEach(l=>{ const w=(l.words||[]).map(x=>x.text).filter(Boolean); if(w.length) renglones.push(w); });
+    }
+  } finally { await worker.terminate(); }
+  return renglones;
+}
+async function facPdfAImagenes(file){
+  const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise, out=[];
+  for(let pg=1;pg<=Math.min(pdf.numPages,4);pg++){
+    const page=await pdf.getPage(pg), vp=page.getViewport({scale:2.2});
+    const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
+    await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise; out.push(cv);
+  }
+  return out;
+}
+function facEsPDF(file){ return /pdf$/i.test(file.type)||/\.pdf$/i.test(file.name); }
+function facEsHEIC(file){ return /hei[cf]/i.test(file.type)||/\.hei[cf]$/i.test(file.name); }
+// Devuelve {renglones, texto} leyendo como corresponda al formato.
+async function facLeerArchivo(file){
+  if(facEsPDF(file)){
+    if(!window.pdfjsLib) throw new Error('No se pudo cargar el lector de PDF');
+    facEstado('Leyendo el PDF…');
+    let renglones=await facLeerRenglones(file);
+    if(!facParsear(renglones).filas.length){ facEstado('El PDF parece escaneado: leyéndolo como imagen…'); renglones=await facOCR(await facPdfAImagenes(file)); }
+    return renglones;
+  }
+  let img=file;
+  if(facEsHEIC(file)){ facEstado('Convirtiendo la foto del iPhone…'); await facCargarScript(FAC_HEIC); img=await heic2any({blob:file,toType:'image/jpeg',quality:.92}); }
+  else if(!/^image\//.test(file.type)&&!/\.(jpe?g|png|webp|bmp|gif|tiff?)$/i.test(file.name)) throw new Error('formato');
+  facEstado('Leyendo la factura…');
+  return await facOCR([img]);
+}
+// Datos de cabecera para el registro: proveedor, CUIT, número y fecha.
+function facCabecera(renglones){
+  const lineas=renglones.map(r=>r.join(' '));
+  const todo=lineas.join('\n');
+  const busca=re=>{ const m=todo.match(re); return m?m[1].trim():''; };
+  const pv=busca(/PUNTO\s+DE\s+VENTA:?\s*(\d{1,5})/i), nro=busca(/COMP(?:ROBANTE)?\.?\s*N(?:RO|°|º)?\.?:?\s*(\d{1,8})/i);
+  return {
+    proveedor:busca(/RAZ[OÓ]N\s+SOCIAL:?\s*([^\n]{3,60})/i).replace(/\s+(CUIT|DOMICILIO|FECHA).*$/i,''),
+    cuit:busca(/CUIT:?\s*(\d{2}-?\d{8}-?\d)/i),
+    numero:pv||nro?(pv?String(pv).padStart(5,'0')+'-':'')+(nro?String(nro).padStart(8,'0'):''):'',
+    fecha:busca(/FECHA\s+DE\s+EMISI[OÓ]N:?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i)||busca(/FECHA:?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i)
+  };
+}
+function facInputArchivo(){ document.getElementById('ins-factura-file').click(); }
 async function handleFactura(e){
   const file=e.target.files[0]; e.target.value=''; if(!file) return;
-  if(!window.pdfjsLib){ alert('No se pudo cargar el lector de PDF. Revisá la conexión y probá de nuevo.'); return; }
   try{
-    const {tipo,filas}=facParsear(await facLeerRenglones(file));
-    if(!filas.length){ alert('No encontré renglones de productos en esa factura.\n\nTiene que ser el PDF electrónico (el que manda el proveedor), no una foto o escaneo.'); return; }
-    const conIva=tipo!=='A';
-    _fac={archivo:file.name,tipo,conIva,filas:filas.map((f,i)=>{
-      const {ins,seguro}=facBuscarInsumo(f.desc);
-      const cant=lpCantidad(f.desc,'',f.unidad);
-      const porKilo=/^(KG|KGS|KILO|KILOS)/.test(f.unidad);
-      const kg=porKilo?1:(cant&&cant.base!=='u'?Math.round(cant.q*1000)/1000:(ins?parseFloat(ins.formato_kg)||1:1));
-      return {i,...f,ins:ins?ins._id:null,seguro,kg,iva:conIva?(f.alic===10.5?10.5:21):0,ok:!!ins};
-    })};
-    // Cambios de más de 40% vienen destildados: hay que confirmarlos a propósito.
-    _fac.filas.forEach(f=>{ const c=facCalc(f); if(c.var!==null&&Math.abs(c.var)>40) f.ok=false; });
-    facRender();
-  }catch(err){ console.error(err); alert('No pude leer la factura: '+err.message); }
+    const renglones=await facLeerArchivo(file);
+    const {tipo,filas}=facParsear(renglones);
+    if(!filas.length){ facNoLeyo(file.name,'No encontré renglones de productos.'); return; }
+    facPreparar(file.name,tipo,filas,facCabecera(renglones));
+  }catch(err){
+    console.error(err);
+    facNoLeyo(file.name,err.message==='formato'?'Ese formato de archivo no se puede leer.':'');
+  }
+}
+function facNoLeyo(archivo,detalle){
+  mpModalGen('🧾 Lector Facturas MP',`
+    <div style="text-align:center;padding:14px 6px 4px">
+      <div style="font-size:40px;line-height:1">🤔</div>
+      <div style="font-size:16px;font-weight:700;margin:10px 0 6px">Lector Facturas MP no leyó la factura</div>
+      <div style="font-size:13px;color:var(--text3)">${escH(archivo)}${detalle?' · '+escH(detalle):''}<br>Probá ingresándola en otro formato (PDF del proveedor o una foto más nítida y derecha) o cargala a mano.</div>
+      <div style="display:flex;justify-content:center;gap:10px;margin-top:18px;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="mpCerrarModalGen();facInputArchivo()">📎 Probar con otro archivo</button>
+        <button class="btn btn-primary" onclick="facManual(${JSON.stringify(archivo).replace(/"/g,'&quot;')})">✍️ Cargar a mano</button>
+      </div>
+    </div>`,520);
+}
+function facManual(archivo){
+  facPreparar(archivo||'Carga manual','',[],{proveedor:'',cuit:'',numero:'',fecha:''},true);
+  facAgregarRenglon();
+}
+function facPreparar(archivo,tipo,filas,cab,manual){
+  const conIva=tipo?tipo!=='A':true;
+  _fac={archivo,tipo,conIva,manual:!!manual,cab,filas:[]};
+  filas.forEach(f=>{
+    const {ins,seguro}=facBuscarInsumo(f.desc);
+    const cant=lpCantidad(f.desc,'',f.unidad);
+    const porKilo=/^(KG|KGS|KILO)/.test(f.unidad);
+    const kg=porKilo?1:(cant&&cant.base!=='u'?Math.round(cant.q*1000)/1000:(ins?parseFloat(ins.formato_kg)||1:1));
+    _fac.filas.push({i:_fac.filas.length,...f,ins:ins?ins._id:null,seguro,kg,iva:conIva?(f.alic===10.5?10.5:21):0,ok:!!ins});
+  });
+  // Cambios de más de 40% vienen destildados: hay que confirmarlos a propósito.
+  _fac.filas.forEach(f=>{ const c=facCalc(f); if(c.var!==null&&Math.abs(c.var)>40) f.ok=false; });
+  mpCerrarModalGen();
+  facRender();
+  facBuscarDuplicada();
+}
+function facAgregarRenglon(){
+  _fac.filas.push({i:_fac.filas.length,desc:'',q:1,unidad:'',puFactura:0,alic:null,ins:null,seguro:true,kg:1,iva:_fac.conIva?21:0,ok:false,manual:true});
+  facRender();
+}
+// Aviso si esa factura (mismo CUIT + número) ya se cargó antes.
+async function facBuscarDuplicada(){
+  const c=_fac&&_fac.cab; if(!c||!c.numero) return;
+  try{
+    const q=await FB_COL_FACTURAS.where('numero','==',c.numero).get();
+    const prev=q.docs.map(d=>d.data()).find(d=>!c.cuit||!d.cuit||d.cuit===c.cuit);
+    if(prev&&_fac){ _fac.duplicada=prev.fecha_carga; facRender(); }
+  }catch(e){ console.warn('No se pudo revisar si la factura ya se cargó',e); }
 }
 function facCalc(f){
-  const neto=f.puFactura/(1+(f.iva||0)/100);
+  const neto=(parseFloat(f.puFactura)||0)/(1+(f.iva||0)/100);
   const pk=f.kg>0?neto/f.kg:neto;
   const ins=DB.insumos.find(x=>x._id===f.ins);
   const viejo=ins?parseFloat(ins.costo)||0:0;
-  return {neto,pk,viejo,var:viejo>0?(pk/viejo-1)*100:null};
+  return {neto,pk,viejo,var:viejo>0&&pk>0?(pk/viejo-1)*100:null};
 }
+function facSet(i,campo,valor){
+  const f=_fac.filas[i]; if(!f) return;
+  if(campo==='desc') f.desc=valor;
+  else if(campo==='puFactura') f.puFactura=cotizPesos(valor);
+  else if(campo==='q') f.q=parseKgCampo(valor);
+  else if(campo==='kg') f.kg=parseKgCampo(valor);
+  else if(campo==='iva') f.iva=parseFloat(valor);
+  else if(campo==='ok') f.ok=valor;
+  facRender();
+}
+function facSetCab(campo,valor){ _fac.cab[campo]=valor; }
 function facRender(){
   if(!_fac) return;
   const ivaOps=v=>[[0,'Sin IVA'],[21,'21%'],[10.5,'10,5%']].map(([n,l])=>`<option value="${n}"${v===n?' selected':''}>${l}</option>`).join('');
+  const INP='font-size:12px;padding:4px 6px';
   const filas=_fac.filas.map(f=>{
     const c=facCalc(f), ins=DB.insumos.find(x=>x._id===f.ins);
     const alerta=c.var!==null&&Math.abs(c.var)>40;
-    return `<tr style="${!f.ins?'opacity:.6':''}${alerta?';background:rgba(192,57,43,.06)':(!f.seguro&&f.ins?';background:rgba(200,169,81,.12)':'')}">
-      <td><input type="checkbox" ${f.ok?'checked':''} ${f.ins?'':'disabled'} onchange="_fac.filas[${f.i}].ok=this.checked;facRender()"></td>
-      <td style="font-size:11.5px;max-width:230px">${escH(f.desc)}<span style="display:block;color:var(--text3);font-size:10.5px">${fmtN(f.q,2)} ${escH(f.unidad||'')} × ${fmt(f.puFactura)}</span></td>
-      <td style="min-width:190px"><input class="dd-input" id="fac-ins${f.i}" type="text" placeholder="Elegí el insumo…" style="width:100%;font-size:12px" value="${escH(ins?ins.nombre:'')}">
+    return `<tr style="${!f.ins?'opacity:.75':''}${alerta?';background:rgba(192,57,43,.06)':(!f.seguro&&f.ins?';background:rgba(200,169,81,.12)':'')}">
+      <td><input type="checkbox" ${f.ok?'checked':''} ${f.ins&&f.puFactura>0?'':'disabled'} onchange="facSet(${f.i},'ok',this.checked)"></td>
+      <td style="min-width:170px">${f.manual?`<input type="text" value="${escH(f.desc)}" placeholder="Producto (opcional)" style="width:100%;${INP}" onchange="facSet(${f.i},'desc',this.value)">`:`<span style="font-size:11.5px">${escH(f.desc)}</span>`}
+        ${f.manual?'':`<span style="display:block;color:var(--text3);font-size:10.5px">${fmtN(f.q,2)} ${escH(f.unidad||'')}</span>`}</td>
+      <td style="min-width:180px"><input class="dd-input" id="fac-ins${f.i}" type="text" placeholder="Elegí el insumo…" style="width:100%;font-size:12px" value="${escH(ins?ins.nombre:'')}">
         ${f.ins&&!f.seguro?'<span style="font-size:10px;color:#8a6800">⚠ revisá la equivalencia</span>':''}</td>
-      <td class="num"><input type="text" inputmode="decimal" value="${kgTexto(f.kg)}" style="width:62px;text-align:right;font-size:12px" onchange="_fac.filas[${f.i}].kg=parseKgCampo(this.value);facRender()"></td>
-      <td><select style="font-size:12px" onchange="_fac.filas[${f.i}].iva=parseFloat(this.value);facRender()">${ivaOps(f.iva)}</select></td>
+      <td class="num"><input type="text" inputmode="decimal" value="${f.puFactura?cotizTxtPesos(f.puFactura):''}" placeholder="$ 0" style="width:92px;text-align:right;${INP}" onchange="facSet(${f.i},'puFactura',this.value)"></td>
+      <td class="num"><input type="text" inputmode="decimal" value="${kgTexto(f.kg)}" style="width:58px;text-align:right;${INP}" onchange="facSet(${f.i},'kg',this.value)"></td>
+      <td><select style="${INP}" onchange="facSet(${f.i},'iva',this.value)">${ivaOps(f.iva)}</select></td>
       <td class="num">${fmt(c.neto)}</td>
       <td class="num" style="font-weight:700">${fmt(c.pk)}</td>
       <td class="num" style="color:var(--text3)">${c.viejo?fmt(c.viejo):'—'}</td>
       <td class="num" style="font-weight:600;color:${c.var===null?'var(--text3)':alerta?'var(--red)':c.var>0?'#b5651d':'var(--green)'}">${c.var===null?'—':(c.var>=0?'+':'')+fmtN(c.var,1)+'%'}</td>
     </tr>`;
   }).join('');
-  const n=_fac.filas.filter(f=>f.ok&&f.ins).length;
+  const n=_fac.filas.filter(f=>f.ok&&f.ins&&f.puFactura>0).length, cab=_fac.cab;
   const html=`
-    <div style="display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:12px;color:var(--text3);margin-bottom:12px">
-      <span>📄 <b style="color:var(--text)">${escH(_fac.archivo)}</b></span>
-      <span>Tipo: <b style="color:var(--text)">${_fac.tipo?'Factura '+_fac.tipo:'no detectado'}</b></span>
-      <span>Los precios de la factura vienen
-        <select style="font-size:12px" onchange="facSetConIva(this.value==='1')"><option value="1"${_fac.conIva?' selected':''}>con IVA (B / C)</option><option value="0"${!_fac.conIva?' selected':''}>sin IVA (A)</option></select></span>
+    ${_fac.duplicada?`<div class="alert alert-error show" style="display:block;margin-bottom:10px">⚠ Esta factura ya se cargó el ${escH(new Date(_fac.duplicada).toLocaleString('es-AR'))}. Revisá antes de aplicar de nuevo.</div>`:''}
+    <div style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;font-size:12px;color:var(--text3);margin-bottom:12px">
+      <div><div>Archivo</div><b style="color:var(--text)">${escH(_fac.archivo)}</b>${_fac.tipo?` · Factura ${_fac.tipo}`:''}</div>
+      <div class="form-field" style="margin:0"><label>Proveedor</label><input type="text" value="${escH(cab.proveedor||'')}" style="width:190px;${INP}" onchange="facSetCab('proveedor',this.value)"></div>
+      <div class="form-field" style="margin:0"><label>N° factura</label><input type="text" value="${escH(cab.numero||'')}" placeholder="00003-00001234" style="width:140px;${INP}" onchange="facSetCab('numero',this.value)"></div>
+      <div class="form-field" style="margin:0"><label>Fecha factura</label><input type="text" value="${escH(cab.fecha||'')}" placeholder="dd/mm/aaaa" style="width:100px;${INP}" onchange="facSetCab('fecha',this.value)"></div>
+      <div class="form-field" style="margin:0"><label>Precios de la factura</label><select style="${INP}" onchange="facSetConIva(this.value==='1')"><option value="1"${_fac.conIva?' selected':''}>con IVA (B / C)</option><option value="0"${!_fac.conIva?' selected':''}>sin IVA (A)</option></select></div>
     </div>
-    <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">Todo se guarda <b>sin IVA</b>. Revisá cada renglón: el insumo, los <b>kg por unidad</b> y el IVA. Amarillo = equivalencia dudosa · rojo = el precio cambia más de 40%. Lo que no tenga insumo no se aplica.</div>
-    <div class="tw"><table style="font-size:12px"><thead><tr><th></th><th>Renglón de la factura</th><th>Insumo</th><th class="num">Kg x unidad</th><th>IVA</th><th class="num">$ unit. sin IVA</th><th class="num">$/kg nuevo</th><th class="num">$/kg actual</th><th class="num">Var.</th></tr></thead>
-    <tbody>${filas}</tbody></table></div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-      <button class="btn btn-outline" onclick="mpCerrarModalGen();_fac=null">Cancelar</button>
-      <button class="btn btn-primary" ${n?'':'disabled'} onclick="facAplicar()">✓ Actualizar ${n} precio${n===1?'':'s'}</button>
+    <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">Todo se guarda <b>sin IVA</b>. Revisá cada renglón: insumo, precio unitario, <b>kg por unidad</b> e IVA. Amarillo = equivalencia dudosa · rojo = cambia más de 40% (viene destildado).</div>
+    <div class="tw"><table style="font-size:12px"><thead><tr><th></th><th>Renglón de la factura</th><th>Insumo</th><th class="num">$ unit. factura</th><th class="num">Kg x unidad</th><th>IVA</th><th class="num">$ unit. sin IVA</th><th class="num">$/kg nuevo</th><th class="num">$/kg actual</th><th class="num">Var.</th></tr></thead>
+    <tbody>${filas||'<tr><td colspan="10" class="empty">Agregá los renglones de la factura.</td></tr>'}</tbody></table></div>
+    <div style="display:flex;justify-content:space-between;gap:10px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-outline" onclick="facAgregarRenglon()">+ Agregar renglón a mano</button>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-outline" onclick="mpCerrarModalGen();_fac=null">Cancelar</button>
+        <button class="btn btn-primary" ${n?'':'disabled'} onclick="facAplicar()">✓ Actualizar ${n} precio${n===1?'':'s'}</button>
+      </div>
     </div>`;
   const abierto=document.querySelector('#mp-modal-gen .modal>div:last-child');
   if(abierto&&document.getElementById('mp-modal-gen').dataset.fac==='1'){ abierto.innerHTML=html; }
-  else { mpModalGen('🧾 Precios desde factura',html,1250); document.getElementById('mp-modal-gen').dataset.fac='1'; }
+  else { mpModalGen('🧾 Lector Facturas MP · revisar y confirmar',html,1280); document.getElementById('mp-modal-gen').dataset.fac='1'; }
   _fac.filas.forEach(f=>{
     const inp=document.getElementById('fac-ins'+f.i); if(!inp) return;
-    attachDD(inp,()=>insOpts().map(o=>({val:String(DB.insumos.find(x=>x.key===o.val)?._id),label:o.label})),()=>f.ins?String(f.ins):'',
-      val=>{ const id=Number(val); f.ins=id; f.seguro=true; f.ok=true;
+    attachDD(inp,()=>DB.insumos.map(x=>({val:String(x._id),label:x.nombre})),()=>f.ins?String(f.ins):'',
+      val=>{ const id=Number(val); f.ins=id; f.seguro=true; f.ok=f.puFactura>0;
         const ins=DB.insumos.find(x=>x._id===id);
-        if(ins&&!/^(KG|KGS|KILO|KILOS)/.test(f.unidad)&&!lpCantidad(f.desc,'',f.unidad)) f.kg=parseFloat(ins.formato_kg)||1;
+        if(ins&&!/^(KG|KGS|KILO)/.test(f.unidad||'')&&!lpCantidad(f.desc,'',f.unidad||'')) f.kg=parseFloat(ins.formato_kg)||1;
         setTimeout(facRender,0); });
   });
 }
 function facSetConIva(v){ _fac.conIva=v; _fac.filas.forEach(f=>{ f.iva=v?(f.alic===10.5?10.5:21):0; }); facRender(); }
 function facAplicar(){
   if(!_fac) return;
-  const aplicar=_fac.filas.filter(f=>f.ok&&f.ins);
+  const aplicar=_fac.filas.filter(f=>f.ok&&f.ins&&f.puFactura>0);
   if(!aplicar.length) return;
-  const fecha=new Date().toISOString(), fuente='factura: '+_fac.archivo;
+  const fecha=new Date().toISOString(), fuente='factura: '+(_fac.cab.numero||_fac.archivo);
+  // Registro de la carga (trazabilidad): qué se leyó y qué se actualizó.
+  const registro={fecha_carga:fecha,usuario:(fbAuth.currentUser&&fbAuth.currentUser.email)||'',archivo:_fac.archivo,
+    manual:!!_fac.manual,tipo:_fac.tipo||'',con_iva:_fac.conIva,proveedor:_fac.cab.proveedor||'',cuit:_fac.cab.cuit||'',
+    numero:_fac.cab.numero||'',fecha_factura:_fac.cab.fecha||'',actualizados:aplicar.length,
+    renglones:_fac.filas.map(f=>{ const c=facCalc(f), ins=DB.insumos.find(x=>x._id===f.ins);
+      return {descripcion:f.desc||'',cantidad:f.q||0,unidad:f.unidad||'',precio_factura:f.puFactura||0,iva:f.iva||0,kg_unidad:f.kg||0,
+        insumo:ins?ins.nombre:'',insumo_key:ins?ins.key:'',antes_kg:Math.round(c.viejo*100)/100,nuevo_kg:Math.round(c.pk*100)/100,
+        aplicado:!!(f.ok&&f.ins&&f.puFactura>0)}; })};
   _recetasDiferidas={subs:new Set(), platos:new Set()};
   const guardar=[];
   try{
@@ -3481,10 +3626,9 @@ function facAplicar(){
       const c=facCalc(f);
       insHistSemilla(x);
       x.precio_formato=Math.round(c.neto*100)/100; x.formato_kg=f.kg; x.costo=c.pk;
-      x.formato=f.desc.toLowerCase();
-      x.precio_actualizado=fecha; x.precio_fuente=fuente; x.precio_producto=f.desc;
-      const nd=facNormDesc(f.desc);
-      x.alias_factura=[...new Set([...(Array.isArray(x.alias_factura)?x.alias_factura:[]),nd])];
+      if(f.desc) x.formato=f.desc.toLowerCase();
+      x.precio_actualizado=fecha; x.precio_fuente=fuente; x.precio_producto=f.desc||'';
+      if(f.desc){ const nd=facNormDesc(f.desc); if(nd) x.alias_factura=[...new Set([...(Array.isArray(x.alias_factura)?x.alias_factura:[]),nd])]; }
       insHistRegistrar(x);
       guardar.push(x);
       recalcularRecetasPorInsumo(x.key,false);
@@ -3517,8 +3661,38 @@ function facAplicar(){
       await lote.commit();
     }
     marcarSincronizado();
-    showAlert('upload-alert','success','✓ Se actualizaron '+guardar.length+' precios desde la factura (sin IVA).');
+    try{ await FB_COL_FACTURAS.doc(String(Date.now())).set(registro); }
+    catch(e){ console.error('No se pudo guardar el registro de la factura',e); alert('Los precios se actualizaron, pero no se pudo guardar el registro de la factura: '+e.message); }
+    showAlert('upload-alert','success','✓ Se actualizaron '+guardar.length+' precios desde la factura (sin IVA). Quedó registrada en "Facturas cargadas".');
   })().catch(e=>{ marcarErrorSincronizacion(e); console.error('Error al guardar precios de factura:',e); alert('No se pudieron guardar los precios: '+e.message); });
+}
+// Historial de facturas cargadas (solo lectura).
+async function facHistorialAbrir(){
+  mpModalGen('📜 Facturas cargadas','<div class="empty">Cargando…</div>',980);
+  let docs=[];
+  try{ docs=(await FB_COL_FACTURAS.orderBy('fecha_carga','desc').limit(150).get()).docs.map(d=>({...d.data(),_id:d.id})); }
+  catch(e){ const el=document.querySelector('#mp-modal-gen .modal>div:last-child'); if(el) el.innerHTML='<div class="empty">No se pudo leer el registro: '+escH(e.message)+'</div>'; return; }
+  window._facHist=docs;
+  const filas=docs.map((d,i)=>`<tr class="rec-clic" onclick="facHistorialDetalle(${i})">
+    <td>${escH(new Date(d.fecha_carga).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}))}</td>
+    <td>${escH(d.proveedor||'—')}</td><td>${escH(d.numero||'—')}</td><td>${escH(d.fecha_factura||'—')}</td>
+    <td class="num">${d.actualizados||0}</td><td style="font-size:11px;color:var(--text3)">${escH(d.usuario||'')}${d.manual?' · a mano':''}</td></tr>`).join('');
+  const el=document.querySelector('#mp-modal-gen .modal>div:last-child');
+  if(el) el.innerHTML=`<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Cada vez que se cargan precios desde una factura queda registrado acá. Tocá una para ver qué se actualizó.</div>
+    <div class="tw"><table><thead><tr><th>Cargada</th><th>Proveedor</th><th>N° factura</th><th>Fecha factura</th><th class="num">Precios</th><th>Por</th></tr></thead>
+    <tbody>${filas||'<tr><td colspan="6" class="empty">Todavía no se cargó ninguna factura.</td></tr>'}</tbody></table></div><div id="fac-hist-det"></div>`;
+}
+function facHistorialDetalle(i){
+  const d=(window._facHist||[])[i], el=document.getElementById('fac-hist-det'); if(!d||!el) return;
+  el.innerHTML=`<div class="card" style="margin-top:14px">
+    <div style="font-weight:700;margin-bottom:4px">${escH(d.proveedor||'Factura')} ${d.numero?'· N° '+escH(d.numero):''}</div>
+    <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">Archivo: ${escH(d.archivo||'—')} · ${d.con_iva?'precios con IVA (se guardaron sin IVA)':'precios sin IVA'} · cargada por ${escH(d.usuario||'—')}</div>
+    <div class="tw"><table style="font-size:12px"><thead><tr><th>Renglón</th><th>Insumo</th><th class="num">$ factura</th><th class="num">$/kg antes</th><th class="num">$/kg nuevo</th><th class="num">Var.</th><th>Estado</th></tr></thead>
+    <tbody>${(d.renglones||[]).map(r=>{ const v=r.antes_kg>0&&r.nuevo_kg>0?(r.nuevo_kg/r.antes_kg-1)*100:null;
+      return `<tr style="${r.aplicado?'':'opacity:.55'}"><td>${escH(r.descripcion||'—')}</td><td>${escH(r.insumo||'—')}</td><td class="num">${r.precio_factura?fmt(r.precio_factura):'—'}</td>
+      <td class="num">${r.antes_kg?fmt(r.antes_kg):'—'}</td><td class="num">${r.nuevo_kg?fmt(r.nuevo_kg):'—'}</td>
+      <td class="num">${v===null?'—':(v>=0?'+':'')+fmtN(v,1)+'%'}</td><td>${r.aplicado?'✓ actualizado':'no aplicado'}</td></tr>`; }).join('')}</tbody></table></div></div>`;
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 // ── Herramienta escondida (⚙ del encabezado): eliminar insumos sin uso ──
@@ -5872,6 +6046,8 @@ const FB_COL_STOCK=fbDb.collection('stock_conteos');
 // Módulo Presupuestos: un documento por presupuesto, mismo criterio que
 // insumos/proveedores (identificado por _id numérico, guardado con debounce).
 const FB_COL_PRESUPUESTOS=fbDb.collection('presupuestos');
+// Registro (texto) de cada carga de precios desde una factura: no se guarda el archivo.
+const FB_COL_FACTURAS=fbDb.collection('facturas_cargadas');
 
 // ══════════════════════════════════════════════════════════════════
 //  FIREBASE AUTHENTICATION (login con Google)
