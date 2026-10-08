@@ -11780,6 +11780,37 @@ function presuDibujarPDF(d, modo){
   if(!ventana) alert('El navegador bloqueó la pestaña nueva para ver el PDF.\n\nPermití las ventanas emergentes para esta página o usá "Descargar PDF".');
 }
 
+// ── Aviso de versión nueva ─────────────────────────────────────────────
+// Una pestaña abierta sigue con el código viejo hasta recargar. Se guarda la
+// marca de la página al abrir (ETag/Last-Modified de GitHub Pages) y cada
+// 5 min, o al volver a la pestaña, se compara; si cambió, cartel con botón
+// "Actualizar" (no recarga solo para no perder lo que se esté cargando).
+(function avisoVersionNueva(){
+  if(!/^https?:/.test(location.protocol)) return;
+  let base=null, avisado=false;
+  const marca=async()=>{
+    try{
+      const r=await fetch(location.pathname,{method:'HEAD',cache:'no-store'});
+      return r.ok ? (r.headers.get('etag')||r.headers.get('last-modified')||null) : null;
+    }catch(e){ return null; }
+  };
+  const revisar=async()=>{
+    if(avisado) return;
+    const m=await marca(); if(!m) return;
+    if(base===null){ base=m; return; }
+    if(m===base) return;
+    avisado=true;
+    const el=document.createElement('div');
+    el.style.cssText='position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99999;background:#2E2A24;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.25);font-size:13px;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 32px)';
+    el.innerHTML='<span>Hay una versión nueva del sistema.</span><button class="btn btn-primary" style="padding:5px 12px;font-size:12px">Actualizar</button>';
+    el.querySelector('button').onclick=()=>location.reload();
+    document.body.appendChild(el);
+  };
+  revisar();
+  setInterval(revisar,5*60*1000);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') revisar(); });
+})();
+
 </script>
 </body>
 </html>
