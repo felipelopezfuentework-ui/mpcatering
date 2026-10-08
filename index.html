@@ -1212,17 +1212,16 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
           <div class="card-title" style="font-size:13px;margin-bottom:10px">Componentes (Insumos)</div>
           <div class="tw" style="overflow-x:auto"><table id="sub-items-table" class="recipe-table" style="min-width:760px">
             <colgroup>
-              <col style="width:26%"><col style="width:10%"><col style="width:9%"><col style="width:10%">
-              <col style="width:14%"><col style="width:13%"><col style="width:14%"><col style="width:4%">
+              <col style="width:32%"><col style="width:12%"><col style="width:10%"><col style="width:12%">
+              <col style="width:15%"><col style="width:15%"><col style="width:4%">
             </colgroup>
             <thead><tr>
               <th>Insumo / Subproducto</th>
               <th class="num">Kg neto</th>
               <th class="num">% Merma</th>
               <th class="num">Kg bruto</th>
-              <th class="num">$ costo merma</th>
-              <th class="num">$/kg c/merma</th>
-              <th class="num">Costo receta</th>
+              <th class="num">Costo unitario</th>
+              <th class="num">Costo total</th>
               <th></th>
             </tr></thead>
             <tbody id="sub-items-tbody"></tbody>
@@ -1327,17 +1326,16 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
           <div class="card-title" style="font-size:13px;margin-bottom:10px">Componentes</div>
           <div class="tw" style="overflow-x:auto"><table id="plato-items-table" class="recipe-table" style="min-width:880px">
             <colgroup>
-              <col style="width:9%"><col style="width:21%"><col style="width:9%"><col style="width:8%">
-              <col style="width:9%"><col style="width:13%"><col style="width:12%"><col style="width:14%"><col style="width:5%">
+              <col style="width:9%"><col style="width:27%"><col style="width:10%"><col style="width:9%">
+              <col style="width:10%"><col style="width:14%"><col style="width:16%"><col style="width:5%">
             </colgroup>
             <thead><tr>
               <th>Tipo</th><th>Componente</th>
               <th class="num">Kg neto</th>
               <th class="num">% Merma</th>
               <th class="num">Kg bruto</th>
-              <th class="num">$ costo merma</th>
-              <th class="num">$/kg c/merma</th>
-              <th class="num">Costo receta</th>
+              <th class="num">Costo unitario</th>
+              <th class="num">Costo total</th>
               <th></th>
             </tr></thead>
             <tbody id="plato-items-tbody"></tbody>
@@ -2727,8 +2725,8 @@ function recalcularRecetasPorInsumo(insumoKey,render=true){
     if(r.componente!==insumoKey) return;
     const pk=getCompPrice(r.componente);
     const merma=parseFloat(r.merma)||0;
-    const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(parseFloat(r.kgs)||0,merma,pk);
-    r.kgBruto=kgBruto;r.costoMerma=costoMerma;r.precio_kg=pkConMerma;r.costo_receta=costoTotal;
+    const {kgBruto,pkUnit,costoTotal}=calcMerma(parseFloat(r.kgs)||0,merma,pk);
+    r.kgBruto=kgBruto;delete r.costoMerma;r.precio_kg=pkUnit;r.costo_receta=costoTotal;
     subsAfectados.add(r.subproducto);
     huboCambios=true;
   });
@@ -2739,8 +2737,8 @@ function recalcularRecetasPorInsumo(insumoKey,render=true){
     if(r.componente!==insumoKey && !subsAfectados.has(r.componente)) return;
     const pk=getCompPrice(r.componente);
     const merma=parseFloat(r.merma)||0;
-    const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(parseFloat(r.kgs)||0,merma,pk);
-    r.kgBruto=kgBruto;r.costoMerma=costoMerma;r.precio_kg=pkConMerma;r.costo_receta=costoTotal;
+    const {kgBruto,pkUnit,costoTotal}=calcMerma(parseFloat(r.kgs)||0,merma,pk);
+    r.kgBruto=kgBruto;delete r.costoMerma;r.precio_kg=pkUnit;r.costo_receta=costoTotal;
     platosAfectados.add(r.plato);
     huboCambios=true;
   });
@@ -3933,15 +3931,15 @@ function abrirModalSub(subName){
 function buildSubTable(){
   const tbody=document.getElementById('sub-items-tbody');
   if(!subItems.length){
-    tbody.innerHTML='<tr><td colspan="8" class="empty">Agregá componentes abajo.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="7" class="empty">Agregá componentes abajo.</td></tr>';
     rendUpdate('sub');
     return;
   }
   tbody.innerHTML=subItems.map((item,idx)=>{
     const merma=parseFloat(item.merma)||0;
     const kgNeto=parseFloat(item.kgs)||0;
-    const {kgBruto,costoMerma,pkConMerma,costoTotal:cr}=calcMerma(kgNeto,merma,item.pk);
-    item.cr=cr;
+    const {kgBruto,pkUnit,costoTotal:cr}=calcMerma(kgNeto,merma,item.pk);
+    item.cr=cr; item.kgBruto=kgBruto;
     return `<tr id="sr${idx}">
     <td style="padding:6px 8px">
       <input class="dd-input" id="si${idx}" type="text" placeholder="Elegí un insumo o sub…" style="width:100%">
@@ -3960,8 +3958,7 @@ function buildSubTable(){
       </div>
     </td>
     <td class="num" id="sibruto${idx}" style="color:var(--text3);font-size:11px;white-space:nowrap">${fmtN(kgBruto,4)}</td>
-    <td class="num" id="simermacosto${idx}" style="color:var(--red);font-size:11px;white-space:nowrap">${merma>0?fmt(costoMerma):'—'}</td>
-    <td class="num" id="sipk${idx}" style="color:var(--text3);white-space:nowrap">${fmt(pkConMerma)}</td>
+    <td class="num" id="sipk${idx}" style="color:var(--text3);white-space:nowrap">${fmt(pkUnit)}</td>
     <td class="num" id="sicr${idx}" style="color:var(--yellow);font-weight:600;white-space:nowrap">${fmt(cr)}</td>
     <td style="padding:4px 6px"><button class="btn btn-danger" onclick="subItems.splice(${idx},1);buildSubTable()">🗑</button></td>
   </tr>`;}).join('');
@@ -4006,24 +4003,21 @@ function siMerma(idx,v){
   recalcSubItem(idx);
 }
 function calcMerma(kgNeto, merma, pk){
-  // merma en % (ej: 20)
-  // Opción B: peso_bruto = kgNeto * (1 + m/100)
-  // Ej: 1000 kg con 10% merma → 1000 * 1.10 = 1100 kg
+  // merma en % (ej: 50) = pérdida de peso. El neto es lo que pide la receta;
+  // el bruto es lo que hay que comprar: neto ÷ (1 - merma). Ej: 1 kg neto con
+  // 50% de merma → 2 kg bruto. Costo = bruto × costo unitario (sin recargo).
   const m=Math.min(Math.max(parseFloat(merma)||0, 0), 99.99);
-  const kgBruto = m>0 ? kgNeto*(1+m/100) : kgNeto;
-  const costoMerma = pk*(m/100);
-  const pkConMerma = pk + costoMerma;            // pk * (1 + m/100)
-  // La merma ya está en el precio: se multiplica por el kg NETO (antes por el
-  // bruto, que cobraba la merma dos veces). kgBruto queda solo como dato.
-  const costoTotal = pkConMerma * kgNeto;
-  return {kgBruto, costoMerma, pkConMerma, costoTotal};
+  const kgBruto = m>0 ? kgNeto/(1-m/100) : kgNeto;
+  const pkUnit = parseFloat(pk)||0;
+  const costoTotal = kgBruto * pkUnit;
+  return {kgBruto, pkUnit, costoTotal};
 }
 
 // Campos de una receta (plato o subproducto) que están vacíos o en cero.
 // rows: filas de ingredientes (DB.recetas_platos / DB.subproductos filtradas por receta).
 // cfg: DB.platos_config[nombre] / DB.subs_config[nombre].
 // Por ingrediente se reporta un solo campo (el primero que falte, en orden Kg
-// neto → % Merma → $ Costo merma) para no listar el mismo insumo varias veces
+// neto → % Merma) para no listar el mismo insumo varias veces
 // cuando la merma en 0 arrastra el costo de merma también a 0.
 function recetaCamposFaltantes(rows,cfg){
   const faltantes=[];
@@ -4031,10 +4025,8 @@ function recetaCamposFaltantes(rows,cfg){
     const nombreIng=r.componente||'(sin nombre)';
     const kg=parseFloat(r.kgs)||0;
     const merma=parseFloat(r.merma)||0;
-    const costoMerma=parseFloat(r.costoMerma)||0;
     if(kg<=0) faltantes.push('Kg neto ('+nombreIng+')');
     else if(merma<=0) faltantes.push('% Merma ('+nombreIng+')');
-    else if(costoMerma<=0) faltantes.push('$ Costo merma ('+nombreIng+')');
   });
   const c=cfg||{};
   if(!(parseFloat(c.merma_receta)>0)) faltantes.push('Merma general de la receta');
@@ -4194,13 +4186,12 @@ function _renderListaRecetas(tipo,nombres){
         <button class="btn btn-danger" ${meta.delAttr}="${escH(nombre)}">🗑</button>
       </div>
       <div class="tw"><table>
-        <thead><tr><th>Componente</th><th class="num">Kg neto</th><th class="num">% Merma</th><th class="num">Kg bruto</th><th class="num">$ merma</th><th class="num">$/kg c/merma</th><th class="num">Costo Rec.</th></tr></thead>
-        <tbody>${d.rows.map(r=>{const m=parseFloat(r.merma)||0;const kb=r.kgBruto||(m>0&&m<100?((r.kgs||0)/(1-m/100)):(r.kgs||0));const cm=r.costoMerma||(r.precio_kg*(m/100));return`<tr>
+        <thead><tr><th>Componente</th><th class="num">Kg neto</th><th class="num">% Merma</th><th class="num">Kg bruto</th><th class="num">Costo unitario</th><th class="num">Costo total</th></tr></thead>
+        <tbody>${d.rows.map(r=>{const m=parseFloat(r.merma)||0;const kb=calcMerma(parseFloat(r.kgs)||0,m,0).kgBruto;return`<tr>
           <td>${escH(r.componente)}</td>
           <td class="num">${fmtN(r.kgs,4)}</td>
           <td class="num" style="color:var(--red)">${m?m+'%':'—'}</td>
           <td class="num" style="color:var(--text3)">${m?fmtN(kb,4):'—'}</td>
-          <td class="num" style="color:var(--red)">${m?fmt(cm):'—'}</td>
           <td class="num">${fmt(r.precio_kg)}</td>
           <td class="num" style="color:var(--green);font-weight:600">${fmt(r.costo_receta)}</td>
         </tr>`}).join('')}</tbody>
@@ -4259,18 +4250,14 @@ function _renderTablaRecetas(tipo,nombres){
 function recalcSubItem(idx){
   const item=subItems[idx];
   const kgNeto=parseFloat(item.kgs)||0;
-  const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(kgNeto,item.merma,item.pk);
+  const {kgBruto,pkUnit,costoTotal}=calcMerma(kgNeto,item.merma,item.pk);
   item.cr=costoTotal;
   item.kgBruto=kgBruto;
-  item.pkConMerma=pkConMerma;
-  item.costoMerma=costoMerma;
   const elBruto=document.getElementById('sibruto'+idx);
-  const elMermaCosto=document.getElementById('simermacosto'+idx);
   const elPk=document.getElementById('sipk'+idx);
   const elCr=document.getElementById('sicr'+idx);
   if(elBruto)elBruto.textContent=fmtN(kgBruto,4);
-  if(elMermaCosto)elMermaCosto.textContent=fmt(costoMerma);
-  if(elPk)elPk.textContent=fmt(pkConMerma);
+  if(elPk)elPk.textContent=fmt(pkUnit);
   if(elCr)elCr.textContent=fmt(costoTotal);
   rendUpdate('sub');
 }
@@ -4301,8 +4288,8 @@ function _guardarSubReal(nombre){
   subItems.filter(x=>x.comp).forEach(item=>{
     const pk=getCompPrice(item.comp);
     const merma=parseFloat(item.merma)||0;
-    const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(parseFloat(item.kgs)||0,merma,pk);
-    DB.subproductos.push({_id:Date.now()+Math.random(),subproducto:nombre,componente:item.comp,kgs:item.kgs,kgBruto,merma,costoMerma,precio_kg:pkConMerma,costo_receta:costoTotal});
+    const {kgBruto,pkUnit,costoTotal}=calcMerma(parseFloat(item.kgs)||0,merma,pk);
+    DB.subproductos.push({_id:Date.now()+Math.random(),subproducto:nombre,componente:item.comp,kgs:item.kgs,kgBruto,merma,precio_kg:pkUnit,costo_receta:costoTotal});
   });
   // Guardar rendimiento, tipo de unidad, merma general y procedimiento
   if(!DB.subs_config)DB.subs_config={};
@@ -4412,7 +4399,7 @@ function abrirModalPlato(platoName){
 function buildPlatoTable(){
   const tbody=document.getElementById('plato-items-tbody');
   if(!platoItems.length){
-    tbody.innerHTML='<tr><td colspan="9" class="empty">Agregá componentes abajo.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" class="empty">Agregá componentes abajo.</td></tr>';
     rendUpdate('plato');
     return;
   }
@@ -4420,8 +4407,8 @@ function buildPlatoTable(){
     const tipoIns=item.tipo!=='sub';
     const kgNeto=parseFloat(item.kgs)||0;
     const merma=parseFloat(item.merma)||0;
-    const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(kgNeto,merma,item.pk);
-    item.cr=costoTotal;
+    const {kgBruto,pkUnit,costoTotal}=calcMerma(kgNeto,merma,item.pk);
+    item.cr=costoTotal; item.kgBruto=kgBruto;
     return `<tr id="pr${idx}">
       <td style="padding:6px 6px;white-space:nowrap">
         <div class="ttog">
@@ -4446,8 +4433,7 @@ function buildPlatoTable(){
         </div>
       </td>
       <td class="num" id="pibruto${idx}" style="color:var(--text3);font-size:11px;white-space:nowrap">${fmtN(kgBruto,4)}</td>
-      <td class="num" id="pimermacosto${idx}" style="color:var(--red);font-size:11px;white-space:nowrap">${merma>0?fmt(costoMerma):'—'}</td>
-      <td class="num" id="pipk${idx}" style="color:var(--text3);white-space:nowrap">${fmt(pkConMerma)}</td>
+      <td class="num" id="pipk${idx}" style="color:var(--text3);white-space:nowrap">${fmt(pkUnit)}</td>
       <td class="num" id="picr${idx}" style="color:var(--yellow);font-weight:600;white-space:nowrap">${fmt(costoTotal)}</td>
       <td style="padding:4px 6px"><button class="btn btn-danger" onclick="platoItems.splice(${idx},1);buildPlatoTable()">🗑</button></td>
     </tr>`;
@@ -4494,18 +4480,14 @@ function piMerma(idx,v){
 function recalcPlatoItem(idx){
   const item=platoItems[idx];
   const kgNeto=parseFloat(item.kgs)||0;
-  const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(kgNeto,item.merma,item.pk);
+  const {kgBruto,pkUnit,costoTotal}=calcMerma(kgNeto,item.merma,item.pk);
   item.cr=costoTotal;
   item.kgBruto=kgBruto;
-  item.pkConMerma=pkConMerma;
-  item.costoMerma=costoMerma;
   const elBruto=document.getElementById('pibruto'+idx);
-  const elMermaCosto=document.getElementById('pimermacosto'+idx);
   const elPk=document.getElementById('pipk'+idx);
   const elCr=document.getElementById('picr'+idx);
   if(elBruto)elBruto.textContent=fmtN(kgBruto,4);
-  if(elMermaCosto)elMermaCosto.textContent=fmt(costoMerma);
-  if(elPk)elPk.textContent=fmt(pkConMerma);
+  if(elPk)elPk.textContent=fmt(pkUnit);
   if(elCr)elCr.textContent=fmt(costoTotal);
   rendUpdate('plato');
 }
@@ -4535,8 +4517,8 @@ function _guardarPlatoReal(nombre){
   platoItems.filter(x=>x.comp).forEach(item=>{
     const pk=getCompPrice(item.comp);
     const mermaP=parseFloat(item.merma)||0;
-    const {kgBruto:kbP,costoMerma:cmP,pkConMerma:pkmP,costoTotal:ctP}=calcMerma(parseFloat(item.kgs)||0,mermaP,pk);
-    DB.recetas_platos.push({_id:Date.now()+Math.random(),plato:nombre,componente:item.comp,kgs:item.kgs,kgBruto:kbP,merma:mermaP,costoMerma:cmP,precio_kg:pkmP,costo_receta:ctP});
+    const {kgBruto:kbP,pkUnit:pkmP,costoTotal:ctP}=calcMerma(parseFloat(item.kgs)||0,mermaP,pk);
+    DB.recetas_platos.push({_id:Date.now()+Math.random(),plato:nombre,componente:item.comp,kgs:item.kgs,kgBruto:kbP,merma:mermaP,precio_kg:pkmP,costo_receta:ctP});
   });
   // Guardar rendimiento, tipo de unidad, merma general y procedimiento (rename key si el plato fue renombrado)
   if(!DB.platos_config)DB.platos_config={};
@@ -5098,8 +5080,8 @@ function confirmarImportExcel(){
       DB.subproductos=DB.subproductos.filter(x=>x.subproducto!==nombre);
       rec.ingredientes.forEach(ing=>{
         const pk=getCompPrice(ing.comp);
-        const{kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(ing.peso,ing.merma,pk);
-        DB.subproductos.push({_id:Date.now()+Math.random(),subproducto:nombre,componente:ing.comp,kgs:ing.peso,kgBruto,merma:ing.merma,costoMerma,precio_kg:pkConMerma,costo_receta:costoTotal});
+        const{kgBruto,pkUnit,costoTotal}=calcMerma(ing.peso,ing.merma,pk);
+        DB.subproductos.push({_id:Date.now()+Math.random(),subproducto:nombre,componente:ing.comp,kgs:ing.peso,kgBruto,merma:ing.merma,precio_kg:pkUnit,costo_receta:costoTotal});
       });
       if(!DB.maestro_subs.includes(nombre))DB.maestro_subs.push(nombre);
       if(!DB.subs_config)DB.subs_config={};
@@ -5120,8 +5102,8 @@ function confirmarImportExcel(){
       DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==nombre);
       rec.ingredientes.forEach(ing=>{
         const pk=getCompPrice(ing.comp);
-        const{kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(ing.peso,ing.merma,pk);
-        DB.recetas_platos.push({_id:Date.now()+Math.random(),plato:nombre,componente:ing.comp,kgs:ing.peso,kgBruto,merma:ing.merma,costoMerma,precio_kg:pkConMerma,costo_receta:costoTotal});
+        const{kgBruto,pkUnit,costoTotal}=calcMerma(ing.peso,ing.merma,pk);
+        DB.recetas_platos.push({_id:Date.now()+Math.random(),plato:nombre,componente:ing.comp,kgs:ing.peso,kgBruto,merma:ing.merma,precio_kg:pkUnit,costo_receta:costoTotal});
       });
       if(!DB.platos_config)DB.platos_config={};
       const peso=parseFloat(rec.pesoPorcionG)||0;
@@ -5319,16 +5301,15 @@ function toggleCDet(id){
     <button class="btn btn-outline" style="padding:2px 8px;font-size:11px" onclick="toggleCDet(${id})">✕</button>
   </div>
   <div class="tw"><table>
-    <thead><tr><th>Componente</th><th class="num">Kg neto</th><th class="num">% Merma</th><th class="num">Kg bruto</th><th class="num">$ merma</th><th class="num">$/kg c/merma</th><th class="num">Costo Rec.</th></tr></thead>
-    <tbody>${rows.map(r=>{const m=parseFloat(r.merma)||0;const kb=r.kgBruto||(m>0&&m<100?((r.kgs||0)/(1-m/100)):(r.kgs||0));const cm=r.costoMerma||(r.precio_kg*(m/100));return`<tr>
+    <thead><tr><th>Componente</th><th class="num">Kg neto</th><th class="num">% Merma</th><th class="num">Kg bruto</th><th class="num">Costo unitario</th><th class="num">Costo total</th></tr></thead>
+    <tbody>${rows.map(r=>{const m=parseFloat(r.merma)||0;const kb=calcMerma(parseFloat(r.kgs)||0,m,0).kgBruto;return`<tr>
       <td>${escH(r.componente)}</td><td class="num">${fmtN(r.kgs,4)}</td>
       <td class="num" style="color:var(--red)">${m?m+'%':'—'}</td>
       <td class="num" style="color:var(--text3)">${m?fmtN(kb,4):'—'}</td>
-      <td class="num" style="color:var(--red)">${m?fmt(cm):'—'}</td>
       <td class="num">${fmt(r.precio_kg)}</td>
       <td class="num" style="color:var(--green);font-weight:600">${fmt(r.costo_receta)}</td>
     </tr>`}).join('')}
-    <tr class="total-row"><td colspan="6" style="text-align:right">TOTAL RECETA:</td>
+    <tr class="total-row"><td colspan="5" style="text-align:right">TOTAL RECETA:</td>
       <td class="num">${fmt(rows.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0))}</td></tr>
     </tbody></table></div>`;
   document.getElementById('costeo-det-wrap').appendChild(div);
@@ -5810,6 +5791,7 @@ function iniciarListenersInsumosProveedores(){
     // sin sincronizar; ahora corre en el primer snapshot real de la
     // colección de insumos (ver limpiarInsumosRevisarEliminar).
     if(!_limpiezaInsumosYaCorrida){ _limpiezaInsumosYaCorrida=true; limpiarInsumosRevisarEliminar(); }
+    _insumosCargados=true; recetasCorregirCostoMerma();
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar insumos:', err));
   _unsubProveedores=FB_COL_PROVEEDORES.onSnapshot((snap)=>{
@@ -5849,7 +5831,7 @@ function iniciarListenersRecetas(){
     DB.subproductos=filas;
     DB.subs_config=config;
     DB.procedimientos={...DB.procedimientos, ...procedimientos};
-    _subsCargados=true; recetasCorregirCostoNeto();
+    _subsCargados=true; recetasCorregirCostoMerma();
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar subproductos:', err));
   _unsubPlatos=FB_COL_PLATOS.onSnapshot((snap)=>{
@@ -5864,7 +5846,7 @@ function iniciarListenersRecetas(){
     DB.recetas_platos=filas;
     DB.platos_config=config;
     DB.procedimientos={...DB.procedimientos, ...procedimientos};
-    _platosCargados=true; recetasCorregirCostoNeto();
+    _platosCargados=true; recetasCorregirCostoMerma();
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar platos:', err));
   _unsubMaestroSubs=FB_COL_MAESTRO_SUBS.doc('lista').onSnapshot((doc)=>{
@@ -5876,35 +5858,31 @@ function iniciarListenersRecetas(){
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar maestro_platos:', err));
 }
-// Corrección de recetas guardadas con la cuenta vieja (precio con merma × kg
-// bruto). Una vez por sesión, apenas llegan subs y platos: recalcula cada
-// ingrediente como precio con merma × kg neto y guarda solo las recetas cuyo
-// costo cambió. Insumos: usa el precio con merma ya guardado en la fila (no
-// depende de que los insumos hayan cargado). Subs dentro de platos: toma el
-// costo del sub ya corregido. Si ya está todo bien, no guarda nada.
-let _subsCargados=false, _platosCargados=false, _costoNetoRevisado=false;
-function recetasCorregirCostoNeto(){
-  if(_costoNetoRevisado || !_subsCargados || !_platosCargados) return;
-  _costoNetoRevisado=true;
+// Corrección de recetas guardadas con cuentas viejas de merma. Una vez por
+// sesión, cuando ya llegaron insumos, subs y platos: recalcula cada ingrediente
+// con calcMerma (bruto = neto ÷ (1-merma), costo = bruto × costo unitario) y
+// guarda solo las recetas que cambiaron. Costo unitario: el del insumo/sub
+// actual; si el insumo ya no existe, se deduce del guardado (antes era
+// costo × (1+merma)). Si ya está todo bien, no guarda nada.
+let _insumosCargados=false, _subsCargados=false, _platosCargados=false, _costoMermaRevisado=false;
+function recetasCorregirCostoMerma(){
+  if(_costoMermaRevisado || !_insumosCargados || !_subsCargados || !_platosCargados) return;
+  _costoMermaRevisado=true;
   const subs=new Set(), platos=new Set();
-  const fijar=(r,nuevo,set,nombre)=>{
-    if(Math.abs((parseFloat(r.costo_receta)||0)-nuevo)>0.005){ r.costo_receta=nuevo; set.add(nombre); }
-  };
-  DB.subproductos.forEach(r=>{
-    const pkm=parseFloat(r.precio_kg)||0;
-    if(pkm>0) fijar(r, pkm*(parseFloat(r.kgs)||0), subs, r.subproducto);
-  });
-  DB.recetas_platos.forEach(r=>{
-    if(String(r.componente||'').startsWith('SUB - ')){
-      const {kgBruto,costoMerma,pkConMerma,costoTotal}=calcMerma(parseFloat(r.kgs)||0, parseFloat(r.merma)||0, getCompPrice(r.componente));
-      if(Math.abs((parseFloat(r.costo_receta)||0)-costoTotal)>0.005){
-        r.kgBruto=kgBruto; r.costoMerma=costoMerma; r.precio_kg=pkConMerma; r.costo_receta=costoTotal; platos.add(r.plato);
-      }
-    } else {
-      const pkm=parseFloat(r.precio_kg)||0;
-      if(pkm>0) fijar(r, pkm*(parseFloat(r.kgs)||0), platos, r.plato);
+  const corregir=(r,set,nombre)=>{
+    const comp=String(r.componente||''), m=parseFloat(r.merma)||0;
+    let pk;
+    if(comp.startsWith('SUB - ')) pk=getCompPrice(comp);
+    else if(DB.insumos.some(x=>x.key===comp)) pk=getCompPrice(comp);
+    else pk=(parseFloat(r.precio_kg)||0)/(r.costoMerma!==undefined?(1+m/100):1);
+    const {kgBruto,pkUnit,costoTotal}=calcMerma(parseFloat(r.kgs)||0,m,pk);
+    const dif=(a,b)=>Math.abs((parseFloat(a)||0)-b)>0.005;
+    if(dif(r.costo_receta,costoTotal)||dif(r.precio_kg,pkUnit)||dif(r.kgBruto,kgBruto)||r.costoMerma!==undefined){
+      r.kgBruto=kgBruto; r.precio_kg=pkUnit; r.costo_receta=costoTotal; delete r.costoMerma; set.add(nombre);
     }
-  });
+  };
+  DB.subproductos.forEach(r=>corregir(r,subs,r.subproducto));
+  DB.recetas_platos.forEach(r=>corregir(r,platos,r.plato));
   const recetas=[...[...subs].map(n=>['sub',n]), ...[...platos].map(n=>['plato',n])];
   if(!recetas.length) return;
   _repintarRecetasTrasRecalculo();
@@ -10226,7 +10204,7 @@ function descargarRecetaPDF(tipo){
   const filasIng=items.map(item=>{
     const kgNeto=parseFloat(item.kgs)||0;
     const merma=parseFloat(item.merma)||0;
-    const kgBruto=item.kgBruto!=null?item.kgBruto:(merma>0?kgNeto*(1+merma/100):kgNeto);
+    const kgBruto=calcMerma(kgNeto,merma,0).kgBruto;
     const lbl=esSub
       ?(insOpts().find(o=>o.val===item.comp)?.label||item.comp||'').replace('INSUMO - ','')
       :(item.tipo==='sub'
