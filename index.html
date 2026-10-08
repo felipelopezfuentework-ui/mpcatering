@@ -58,8 +58,23 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(-
 .tw-scroll{overflow:auto;max-height:calc(100vh - var(--mp-vbar-top,130px) - 70px)}
 .ins-tabla th{white-space:normal;padding:10px 8px}
 .ins-tabla td{padding:6px 8px;white-space:normal;overflow-wrap:anywhere}
-.ins-tabla td:nth-child(1){font-size:11px;min-width:90px}
-.ins-tabla td:nth-child(2){min-width:120px}
+.ins-tabla td:nth-child(1){min-width:120px}
+/* Edición "con un clic": los campos se ven como texto; al pasar el mouse se
+   marca el borde y al hacer clic se convierten en campo para escribir. */
+.ins-tabla input[type=text],.ins-tabla select,.ins-tabla .ins-formato,.ins-tabla td[contenteditable]{
+  background:transparent!important;border:1px solid transparent!important;border-radius:4px;transition:border-color .15s,background .15s}
+.ins-tabla td[contenteditable]{outline:none}
+.ins-tabla tr:hover input[type=text],.ins-tabla tr:hover select,.ins-tabla tr:hover .ins-formato,.ins-tabla tr:hover td[contenteditable]{border-color:var(--border)!important;border-style:dashed!important}
+.ins-tabla input[type=text]:focus,.ins-tabla select:focus,.ins-tabla .ins-formato:focus,.ins-tabla td[contenteditable]:focus{
+  background:var(--surface)!important;border:1px solid var(--accent)!important;box-shadow:0 0 0 3px rgba(92,45,110,.12)}
+.ins-tabla select{appearance:none;-webkit-appearance:none;cursor:pointer}
+#ins-tbody tr.ins-sin-precio td{background:rgba(192,57,43,.07)}
+.ins-acc{display:flex;gap:5px;align-items:center;justify-content:flex-end;white-space:nowrap}
+.ins-acc .btn{padding:3px 8px;font-size:11px}
+.mp-gen-ov .modal{max-height:92vh;overflow:auto}
+.hist-resumen{display:flex;flex-wrap:wrap;gap:10px 28px;margin-bottom:14px}
+.hist-resumen div{font-size:12px;color:var(--text3)}
+.hist-resumen b{display:block;font-size:18px;color:var(--text)}
 .ins-formato{min-width:150px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 7px;font-size:13px;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
 .ins-formato:empty::before{content:attr(data-placeholder);color:var(--text3)}
 .tw-scroll thead th{position:sticky;top:0;z-index:2;box-shadow:inset 0 -2px 0 var(--border)}
@@ -591,7 +606,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       </label>
     </div>
     <div class="tw tw-scroll"><table class="ins-tabla">
-      <thead><tr><th style="cursor:pointer;user-select:none" onclick="insOrdenar('key')" title="Ordenar">Key interna <span class="ins-flecha" data-col="key"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('nombre')" title="Ordenar">Nombre <span class="ins-flecha" data-col="nombre"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('formato')" title="Ordenar">Formato <span class="ins-flecha" data-col="formato"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('precio')" title="Ordenar">$ Formato <span class="ins-flecha" data-col="precio"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('kg')" title="Ordenar">Kg/Formato <span class="ins-flecha" data-col="kg"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('pk')" title="Ordenar">$ / kg <span class="ins-flecha" data-col="pk"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('act')" title="Ordenar">Actualizado <span class="ins-flecha" data-col="act"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('prov')" title="Ordenar">Proveedor <span class="ins-flecha" data-col="prov"></span></th><th></th></tr></thead>
+      <thead><tr><th style="cursor:pointer;user-select:none" onclick="insOrdenar('nombre')" title="Ordenar">Nombre <span class="ins-flecha" data-col="nombre"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('formato')" title="Ordenar">Formato <span class="ins-flecha" data-col="formato"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('precio')" title="Ordenar">$ Formato <span class="ins-flecha" data-col="precio"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('kg')" title="Ordenar">Kg/Formato <span class="ins-flecha" data-col="kg"></span></th><th class="num" style="cursor:pointer;user-select:none" onclick="insOrdenar('pk')" title="Ordenar">$ / kg <span class="ins-flecha" data-col="pk"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('act')" title="Ordenar">Actualizado <span class="ins-flecha" data-col="act"></span></th><th style="cursor:pointer;user-select:none" onclick="insOrdenar('prov')" title="Ordenar">Proveedor <span class="ins-flecha" data-col="prov"></span></th><th></th></tr></thead>
       <tbody id="ins-tbody"></tbody>
     </table></div>
     <div id="ins-tot" class="mp-tot"></div>
@@ -2751,12 +2766,14 @@ function renderInsumos(){
   const pages=Math.ceil(f.length/INS_PER)||1;
   if(insPage>=pages)insPage=0;
   const sl=f.slice(insPage*INS_PER,(insPage+1)*INS_PER);
+  const usosPorInsumo=insContarUsos();
   document.getElementById('ins-tbody').innerHTML=sl.map((x,i)=>{
     const pkgKg=parseFloat(x.formato_kg)||0;
     const pkgPrecio=parseFloat(x.precio_formato)||0;
     const precioKg=pkgKg>0?(pkgPrecio/pkgKg):parseFloat(x.costo)||0;
-    return `<tr${x._id===_insumoNuevoId?' class="ins-fila-nueva"':''}>
-    <td id="ikey${x._id}" style="font-size:11px;color:var(--text3)">${escH(x.key)}</td>
+    const sinPrecio=!(precioKg>0);
+    const usos=usosPorInsumo[x.key]||0;
+    return `<tr class="${x._id===_insumoNuevoId?'ins-fila-nueva':''}${sinPrecio?' ins-sin-precio':''}">
     <td contenteditable oninput="updInsNombre(${x._id},this.textContent)" style="font-weight:600">${escH(x.nombre)}</td>
     <td>
       <div contenteditable class="ins-formato" data-placeholder="ej: bolsa 5kg"
@@ -2772,7 +2789,7 @@ function renderInsumos(){
         style="width:62px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px"
         oninput="updInsKgFormato(${x._id},insParseNum(this.value,true))" onblur="this.value=(parseFloat(DB.insumos.find(i=>i._id===${x._id})?.formato_kg)||0)?fmtN(DB.insumos.find(i=>i._id===${x._id}).formato_kg,3):''">
     </td>
-    <td class="num" id="ipk${x._id}" style="color:var(--green);font-weight:700">${fmtN(precioKg,2)}</td>
+    <td class="num" id="ipk${x._id}" style="color:${sinPrecio?'var(--red)':'var(--green)'};font-weight:700">${sinPrecio?'Sin precio':fmtN(precioKg,2)}</td>
     <td id="iact${x._id}">${insMarcaActualizado(x)}</td>
     <td>
       <select style="background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:12px;max-width:150px"
@@ -2781,13 +2798,144 @@ function renderInsumos(){
         ${DB.proveedores.map(p=>`<option value="${escH(p.proveedor)}"${p.proveedor===x.proveedor?' selected':''}>${escH(p.proveedor)}</option>`).join('')}
       </select>
     </td>
-    <td><button class="btn btn-danger" onclick="delIns(${x._id})">🗑</button></td>
+    <td><div class="ins-acc">
+      <button class="btn btn-outline" title="Recetas que usan este insumo" onclick="insVerUsos(${x._id})">🔗 ${usos}</button>
+      <button class="btn btn-outline" title="Historial de precios" onclick="insVerHistorial(${x._id})">📈</button>
+      <button class="btn btn-danger" onclick="delIns(${x._id})">🗑</button></div></td>
   </tr>`;}).join('');
   _insumoNuevoId=null; // se usa una sola vez por render
   document.getElementById('ins-pag').innerHTML=`
     <button class="btn btn-outline" onclick="insPage--;renderInsumos()" ${insPage===0?'disabled':''}>‹</button>
     <span class="pag-info">Pág ${insPage+1}/${pages} · ${f.length} insumos</span>
     <button class="btn btn-outline" onclick="insPage++;renderInsumos()" ${insPage>=pages-1?'disabled':''}>›</button>`;
+}
+// ── Insumos: precio en la celda, "usado en" e historial de precios ──
+function insPintarPrecio(x){
+  const el=document.getElementById('ipk'+x._id); if(!el) return;
+  const ok=parseFloat(x.costo)>0;
+  el.textContent=ok?fmtN(x.costo,2):'Sin precio';
+  el.style.color=ok?'var(--green)':'var(--red)';
+  const tr=el.closest('tr'); if(tr) tr.classList.toggle('ins-sin-precio',!ok);
+}
+// Cuántas recetas (subs + platos) usan cada insumo directamente.
+function insContarUsos(){
+  const m={}, vistos=new Set();
+  DB.subproductos.forEach(r=>{ const k=r.componente+'|S|'+r.subproducto; if(!vistos.has(k)){ vistos.add(k); m[r.componente]=(m[r.componente]||0)+1; } });
+  DB.recetas_platos.forEach(r=>{ const k=r.componente+'|P|'+r.plato; if(!vistos.has(k)){ vistos.add(k); m[r.componente]=(m[r.componente]||0)+1; } });
+  return m;
+}
+// Historial: [{f: fecha ISO, c: $/kg, o: origen}] en el doc del insumo.
+// Semilla: antes del primer cambio se guarda el precio que tenía.
+function insHistSemilla(x){
+  if(Array.isArray(x.historial_precios)&&x.historial_precios.length) return;
+  const c=Math.round((parseFloat(x.costo)||0)*100)/100;
+  x.historial_precios=c>0?[{f:x.precio_actualizado||x.updated_at||new Date().toISOString(),c,o:x.precio_fuente||'a mano'}]:[];
+}
+// Registra el precio actual si cambió. Varias ediciones a mano seguidas
+// (mientras se tipea) se juntan en un solo punto (10 min).
+function insHistRegistrar(x){
+  const c=Math.round((parseFloat(x.costo)||0)*100)/100;
+  if(!(c>0)) return;
+  const h=Array.isArray(x.historial_precios)?x.historial_precios:(x.historial_precios=[]);
+  const ult=h[h.length-1], o=x.precio_fuente||'a mano', ahora=new Date().toISOString();
+  if(!ult){ h.push({f:x.precio_actualizado||ahora,c,o}); return; }
+  if(Math.abs(ult.c-c)<0.005) return;
+  if(ult&&o==='a mano'&&ult.o==='a mano'&&Date.now()-Date.parse(ult.f)<10*60*1000&&h.length>1){ ult.c=c; ult.f=ahora; return; }
+  h.push({f:ahora,c,o});
+}
+// Modal genérico (se crea y se borra).
+function mpModalGen(titulo,html,ancho){
+  mpCerrarModalGen();
+  const ov=document.createElement('div');
+  ov.className='modal-ov open mp-gen-ov'; ov.id='mp-modal-gen';
+  ov.innerHTML=`<div class="modal" style="max-width:${ancho||900}px;width:96vw">
+    <div class="modal-hd"><span class="modal-title">${titulo}</span>
+      <button class="btn btn-outline" style="padding:4px 12px" onclick="mpCerrarModalGen()">✕ Cerrar</button></div>
+    <div>${html}</div></div>`;
+  ov.addEventListener('mousedown',e=>{ if(e.target===ov) mpCerrarModalGen(); });
+  document.body.appendChild(ov);
+}
+function mpCerrarModalGen(){ const el=document.getElementById('mp-modal-gen'); if(el) el.remove(); }
+
+function insVerUsos(id){
+  const x=DB.insumos.find(i=>i._id===id); if(!x) return;
+  const subs=[...new Set(DB.subproductos.filter(r=>r.componente===x.key).map(r=>r.subproducto))];
+  const platosDir=[...new Set(DB.recetas_platos.filter(r=>r.componente===x.key).map(r=>r.plato))];
+  const platosVia={};
+  subs.forEach(sb=>DB.recetas_platos.filter(r=>r.componente===sb).forEach(r=>{ (platosVia[r.plato]=platosVia[r.plato]||[]).push(sb); }));
+  const fila=(tipo,nombre,via)=>{
+    const d=_recetaViewData(tipo,nombre);
+    const filas=d.rows.filter(r=>r.componente===x.key);
+    const kg=filas.reduce((a,r)=>a+(parseFloat(r.kgs)||0),0), costo=filas.reduce((a,r)=>a+(parseFloat(r.costo_receta)||0),0);
+    const peso=d.total>0&&costo>0?costo/d.total*100:null;
+    return `<tr style="cursor:pointer" onclick='mpCerrarModalGen();${tipo==='sub'?'abrirModalSub':'abrirModalPlato'}(${JSON.stringify(nombre)})'>
+      <td>${tipo==='sub'?'🧩':'🍴'} ${escH(nombre.replace(/^(SUB|PLATO) - /,''))}${via?`<span style="display:block;font-size:10.5px;color:var(--text3)">a través de ${escH(via.map(v=>v.replace('SUB - ','')).join(', '))}</span>`:''}</td>
+      <td class="num">${kg?fmtN(kg,3):'—'}</td>
+      <td class="num">${costo?fmt(costo):'—'}</td>
+      <td class="num">${peso===null?'—':fmtN(peso,1)+'%'}</td>
+      <td class="num">${d.porciones>0?fmt(d.total/d.porciones):'<span style="color:var(--text3)">sin porciones</span>'}</td></tr>`;
+  };
+  const filas=[...subs.map(n=>fila('sub',n)),...platosDir.map(n=>fila('plato',n)),
+    ...Object.keys(platosVia).filter(n=>!platosDir.includes(n)).map(n=>fila('plato',n,platosVia[n]))];
+  mpModalGen('🔗 Recetas que usan '+escH(x.nombre),
+    `<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Precio actual: <b style="color:var(--text)">${parseFloat(x.costo)>0?fmt(x.costo)+' / kg':'sin precio'}</b> · Tocá una receta para abrirla.</div>
+    <div class="tw"><table><thead><tr><th>Receta</th><th class="num">Kg en la receta</th><th class="num">Costo en la receta</th><th class="num">% del costo</th><th class="num">Costo x porción</th></tr></thead>
+    <tbody>${filas.join('')||'<tr><td colspan="5" class="empty">Ninguna receta usa este insumo.</td></tr>'}</tbody></table></div>`, 900);
+}
+
+function insVerHistorial(id){
+  const x=DB.insumos.find(i=>i._id===id); if(!x) return;
+  let h=(Array.isArray(x.historial_precios)?x.historial_precios:[]).filter(p=>p&&p.c>0&&!isNaN(Date.parse(p.f)));
+  if(!h.length&&parseFloat(x.costo)>0) h=[{f:x.precio_actualizado||new Date().toISOString(),c:parseFloat(x.costo),o:x.precio_fuente||'a mano'}];
+  // Fechas solo con día ("2026-05-02") se toman a mediodía local, si no se corren un día.
+  const tms=f=>/^\d{4}-\d{2}-\d{2}$/.test(f)?Date.parse(f+'T12:00:00'):Date.parse(f);
+  h=h.map(p=>({...p,t:tms(p.f)})).sort((a,b)=>a.t-b.t);
+  if(!h.length){ mpModalGen('📈 '+escH(x.nombre),'<div class="empty">Este insumo todavía no tiene precio.</div>',600); return; }
+  const fFecha=t=>new Date(t).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'});
+  const primero=h[0].c, ultimo=h[h.length-1].c, varTot=primero>0?(ultimo-primero)/primero*100:0;
+  // Gráfico de líneas (SVG): eje X por fecha, eje Y en $/kg. Se extiende la
+  // última línea hasta hoy (punteada) porque el precio sigue vigente.
+  const W=1000,H=380,L=84,R=46,T=20,B=48;
+  const t0=h[0].t, hoy=Date.now(), t1=Math.max(hoy,h[h.length-1].t);
+  const span=Math.max(t1-t0,24*3600*1000);
+  const vals=h.map(p=>p.c), vmin=Math.min(...vals), vmax=Math.max(...vals);
+  // Eje Y con números redondos (1, 2, 2,5 o 5 × 10^n).
+  const crudo=Math.max((vmax-vmin)*1.3,vmax*0.1,1)/5, mag=Math.pow(10,Math.floor(Math.log10(crudo)));
+  const paso=[1,2,2.5,5,10].map(k=>k*mag).find(v=>v>=crudo);
+  let y0=Math.max(0,Math.floor((vmin-paso*0.5)/paso)*paso), y1=Math.ceil((vmax+paso*0.5)/paso)*paso;
+  const nY=Math.round((y1-y0)/paso);
+  const X=t=>L+(t-t0)/span*(W-L-R), Y=v=>T+(1-(v-y0)/(y1-y0))*(H-T-B);
+  let grid='';
+  for(let i=0;i<=nY;i++){ const v=y0+paso*i, y=Y(v);
+    grid+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#e6e0ee"/><text x="${L-8}" y="${y+4}" text-anchor="end" font-size="12" fill="#8a8197">${'$ '+Math.round(v).toLocaleString('es-AR')}</text>`; }
+  const nX=Math.min(6,Math.max(2,h.length));
+  for(let i=0;i<nX;i++){ const t=t0+span*i/(nX-1);
+    grid+=`<text x="${X(t)}" y="${H-B+22}" text-anchor="middle" font-size="12" fill="#8a8197">${fFecha(t)}</text>`; }
+  const pts=h.map(p=>`${X(p.t)},${Y(p.c)}`).join(' ');
+  const lastX=X(h[h.length-1].t), lastY=Y(ultimo);
+  const area=`${X(h[0].t)},${H-B} ${pts} ${lastX},${H-B}`;
+  const puntos=h.map((p,i)=>{ const ant=i?h[i-1].c:null, v=ant?((p.c-ant)/ant*100):null;
+    return `<circle cx="${X(p.t)}" cy="${Y(p.c)}" r="5.5" fill="#fff" stroke="#5c2d6e" stroke-width="2.5"><title>${fFecha(p.t)}: $ ${p.c.toLocaleString('es-AR')}${v!==null?' ('+(v>=0?'+':'')+v.toFixed(1)+'%)':''}</title></circle>`; }).join('');
+  const svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;background:var(--surface);border:1px solid var(--border);border-radius:10px">
+    ${grid}<line x1="${L}" x2="${L}" y1="${T}" y2="${H-B}" stroke="#cfc6dc"/><line x1="${L}" x2="${W-R}" y1="${H-B}" y2="${H-B}" stroke="#cfc6dc"/>
+    <polygon points="${area}" fill="rgba(92,45,110,.08)"/>
+    <polyline points="${pts}" fill="none" stroke="#5c2d6e" stroke-width="3" stroke-linejoin="round"/>
+    <line x1="${lastX}" y1="${lastY}" x2="${X(hoy)}" y2="${lastY}" stroke="#5c2d6e" stroke-width="2" stroke-dasharray="6 5" opacity=".6"/>
+    ${puntos}</svg>`;
+  const filas=h.map((p,i)=>{ const ant=i?h[i-1].c:null, v=ant?((p.c-ant)/ant*100):null;
+    return `<tr><td>${fFecha(p.t)}</td><td class="num">${fmt(p.c)}</td>
+      <td class="num" style="color:${v===null?'var(--text3)':v>0?'var(--red)':'var(--green)'}">${v===null?'—':(v>=0?'+':'')+fmtN(v,1)+'%'}</td>
+      <td style="font-size:11px;color:var(--text3)">${escH(p.o==='a mano'?'✎ a mano':'✓ lista: '+p.o)}</td></tr>`; }).reverse().join('');
+  mpModalGen('📈 Historial de precios · '+escH(x.nombre), `
+    <div class="hist-resumen">
+      <div>Precio actual<b>${fmt(ultimo)} / kg</b></div>
+      <div>Primer registro (${fFecha(h[0].t)})<b>${fmt(primero)} / kg</b></div>
+      <div>Variación total<b style="color:${varTot>0?'var(--red)':varTot<0?'var(--green)':'var(--text)'}">${(varTot>=0?'+':'')+fmtN(varTot,1)}%</b></div>
+      <div>Cambios registrados<b>${h.length}</b></div>
+    </div>
+    ${svg}
+    ${h.length<2?'<div style="font-size:12px;color:var(--text3);margin:8px 0 0">Todavía hay un solo precio registrado: a partir de ahora cada cambio (a mano o por lista de proveedor) suma un punto al gráfico.</div>':''}
+    <div class="tw" style="margin-top:14px"><table><thead><tr><th>Fecha</th><th class="num">$ / kg</th><th class="num">Variación</th><th>Origen</th></tr></thead><tbody>${filas}</tbody></table></div>`, 1150);
 }
 // Números escritos como en Argentina: "39.190,91" → 39190.91. Si no hay
 // coma, en precios un punto seguido de 3 dígitos es de miles ("39.190");
@@ -2807,6 +2955,7 @@ function insMarcaActualizado(x){
   return `<span title="${escH(tip)}" style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap;${deLista?'background:rgba(34,197,94,.15);color:var(--green)':'background:var(--surface2);color:var(--text3)'}">${deLista?'✓':'✎'} ${f}</span>`;
 }
 function insMarcarManual(x){
+  insHistSemilla(x);
   x.precio_actualizado=new Date().toISOString(); x.precio_fuente='a mano'; x.precio_producto='';
   const el=document.getElementById('iact'+x._id); if(el) el.innerHTML=insMarcaActualizado(x);
 }
@@ -2825,8 +2974,7 @@ function updInsPrecioFormato(id,val){
   insMarcarManual(x);
   const kg=parseFloat(x.formato_kg)||0;
   x.costo=kg>0?(x.precio_formato/kg):x.precio_formato;
-  const el=document.getElementById('ipk'+id);
-  if(el)el.textContent=fmtN(x.costo,2);
+  insPintarPrecio(x);
   guardarInsumo(id);
   recalcularRecetasPorInsumo(x.key);
 }
@@ -2836,8 +2984,7 @@ function updInsKgFormato(id,val){
   insMarcarManual(x);
   const pf=parseFloat(x.precio_formato)||0;
   x.costo=x.formato_kg>0?(pf/x.formato_kg):pf;
-  const el=document.getElementById('ipk'+id);
-  if(el)el.textContent=fmtN(x.costo,2);
+  insPintarPrecio(x);
   guardarInsumo(id);
   recalcularRecetasPorInsumo(x.key);
 }
@@ -3012,9 +3159,11 @@ function lpAplicarVarios(ps){
       const x=DB.insumos.find(i=>i._id===p.ins._id); if(!x) return;
       const v=_lpValores(p);
       p.antes=parseFloat(x.costo)||0;
+      insHistSemilla(x);
       x.formato=v.formato; x.precio_formato=v.precio; x.formato_kg=v.kg;
       x.costo=v.kg>0?v.precio/v.kg:v.precio;
       x.precio_actualizado=_lpFecha; x.precio_fuente=_lpArchivo; x.precio_producto=p.cands[p.sel].nombre;
+      insHistRegistrar(x);
       p.nuevo=x.costo; p.final=v; p.estado='hecho';
       insumosAGuardar.push(x);
       recalcularRecetasPorInsumo(x.key,false);
@@ -5746,6 +5895,7 @@ function guardarInsumo(id){
   // guardando el precio anterior encima del nuevo.
   const copia=DB.insumos.find(i=>i._id===id);
   if(!copia) return;
+  insHistRegistrar(copia);
   const datosAhora={...copia};
   _guardadoInsumoTimers[id]=setTimeout(async ()=>{
     const x=datosAhora;
