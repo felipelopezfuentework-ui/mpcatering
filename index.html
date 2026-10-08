@@ -602,7 +602,6 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <button class="btn btn-primary" onclick="abrirModalSub(null)">+ Nuevo Subproducto</button>
     </div>
     <div id="sub-alert" class="alert"></div>
-    <div id="sub-tot" class="mp-tot" style="margin:0 0 10px"></div>
     <div id="sub-list"></div>
     <label class="btn btn-primary mp-fab-excel" style="cursor:pointer" title="Cargar recetas desde Excel">
       📊 Cargar desde Excel
@@ -627,7 +626,6 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
       <button class="btn btn-primary" onclick="abrirModalPlato(null)">+ Nuevo Plato</button>
     </div>
     <div id="plato-alert" class="alert"></div>
-    <div id="plato-tot" class="mp-tot" style="margin:0 0 10px"></div>
     <div id="plato-list"></div>
     <label class="btn btn-primary mp-fab-excel" style="cursor:pointer" title="Cargar recetas desde Excel">
       📊 Cargar desde Excel
@@ -4351,25 +4349,11 @@ function _guardarSubReal(nombre){
   renderCosteoTable();
 }
 
-// Línea de resumen de una pestaña de recetas: cantidad, incompletas, costo
-// por porción promedio (de las que tienen porciones cargadas).
-function _totPestanaRecetas(tipo,todos,mostrados){
-  const el=document.getElementById(tipo+'-tot'); if(!el) return;
-  const datos=todos.map(n=>_recetaViewData(tipo,n));
-  const conPorc=datos.filter(d=>d.porciones>0);
-  const promedio=conPorc.length?conPorc.reduce((s,d)=>s+d.total/d.porciones,0)/conPorc.length:0;
-  const incompletas=datos.filter(d=>d.faltantes.length).length;
-  el.innerHTML=`<span><b>${todos.length}</b> ${tipo==='sub'?'subproductos':'platos'}</span>`+
-    (mostrados!==todos.length?`<span>Mostrando <b>${mostrados}</b></span>`:'')+
-    `<span>Con datos faltantes <b${incompletas?' style="color:var(--red)"':''}>${incompletas}</b></span>`+
-    `<span>Costo promedio por porción <b>${conPorc.length?fmt(promedio):'—'}</b></span>`;
-}
 function renderSubproductos(){
   _mpUpdateVbarTop();
   const q=document.getElementById('sub-search').value.trim();
   const subs=_filtrarRecetasPorBusqueda('sub',[...new Set(DB.subproductos.map(x=>x.subproducto))],q);
   const c=document.getElementById('sub-list');
-  _totPestanaRecetas('sub',[...new Set(DB.subproductos.map(x=>x.subproducto))],subs.length);
   if(!subs.length){c.innerHTML='<div class="empty">Sin subproductos.</div>';return;}
   const vista=_subVista;
   c.innerHTML = vista==='cards'?_renderCardsRecetas('sub',subs)
@@ -4601,7 +4585,6 @@ function renderPlatos(){
   const q=document.getElementById('plato-search').value.trim();
   const platos=_filtrarRecetasPorBusqueda('plato',[...new Set(DB.recetas_platos.map(x=>x.plato))],q);
   const c=document.getElementById('plato-list');
-  _totPestanaRecetas('plato',[...new Set(DB.recetas_platos.map(x=>x.plato))],platos.length);
   if(!platos.length){c.innerHTML='<div class="empty">Sin platos.</div>';return;}
   const vista=_platoVista;
   c.innerHTML = vista==='cards'?_renderCardsRecetas('plato',platos)
