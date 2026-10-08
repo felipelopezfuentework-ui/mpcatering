@@ -364,7 +364,6 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
   padding:2px 6px;font-size:12px;line-height:1.5;cursor:pointer;color:var(--text2);
 }
 .mp-icon-btn:hover{background:var(--surface2)}
-.mp-icon-btn-warn{border-color:rgba(230,160,20,.45)}
 /* Barra sticky de vistas (Lista/Cards/Tabla) + buscador, en Subproductos y Platos */
 .mp-vista-bar{
   position:sticky;top:var(--mp-vbar-top,130px);z-index:30;background:var(--surface);
@@ -4032,22 +4031,6 @@ function calcCostoIng(kgs, pk){
   return {pkUnit, costoTotal:(parseFloat(kgs)||0)*pkUnit};
 }
 
-// Campos de una receta (plato o subproducto) que están vacíos o en cero.
-// rows: filas de ingredientes (DB.recetas_platos / DB.subproductos filtradas por receta).
-// cfg: DB.platos_config[nombre] / DB.subs_config[nombre].
-// Por ingrediente se reporta si le faltan los kg.
-function recetaCamposFaltantes(rows,cfg){
-  const faltantes=[];
-  (rows||[]).forEach(r=>{
-    const nombreIng=r.componente||'(sin nombre)';
-    const kg=parseFloat(r.kgs)||0;
-    if(kg<=0) faltantes.push('Kg ('+nombreIng+')');
-  });
-  const c=cfg||{};
-  if(!(parseFloat(c.rendimiento_unidades)>0)) faltantes.push('Porciones/Unidades obtenidas');
-  return faltantes;
-}
-
 // Popover chico y genérico para los botones 📅/⚠️ de las cards de plato/subproducto.
 // Lee data-pop-title y data-pop-lines (líneas separadas por "|") del botón clickeado
 // y muestra un panel flotante cerca del botón; un solo popover compartido en el DOM.
@@ -4128,13 +4111,6 @@ function _mpBotonFecha(cfg){
     data-pop-lines="${escH('Creada: '+formatFechaHoraCompacta(cfg.fecha_creacion)+'|Última modificación: '+formatFechaHoraCompacta(cfg.fecha_modificacion))}"
     onclick="event.stopPropagation();mpTogglePopover(this)">📅</button>`;
 }
-function _mpBotonAlerta(faltantes){
-  if(!faltantes||!faltantes.length)return'';
-  return `<button type="button" class="mp-icon-btn mp-icon-btn-warn" title="Ver campos incompletos"
-    data-pop-title="⚠️ Campos incompletos"
-    data-pop-lines="${escH('Faltan: '+faltantes.join(', '))}"
-    onclick="event.stopPropagation();mpTogglePopover(this)">⚠️</button>`;
-}
 function _mpCategoriaBadge(categoria){
   if(!categoria)return'';
   return `<span class="badge" style="background:rgba(92,45,110,.12);color:var(--mp-violet);font-size:10px;flex-shrink:0">${escH(categoria)}</span>`;
@@ -4144,10 +4120,9 @@ function _recetaViewData(tipo,nombre){
   const rows=tipo==='sub'?DB.subproductos.filter(x=>x.subproducto===nombre):DB.recetas_platos.filter(x=>x.plato===nombre);
   const cfg=((tipo==='sub'?DB.subs_config:DB.platos_config)||{})[nombre]||{};
   const total=rows.reduce((s,r)=>s+(parseFloat(r.costo_receta)||0),0);
-  const faltantes=recetaCamposFaltantes(rows,cfg);
   const porciones=parseFloat(cfg.rendimiento_unidades)||0;
   const costoUnitario=porciones>0?total/porciones:null;
-  return {nombre,rows,cfg,total,faltantes,porciones,costoUnitario,categoria:cfg.categoria_receta||''};
+  return {nombre,rows,cfg,total,porciones,costoUnitario,categoria:cfg.categoria_receta||''};
 }
 // Filtra nombres de recetas por coincidencia parcial (nombre visible o categoría), sin distinguir mayúsculas/minúsculas.
 function _filtrarRecetasPorBusqueda(tipo,nombres,q){
@@ -4191,7 +4166,6 @@ function _renderListaRecetas(tipo,nombres){
         <span class="${meta.ghClass}" style="flex:1;min-width:0">${meta.emoji} ${escH(_nombreVisible(meta,nombre))}</span>
         ${_mpCategoriaBadge(d.categoria)}
         ${_mpBotonFecha(d.cfg)}
-        ${_mpBotonAlerta(d.faltantes)}
         ${pesoBadge}
         <span style="color:${meta.totalColor};font-weight:700">${fmt(d.total)}</span>
         ${_mpBotonesMover(meta,nombre)}
@@ -4227,7 +4201,6 @@ function _renderCardsRecetas(tipo,nombres){
         ${_mpCategoriaBadge(d.categoria)}
       </div>
       ${_mpBotonFecha(d.cfg)}
-      ${_mpBotonAlerta(d.faltantes)}
       <span style="color:${meta.totalColor};font-weight:700;white-space:nowrap">${fmt(d.total)}</span>
       ${_mpBotonesMover(meta,nombre)}
       <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" ${meta.pdfAttr}="${escH(nombre)}">📄 PDF</button>
@@ -4247,7 +4220,7 @@ function _renderTablaRecetas(tipo,nombres){
       <td>${d.categoria?escH(d.categoria):'—'}</td>
       <td class="num">${d.porciones>0?fmtN(d.porciones,2):'—'}</td>
       <td class="num" style="color:${meta.totalColor};font-weight:600">${d.costoUnitario!=null?fmt(d.costoUnitario):'—'}</td>
-      <td style="white-space:nowrap">${_mpBotonFecha(d.cfg)} ${_mpBotonAlerta(d.faltantes)}</td>
+      <td style="white-space:nowrap">${_mpBotonFecha(d.cfg)}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" title="Pasar a ${meta.otra}" ${meta.pasarAttr}="${escH(nombre)}">⇄</button>
         <button class="btn btn-outline" style="padding:3px 8px;font-size:10.5px" title="Duplicar como ${meta.otra}" ${meta.dupAttr}="${escH(nombre)}">⧉</button>
