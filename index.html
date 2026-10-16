@@ -143,7 +143,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .presu-opc-ley{font-size:11px;color:var(--text3);margin-bottom:6px;line-height:1.35}
 .presu-opc label{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--text);cursor:pointer;padding:3px 0;line-height:1.3}
 .presu-opc input{margin-top:2px;flex-shrink:0}
-.presu-opc label.off{color:var(--text3);text-decoration:line-through}
+.presu-opc label.off{color:var(--text3)}
+.presu-opc-tag{font-style:normal;font-size:10.5px;color:var(--accent);font-weight:600;white-space:nowrap}
 .presu-opc-extra{font-size:11px;color:var(--text3);margin:2px 0 4px}
 .presu-orto{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;font-size:11px}
 .presu-orto-item{display:flex;align-items:center;flex-wrap:wrap;gap:4px;background:rgba(192,57,43,.07);border:1px solid rgba(192,57,43,.25);border-radius:6px;padding:3px 6px;color:var(--text2)}
@@ -1711,13 +1712,13 @@ tr.rec-clic:hover td{background:var(--accent-light)}
           <label>El presupuesto incluye</label>
           <div class="presu-opc" id="presu-incluye-opc"></div>
           <div class="presu-opc-extra">Otros ítems (uno por línea). Acá ves cómo queda el texto:</div>
-          <textarea id="presu-incluye" oninput="presuOpcRender('incluye')" rows="5" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+          <textarea id="presu-incluye" oninput="presuOpcRender()" rows="5" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
         </div>
         <div class="form-field" style="flex:1">
           <label>El presupuesto NO incluye</label>
           <div class="presu-opc" id="presu-no-incluye-opc"></div>
           <div class="presu-opc-extra">Otros ítems (uno por línea). Acá ves cómo queda el texto:</div>
-          <textarea id="presu-no-incluye" oninput="presuOpcRender('noIncluye')" rows="5" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+          <textarea id="presu-no-incluye" oninput="presuOpcRender()" rows="5" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
         </div>
       </div>
     </div>
@@ -11117,13 +11118,13 @@ function presuNuevoBorrador(){
     // A pedido: un presupuesto nuevo solo trae precargados las fotos, la
     // intro del menú, los términos (condiciones de pago) y el cierre; las
     // estaciones y precios arrancan vacíos. Incluye/no incluye traen las
-    // opciones fijas (PRESU_OPC) tildadas.
+    // opciones fijas (PRESU_OPC), cada una en su lista.
     estaciones:[presuEstacionVacia()],
     precios:[],
     aclaracionPrecios:'',
     salonCamareros:'', salonPrecio:'',
-    incluye:PRESU_OPC.incluye.join('\n'),
-    noIncluye:PRESU_OPC.noIncluye.join('\n'),
+    incluye:presuOpcTextoDefecto('si'),
+    noIncluye:presuOpcTextoDefecto('no'),
     clausulas:presuDefaultClausulas(),
     cierre:'Sin otro particular, los saluda atentamente,\nMariana Pages Palenque',
     graciasTexto:'Nos entusiasma la posibilidad de ser parte de este evento y acompañarlos con una propuesta gastronómica pensada a medida, cuidando cada detalle para que sea una experiencia memorable.',
@@ -11493,45 +11494,59 @@ function presuMoverEstacion(desde, hasta){
   renderPresuEstaciones();
   presuOrtoActualizarBoton();
 }
-// Opciones fijas de "incluye" / "no incluye": casillas arriba del texto. Tildar
-// o destildar agrega o saca ese renglón del texto (que es lo que sale en el
-// PDF); lo que se escriba aparte en el texto queda como ítem extra, abajo.
-const PRESU_OPC={
-  incluye:[
-    'Personal de cocina',
-    'Vajilla de mesa',
-    'Vajilla de presentación',
-    'Individuales y caminos',
-    'Ambientación para la mesa de almuerzo',
-    'Equipamiento de cocina de ser necesario'
-  ],
-  noIncluye:[
-    'No incluye bebidas con o sin alcohol, mesas y sillas ni mobiliario; se presupuestan aparte de ser necesario.',
-    'No incluye instalación eléctrica ni cableado tanto para cocina como para salón.'
-  ]
-};
-function presuOpcIds(tipo){ return tipo==='incluye' ? ['presu-incluye','presu-incluye-opc'] : ['presu-no-incluye','presu-no-incluye-opc']; }
+// Opciones fijas de "incluye" / "no incluye". Por defecto cada una sale en su
+// lista (lado). Tildarla la pasa a la lista contraria, con su texto para ese
+// lado (si: cómo se lee en "incluye", no: cómo se lee en "no incluye"). Los
+// textos de los cuadros son lo que sale en el PDF; lo que se escriba aparte
+// queda como ítem extra, debajo de las opciones fijas.
+const PRESU_OPC=[
+  {lado:'si', si:'Personal de cocina', no:'Personal de cocina'},
+  {lado:'si', si:'Vajilla de mesa', no:'Vajilla de mesa'},
+  {lado:'si', si:'Vajilla de presentación', no:'Vajilla de presentación'},
+  {lado:'si', si:'Individuales y caminos', no:'Individuales y caminos'},
+  {lado:'si', si:'Ambientación para la mesa de almuerzo', no:'Ambientación para la mesa de almuerzo'},
+  {lado:'si', si:'Equipamiento de cocina de ser necesario', no:'Equipamiento de cocina'},
+  {lado:'no', si:'Bebidas con o sin alcohol, mesas, sillas y mobiliario', no:'No incluye bebidas con o sin alcohol, mesas y sillas ni mobiliario; se presupuestan aparte de ser necesario.'},
+  {lado:'no', si:'Instalación eléctrica y cableado tanto para cocina como para salón', no:'No incluye instalación eléctrica ni cableado tanto para cocina como para salón.'}
+];
+function presuOpcTextoDefecto(lado){ return PRESU_OPC.filter(o=>o.lado===lado).map(o=>o[o.lado]).join('\n'); }
 function presuOpcNorm(t){ return String(t||'').trim().replace(/\s+/g,' ').toLowerCase(); }
-function presuOpcRender(tipo){
-  const [taId, boxId]=presuOpcIds(tipo);
-  const ta=document.getElementById(taId), box=document.getElementById(boxId);
-  if(!ta||!box) return;
-  const hay=new Set(ta.value.split('\n').map(presuOpcNorm).filter(Boolean));
-  box.innerHTML='<div class="presu-opc-ley">✓ Vienen todos tildados. Si destildás uno, se saca del texto de abajo y no aparece en el PDF.</div>'+
-    PRESU_OPC[tipo].map((t,i)=>{
-      const on=hay.has(presuOpcNorm(t));
-      return `<label class="${on?'':'off'}"><input type="checkbox" ${on?'checked':''} onchange="presuOpcToggle('${tipo}',${i},this.checked)"> <span>${escH(t)}</span></label>`;
-    }).join('');
+function presuOpcLineas(id){ return document.getElementById(id).value.split('\n').map(l=>l.trim()).filter(Boolean); }
+// En qué lista está hoy cada opción ('si', 'no' o '' si se borró a mano).
+function presuOpcEstado(){
+  const si=new Set(presuOpcLineas('presu-incluye').map(presuOpcNorm));
+  const no=new Set(presuOpcLineas('presu-no-incluye').map(presuOpcNorm));
+  return PRESU_OPC.map(o=> no.has(presuOpcNorm(o.no)) ? 'no' : si.has(presuOpcNorm(o.si)) ? 'si' : '');
 }
-function presuOpcToggle(tipo, i, on){
-  const ta=document.getElementById(presuOpcIds(tipo)[0]);
-  const fijos=PRESU_OPC[tipo], fijosN=fijos.map(presuOpcNorm);
-  const lineas=ta.value.split('\n').map(l=>l.trim()).filter(Boolean);
-  const tildados=new Set(lineas.map(presuOpcNorm).filter(n=>fijosN.includes(n)));
-  if(on) tildados.add(fijosN[i]); else tildados.delete(fijosN[i]);
-  const extras=lineas.filter(l=>!fijosN.includes(presuOpcNorm(l)));
-  ta.value=[...fijos.filter((t,k)=>tildados.has(fijosN[k])), ...extras].join('\n');
-  presuOpcRender(tipo);
+function presuOpcRender(){
+  const est=presuOpcEstado();
+  const caja=(lado, boxId)=>{
+    const box=document.getElementById(boxId);
+    if(!box) return;
+    const otra=lado==='si'?'NO incluye':'Incluye';
+    box.innerHTML=`<div class="presu-opc-ley">Por defecto salen todos en esta lista. Tildá un ítem para pasarlo a <b>${otra}</b>.</div>`+
+      PRESU_OPC.map((o,i)=>{
+        if(o.lado!==lado) return '';
+        const pasado=est[i] && est[i]!==lado;
+        return `<label class="${pasado?'off':''}"><input type="checkbox" ${pasado?'checked':''} onchange="presuOpcToggle(${i},this.checked)"> <span>${escH(o[lado])}${pasado?` <em class="presu-opc-tag">→ va en ${otra}</em>`:''}</span></label>`;
+      }).join('');
+  };
+  caja('si','presu-incluye-opc');
+  caja('no','presu-no-incluye-opc');
+}
+function presuOpcToggle(i, tildado){
+  const est=presuOpcEstado();
+  const o=PRESU_OPC[i];
+  est[i]=tildado ? (o.lado==='si'?'no':'si') : o.lado;
+  const fijosN=new Set(PRESU_OPC.flatMap(x=>[presuOpcNorm(x.si), presuOpcNorm(x.no)]));
+  const armar=(lado, id)=>{
+    const extras=presuOpcLineas(id).filter(l=>!fijosN.has(presuOpcNorm(l)));
+    const fijos=PRESU_OPC.filter((x,k)=>est[k]===lado).map(x=>x[lado]);
+    document.getElementById(id).value=[...fijos, ...extras].join('\n');
+  };
+  armar('si','presu-incluye');
+  armar('no','presu-no-incluye');
+  presuOpcRender();
 }
 function presuEstacionVacia(){ return {titulo:'', items:'', precio:'', unaOpcion:false}; }
 function presuAgregarEstacion(){ _presuEdit.estaciones.push(presuEstacionVacia()); renderPresuEstaciones(); }
@@ -11599,7 +11614,7 @@ function abrirModalPresupuesto(id){
   document.getElementById('presu-aclaracion-precios').value = _presuEdit.aclaracionPrecios||'';
   document.getElementById('presu-incluye').value = _presuEdit.incluye||'';
   document.getElementById('presu-no-incluye').value = _presuEdit.noIncluye||'';
-  presuOpcRender('incluye'); presuOpcRender('noIncluye');
+  presuOpcRender();
   document.getElementById('presu-cierre').value = _presuEdit.cierre||'';
   document.getElementById('presu-gracias-texto').value = _presuEdit.graciasTexto||'';
   document.getElementById('modal-presu-alert').className='alert';
