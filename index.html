@@ -11087,6 +11087,19 @@ function presuMigrar(d){
   x.cierre=String(x.cierre||'').replace('Mariana Pagés Delaengue','Mariana Pages Palenque');
   // La aclaración vieja quedó reemplazada por la frase fija de validez.
   if(String(x.aclaracionPrecios||'').trim()===PRESU_ACLARACION_VIEJA) x.aclaracionPrecios='';
+  // Presupuestos de antes de las opciones fijas de incluye/no incluye: se les
+  // agregan (por defecto salen todas), antes de lo que ya tenían escrito.
+  // opcFijos marca que ya se hizo, así lo que se tilde después se respeta.
+  if(!x.opcFijos){
+    const sumar=(txt, fijos)=>{
+      const lineas=String(txt||'').split('\n').map(l=>l.trim()).filter(Boolean);
+      const hay=new Set(lineas.map(presuOpcNorm));
+      return [...fijos.filter(t=>!hay.has(presuOpcNorm(t))), ...lineas].join('\n');
+    };
+    x.incluye=sumar(x.incluye, PRESU_OPC.si);
+    x.noIncluye=sumar(x.noIncluye, PRESU_OPC.no);
+    x.opcFijos=1;
+  }
   return x;
 }
 // 13: precios siempre en formato pesos ("55000" -> "$ 55.000"). Si el valor
@@ -11127,6 +11140,7 @@ function presuNuevoBorrador(){
     salonCamareros:'', salonPrecio:'',
     incluye:presuOpcTextoDefecto('si'),
     noIncluye:presuOpcTextoDefecto('no'),
+    opcFijos:1,
     clausulas:presuDefaultClausulas(),
     cierre:'Sin otro particular, los saluda atentamente,\nMariana Pages Palenque',
     graciasTexto:'Nos entusiasma la posibilidad de ser parte de este evento y acompañarlos con una propuesta gastronómica pensada a medida, cuidando cada detalle para que sea una experiencia memorable.',
