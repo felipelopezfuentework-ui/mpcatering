@@ -11482,7 +11482,7 @@ function presuMoverEstacion(desde, hasta){
   renderPresuEstaciones();
   presuOrtoActualizarBoton();
 }
-function presuEstacionVacia(){ return {titulo:'', items:'', precio:'', unaOpcion:true}; }
+function presuEstacionVacia(){ return {titulo:'', items:'', precio:'', unaOpcion:false}; }
 function presuAgregarEstacion(){ _presuEdit.estaciones.push(presuEstacionVacia()); renderPresuEstaciones(); }
 function presuQuitarEstacion(i){ _presuEdit.estaciones.splice(i,1); renderPresuEstaciones(); }
 
