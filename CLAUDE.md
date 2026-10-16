@@ -20,7 +20,7 @@ Usuario: dueño del negocio, no técnico. Hablar en español rioplatense, resúm
 - Recetas se identifican por **nombre con prefijo**: `INSUMO - `, `SUB - `, `PLATO - ` (`nombreDocSeguro` para el id del doc).
 - Autoguardado genérico: eventos `change`/Enter → `sbSave(true)` o `guardarEventoActual()` (si está dentro de `#modal-evento-detalle`). Modales con cierre que guarda: `CIERRE_SEGURO_MODAL`.
 - Tab nueva → agregarla en `refrescarVistaActual` y en el switch de `switchTab`.
-- Acceso: `EMAILS_AUTORIZADOS` (login); Presupuestos y Cotización solo `EMAILS_PRESUPUESTOS` (Mariana, admmppcatering, felipelopezfuentework y felipelopezfuente24).
+- Acceso: `EMAILS_AUTORIZADOS` (login); Presupuestos y Cotización solo `EMAILS_PRESUPUESTOS` (Mariana, mppcatering, admmppcatering, felipelopezfuentework y felipelopezfuente24).
 
 ## Módulos (`cambiarModulo(perfil)`; tabs en `TABS_PROD/COT/COM/STOCK/PRESU`)
 - Pantalla de selección de módulo (`#modulo-select-screen`, después del login Google): saludo `mpSaludo` (Buen día / Buenas tardes / Buenas noches + nombre por mail `NOMBRES_POR_EMAIL` o displayName de Google); tarjetas de color `.mod-card` con ilustraciones SVG en pedestal hechas a mano (olla, calculadora, portapapeles, cajas, documento+moneda), hover con zoom/inclinación (`--rx/--ry` por mousemove) y animaciones por objeto; Cotización y Presupuestos llevan `solo-presupuestos`.
