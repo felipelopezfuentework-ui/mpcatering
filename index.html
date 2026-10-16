@@ -144,7 +144,9 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .presu-opc label{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--text);cursor:pointer;padding:3px 0;line-height:1.3}
 .presu-opc input{margin-top:2px;flex-shrink:0}
 .presu-opc label.off{color:var(--text3)}
-.presu-opc-tag{font-style:normal;font-size:10.5px;color:var(--accent);font-weight:600;white-space:nowrap}
+.presu-opc label.off span{text-decoration:line-through}
+.presu-opc label.off .presu-opc-tag{display:inline-block;text-decoration:none}
+.presu-opc-tag{font-style:normal;font-size:10.5px;color:var(--red);font-weight:600;white-space:nowrap}
 .presu-opc-extra{font-size:11px;color:var(--text3);margin:2px 0 4px}
 .presu-orto{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;font-size:11px}
 .presu-orto-item{display:flex;align-items:center;flex-wrap:wrap;gap:4px;background:rgba(192,57,43,.07);border:1px solid rgba(192,57,43,.25);border-radius:6px;padding:3px 6px;color:var(--text2)}
@@ -11119,7 +11121,7 @@ function presuNuevoBorrador(){
     // A pedido: un presupuesto nuevo solo trae precargados las fotos, la
     // intro del menú, los términos (condiciones de pago) y el cierre; las
     // estaciones y precios arrancan vacíos. Incluye/no incluye traen las
-    // opciones fijas (PRESU_OPC), cada una en su lista.
+    // opciones fijas (PRESU_OPC), todas puestas.
     estaciones:[presuEstacionVacia()],
     precios:[],
     aclaracionPrecios:'',
@@ -11495,58 +11497,47 @@ function presuMoverEstacion(desde, hasta){
   renderPresuEstaciones();
   presuOrtoActualizarBoton();
 }
-// Opciones fijas de "incluye" / "no incluye". Por defecto cada una sale en su
-// lista (lado). Tildarla la pasa a la lista contraria, con su texto para ese
-// lado (si: cómo se lee en "incluye", no: cómo se lee en "no incluye"). Los
-// textos de los cuadros son lo que sale en el PDF; lo que se escriba aparte
+// Opciones fijas de "incluye" / "no incluye". Por defecto todas salen en su
+// lista (casilla destildada). Tildar una la saca de la lista (del texto y del
+// PDF); destildarla la vuelve a poner. Lo que se escriba aparte en el texto
 // queda como ítem extra, debajo de las opciones fijas.
-const PRESU_OPC=[
-  {lado:'si', si:'Personal de cocina', no:'Personal de cocina'},
-  {lado:'si', si:'Vajilla de mesa', no:'Vajilla de mesa'},
-  {lado:'si', si:'Vajilla de presentación', no:'Vajilla de presentación'},
-  {lado:'si', si:'Individuales y caminos', no:'Individuales y caminos'},
-  {lado:'si', si:'Ambientación para la mesa de almuerzo', no:'Ambientación para la mesa de almuerzo'},
-  {lado:'si', si:'Equipamiento de cocina de ser necesario', no:'Equipamiento de cocina'},
-  {lado:'no', si:'Bebidas con o sin alcohol, mesas, sillas y mobiliario', no:'No incluye bebidas con o sin alcohol, mesas y sillas ni mobiliario; se presupuestan aparte de ser necesario.'},
-  {lado:'no', si:'Instalación eléctrica y cableado tanto para cocina como para salón', no:'No incluye instalación eléctrica ni cableado tanto para cocina como para salón.'}
-];
-function presuOpcTextoDefecto(lado){ return PRESU_OPC.filter(o=>o.lado===lado).map(o=>o[o.lado]).join('\n'); }
+const PRESU_OPC={
+  si:[
+    'Personal de cocina',
+    'Vajilla de mesa',
+    'Vajilla de presentación',
+    'Individuales y caminos',
+    'Ambientación para la mesa de almuerzo',
+    'Equipamiento de cocina de ser necesario'
+  ],
+  no:[
+    'No incluye bebidas con o sin alcohol, mesas y sillas ni mobiliario; se presupuestan aparte de ser necesario.',
+    'No incluye instalación eléctrica ni cableado tanto para cocina como para salón.'
+  ]
+};
+const PRESU_OPC_IDS={si:['presu-incluye','presu-incluye-opc'], no:['presu-no-incluye','presu-no-incluye-opc']};
+function presuOpcTextoDefecto(lado){ return PRESU_OPC[lado].join('\n'); }
 function presuOpcNorm(t){ return String(t||'').trim().replace(/\s+/g,' ').toLowerCase(); }
-function presuOpcLineas(id){ return document.getElementById(id).value.split('\n').map(l=>l.trim()).filter(Boolean); }
-// En qué lista está hoy cada opción ('si', 'no' o '' si se borró a mano).
-function presuOpcEstado(){
-  const si=new Set(presuOpcLineas('presu-incluye').map(presuOpcNorm));
-  const no=new Set(presuOpcLineas('presu-no-incluye').map(presuOpcNorm));
-  return PRESU_OPC.map(o=> no.has(presuOpcNorm(o.no)) ? 'no' : si.has(presuOpcNorm(o.si)) ? 'si' : '');
-}
+function presuOpcLineas(lado){ return document.getElementById(PRESU_OPC_IDS[lado][0]).value.split('\n').map(l=>l.trim()).filter(Boolean); }
 function presuOpcRender(){
-  const est=presuOpcEstado();
-  const caja=(lado, boxId)=>{
-    const box=document.getElementById(boxId);
+  ['si','no'].forEach(lado=>{
+    const box=document.getElementById(PRESU_OPC_IDS[lado][1]);
     if(!box) return;
-    const otra=lado==='si'?'NO incluye':'Incluye';
-    box.innerHTML=`<div class="presu-opc-ley">Por defecto salen todos en esta lista. Tildá un ítem para pasarlo a <b>${otra}</b>.</div>`+
-      PRESU_OPC.map((o,i)=>{
-        if(o.lado!==lado) return '';
-        const pasado=est[i] && est[i]!==lado;
-        return `<label class="${pasado?'off':''}"><input type="checkbox" ${pasado?'checked':''} onchange="presuOpcToggle(${i},this.checked)"> <span>${escH(o[lado])}${pasado?` <em class="presu-opc-tag">→ va en ${otra}</em>`:''}</span></label>`;
+    const hay=new Set(presuOpcLineas(lado).map(presuOpcNorm));
+    box.innerHTML='<div class="presu-opc-ley">Por defecto salen todos en el PDF. Tildá un ítem para <b>sacarlo</b> de la lista.</div>'+
+      PRESU_OPC[lado].map((t,i)=>{
+        const quitado=!hay.has(presuOpcNorm(t));
+        return `<label class="${quitado?'off':''}"><input type="checkbox" ${quitado?'checked':''} onchange="presuOpcToggle('${lado}',${i},this.checked)"> <span>${escH(t)}${quitado?' <em class="presu-opc-tag">no sale en el PDF</em>':''}</span></label>`;
       }).join('');
-  };
-  caja('si','presu-incluye-opc');
-  caja('no','presu-no-incluye-opc');
+  });
 }
-function presuOpcToggle(i, tildado){
-  const est=presuOpcEstado();
-  const o=PRESU_OPC[i];
-  est[i]=tildado ? (o.lado==='si'?'no':'si') : o.lado;
-  const fijosN=new Set(PRESU_OPC.flatMap(x=>[presuOpcNorm(x.si), presuOpcNorm(x.no)]));
-  const armar=(lado, id)=>{
-    const extras=presuOpcLineas(id).filter(l=>!fijosN.has(presuOpcNorm(l)));
-    const fijos=PRESU_OPC.filter((x,k)=>est[k]===lado).map(x=>x[lado]);
-    document.getElementById(id).value=[...fijos, ...extras].join('\n');
-  };
-  armar('si','presu-incluye');
-  armar('no','presu-no-incluye');
+function presuOpcToggle(lado, i, quitar){
+  const fijos=PRESU_OPC[lado], fijosN=fijos.map(presuOpcNorm);
+  const lineas=presuOpcLineas(lado);
+  const estan=new Set(lineas.map(presuOpcNorm).filter(n=>fijosN.includes(n)));
+  if(quitar) estan.delete(fijosN[i]); else estan.add(fijosN[i]);
+  const extras=lineas.filter(l=>!fijosN.includes(presuOpcNorm(l)));
+  document.getElementById(PRESU_OPC_IDS[lado][0]).value=[...fijos.filter((t,k)=>estan.has(fijosN[k])), ...extras].join('\n');
   presuOpcRender();
 }
 function presuEstacionVacia(){ return {titulo:'', items:'', precio:'', unaOpcion:false}; }
