@@ -11288,11 +11288,32 @@ function presuCamposTexto(){
   return Array.from(document.querySelectorAll('#modal-presupuesto input[type=text], #modal-presupuesto textarea'));
 }
 function presuActivarCorrectorNativo(el){ el.spellcheck=true; el.lang='es'; }
-async function presuLTConsultar(texto){
-  const body=new URLSearchParams({text:texto, language:'es', disabledRules:'UPPERCASE_SENTENCE_START'});
+async function presuLTPedir(texto, idioma){
+  const body=new URLSearchParams({text:texto, language:idioma, disabledRules:'UPPERCASE_SENTENCE_START'});
   const r=await fetch(PRESU_LT_URL,{method:'POST', body});
   if(!r.ok) throw new Error('El corrector respondió '+r.status);
   return (await r.json()).matches||[];
+}
+// Revisa en español y, en paralelo, en inglés (los menús usan palabras como
+// brunch, finger food, welcome drink). Una palabra que el español marca como
+// mal escrita pero el inglés acepta no se marca; si está mal en los dos
+// (ej. "cheescake"), se marca y se suman las sugerencias en inglés.
+async function presuLTConsultar(texto){
+  const [es, en]=await Promise.all([
+    presuLTPedir(texto,'es'),
+    presuLTPedir(texto,'en-US').catch(e=>null) // si falla el inglés, queda solo el español
+  ]);
+  if(!en) return es;
+  const esOrtografia=m=>/^MORFOLOGIK_RULE/.test((m.rule&&m.rule.id)||'');
+  return es.filter(m=>{
+    if(!esOrtografia(m)) return true;
+    const enM=en.find(x=>x.offset===m.offset && x.length===m.length && esOrtografia(x));
+    if(!enM) return false; // válida en inglés
+    const vistos=new Set();
+    m.replacements=[...(m.replacements||[]).slice(0,4), ...(enM.replacements||[]).slice(0,3)]
+      .filter(r=>{ const k=String(r.value).toLowerCase(); if(vistos.has(k)) return false; vistos.add(k); return true; });
+    return true;
+  });
 }
 function presuOrtoCaja(el){
   let caja=el.nextElementSibling;
