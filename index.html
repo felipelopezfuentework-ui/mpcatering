@@ -1607,7 +1607,7 @@ tr.rec-clic:hover td{background:var(--accent-light)}
       <span class="modal-title" id="modal-presu-title">🧮 Nuevo Presupuesto</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline" id="presu-orto-btn" onclick="presuRevisarOrtografiaTodo()" title="Revisa ortografía, acentos y puntuación de todos los textos del presupuesto">🔤 Revisar ortografía</button>
-        <button class="btn btn-primary" onclick="guardarPresupuestoDesdeModal()">✓ Guardar presupuesto</button>
+        <button class="btn btn-primary" onclick="guardarPresupuestoDesdeModal(this)">✓ Guardar presupuesto</button>
         <button class="btn btn-outline" onclick="generarPresupuestoPDF(null,'ver')">👁 Ver PDF</button>
         <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF(null,'descargar')">⬇ Descargar PDF</button>
         <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModalPresupuesto()">✕ Cerrar</button>
@@ -1732,7 +1732,7 @@ tr.rec-clic:hover td{background:var(--accent-light)}
 
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;background:var(--surface);padding-top:10px;border-top:1px solid var(--border)">
       <button class="btn btn-outline" onclick="cancelarModalPresupuesto()">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarPresupuestoDesdeModal()">✓ Guardar presupuesto</button>
+      <button class="btn btn-primary" onclick="guardarPresupuestoDesdeModal(this)">✓ Guardar presupuesto</button>
       <button class="btn btn-outline" onclick="generarPresupuestoPDF(null,'ver')">👁 Ver PDF</button>
       <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="generarPresupuestoPDF(null,'descargar')">⬇ Descargar PDF</button>
     </div>
@@ -11662,7 +11662,18 @@ async function presuGuardarDesdeModal({cerrar}){
     return id;
   }finally{ _presuGuardando=false; }
 }
-function guardarPresupuestoDesdeModal(){ return presuGuardarDesdeModal({cerrar:true}); }
+// "Guardar presupuesto" guarda y deja el presupuesto abierto para seguir
+// trabajando; el botón muestra "✓ Guardado" un momento como confirmación
+// (el cartel de arriba no se ve si se apretó el botón del pie).
+async function guardarPresupuestoDesdeModal(btn){
+  const id=await presuGuardarDesdeModal({cerrar:false});
+  if(id && btn && !btn.dataset.txt){
+    btn.dataset.txt=btn.textContent;
+    btn.textContent='✓ Guardado';
+    setTimeout(()=>{ btn.textContent=btn.dataset.txt; delete btn.dataset.txt; }, 1800);
+  }
+  return id;
+}
 
 // Cierre seguro (✕ Cerrar, Cancelar y clic fuera del modal): si hay cambios
 // sin guardar se guardan antes de cerrar, igual que en los otros modales de
