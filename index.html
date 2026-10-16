@@ -11134,7 +11134,7 @@ function presuNuevoBorrador(){
     // intro del menú, los términos (condiciones de pago) y el cierre; las
     // estaciones y precios arrancan vacíos. Incluye/no incluye traen las
     // opciones fijas (PRESU_OPC), todas puestas.
-    estaciones:[presuEstacionVacia()],
+    estaciones:[presuEstacionVacia(), presuEstacionBarraClasica()],
     precios:[],
     aclaracionPrecios:'',
     salonCamareros:'', salonPrecio:'',
@@ -11275,7 +11275,8 @@ function renderPresuEstaciones(){
   // Botones de posición: el orden de esta lista es el orden del PDF.
   const posBtn=(i,destino,icono,titulo)=>`<button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:11px" title="${titulo}" ${destino===i?'disabled':''} onclick="presuMoverEstacion(${i},${destino})">${icono}</button>`;
   cont.innerHTML=_presuEdit.estaciones.map((e,i)=>`
-    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)">
+    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)${e.incluir===false?';opacity:.6':''}">
+      ${e.incluir!==undefined?`<label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin:0 0 10px;padding:7px 10px;border-radius:6px;background:var(--surface);border:1px dashed var(--border);font-weight:600"><input type="checkbox" ${e.incluir?'checked':''} onchange="_presuEdit.estaciones[${i}].incluir=this.checked;renderPresuEstaciones()"> Mostrar en el PDF <span style="font-weight:400;color:var(--text3)">· estación precargada: tildala para que aparezca; sin tildar no sale</span></label>`:''}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <label style="margin:0">Estación ${i+1} — título <span style="font-weight:400;font-style:italic;color:var(--mp-gold,var(--text3))">· Llenar todos los campos en singular</span></label>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -11568,6 +11569,23 @@ function presuOpcArmar(lado, cambio){
 function presuOpcToggle(lado, i, quitar){
   presuOpcArmar(lado, {i, quitar});
   presuOpcRender();
+}
+// Barra clásica: estación precargada en los presupuestos nuevos. Solo sale en
+// el PDF si se tilda "Mostrar en el PDF" (campo incluir; las estaciones sin
+// ese campo salen siempre).
+const PRESU_BARRA_CLASICA_ITEMS=[
+  'GIN TONIC: Gin, tónica, limón y diferentes botánicos',
+  'CAMPARI ORANGE: Campari, jugo de naranja',
+  'APEROL SPRITZ: Aperol, espumante, soda',
+  'FERNET-COLA: Fernet Branca, Coca Cola',
+  'TINTO DE VERANO: Vino tinto, lima limón, naranjas',
+  'FRUTADO DE VERANO: Vino rosado, cerezas y duraznos',
+  'NEGRONI: Gin, vermouth, Campari',
+  'BELLINI: Espumante, pulpa de duraznos frescos',
+  'Vino blanco, rosado y tinto de bodega Ernesto Catena'
+];
+function presuEstacionBarraClasica(){
+  return {titulo:'Barra clásica', items:PRESU_BARRA_CLASICA_ITEMS.join('\n'), precio:'', unaOpcion:false, incluir:false};
 }
 function presuEstacionVacia(){ return {titulo:'', items:'', precio:'', unaOpcion:false}; }
 function presuAgregarEstacion(){ _presuEdit.estaciones.push(presuEstacionVacia()); renderPresuEstaciones(); }
@@ -12026,7 +12044,7 @@ function presuDibujarPDF(d, modo){
     // Cada hoja del menú trae fotos, así que agregar una estación de más
     // siempre "viene con foto" sin que haya que cargar una nueva por página.
     // El orden es el de la lista del formulario (se reordena con ⤒ ↑ ↓ ⤓).
-    const estacionesTodas=(d.estaciones||[]).filter(e=>(e.titulo&&e.titulo.trim())||(e.items&&e.items.trim()));
+    const estacionesTodas=(d.estaciones||[]).filter(e=>e.incluir!==false && ((e.titulo&&e.titulo.trim())||(e.items&&e.items.trim())));
 
     const textColX=M, textColW=46;
     const photoTallX=textColX+textColW+6, photoTallW=58;
