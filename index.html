@@ -147,7 +147,6 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .presu-opc label.off span{text-decoration:line-through}
 .presu-opc label.off .presu-opc-tag{display:inline-block;text-decoration:none}
 .presu-opc-tag{font-style:normal;font-size:10.5px;color:var(--red);font-weight:600;white-space:nowrap}
-.presu-opc-extra{font-size:11px;color:var(--text3);margin:2px 0 4px}
 .presu-orto{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;font-size:11px}
 .presu-orto-item{display:flex;align-items:center;flex-wrap:wrap;gap:4px;background:rgba(192,57,43,.07);border:1px solid rgba(192,57,43,.25);border-radius:6px;padding:3px 6px;color:var(--text2)}
 .presu-orto-mal{text-decoration:underline wavy var(--red);text-underline-offset:3px;color:var(--text)}
@@ -1713,14 +1712,14 @@ tr.rec-clic:hover td{background:var(--accent-light)}
         <div class="form-field" style="flex:1">
           <label>El presupuesto incluye</label>
           <div class="presu-opc" id="presu-incluye-opc"></div>
-          <div class="presu-opc-extra">Otros ítems (uno por línea). Acá ves cómo queda el texto:</div>
-          <textarea id="presu-incluye" oninput="presuOpcRender()" rows="5" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+          <textarea id="presu-incluye" class="presu-oculto" style="display:none"></textarea>
+          <textarea id="presu-incluye-extra" oninput="presuOpcArmar('si')" rows="2" placeholder="+ Agregar otro ítem (uno por línea)" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
         </div>
         <div class="form-field" style="flex:1">
           <label>El presupuesto NO incluye</label>
           <div class="presu-opc" id="presu-no-incluye-opc"></div>
-          <div class="presu-opc-extra">Otros ítems (uno por línea). Acá ves cómo queda el texto:</div>
-          <textarea id="presu-no-incluye" oninput="presuOpcRender()" rows="5" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+          <textarea id="presu-no-incluye" class="presu-oculto" style="display:none"></textarea>
+          <textarea id="presu-no-incluye-extra" oninput="presuOpcArmar('no')" rows="2" placeholder="+ Agregar otro ítem (uno por línea)" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
         </div>
       </div>
     </div>
@@ -11300,7 +11299,7 @@ function presuOrtoIgnorar(palabra){
   try{ localStorage.setItem(PRESU_ORTO_IGNORAR_KEY, JSON.stringify(lista)); }catch(e){}
 }
 function presuCamposTexto(){
-  return Array.from(document.querySelectorAll('#modal-presupuesto input[type=text], #modal-presupuesto textarea'));
+  return Array.from(document.querySelectorAll('#modal-presupuesto input[type=text], #modal-presupuesto textarea:not(.presu-oculto)'));
 }
 function presuActivarCorrectorNativo(el){ el.spellcheck=true; el.lang='es'; }
 async function presuLTPedir(texto, idioma){
@@ -11497,10 +11496,11 @@ function presuMoverEstacion(desde, hasta){
   renderPresuEstaciones();
   presuOrtoActualizarBoton();
 }
-// Opciones fijas de "incluye" / "no incluye". Por defecto todas salen en su
-// lista (casilla destildada). Tildar una la saca de la lista (del texto y del
-// PDF); destildarla la vuelve a poner. Lo que se escriba aparte en el texto
-// queda como ítem extra, debajo de las opciones fijas.
+// Opciones fijas de "incluye" / "no incluye". Por defecto todas salen en el
+// PDF (casilla destildada). Tildar una la saca de la lista; destildarla la
+// vuelve a poner. El texto completo (lo que se guarda y sale en el PDF) va en
+// un textarea oculto (#presu-incluye / #presu-no-incluye); a la vista queda
+// solo un cuadro chico para agregar ítems extra, que van debajo de los fijos.
 const PRESU_OPC={
   si:[
     'Personal de cocina',
@@ -11515,29 +11515,44 @@ const PRESU_OPC={
     'No incluye instalación eléctrica ni cableado tanto para cocina como para salón.'
   ]
 };
-const PRESU_OPC_IDS={si:['presu-incluye','presu-incluye-opc'], no:['presu-no-incluye','presu-no-incluye-opc']};
+// [texto completo (oculto), casillas, ítems extra]
+const PRESU_OPC_IDS={si:['presu-incluye','presu-incluye-opc','presu-incluye-extra'], no:['presu-no-incluye','presu-no-incluye-opc','presu-no-incluye-extra']};
 function presuOpcTextoDefecto(lado){ return PRESU_OPC[lado].join('\n'); }
 function presuOpcNorm(t){ return String(t||'').trim().replace(/\s+/g,' ').toLowerCase(); }
-function presuOpcLineas(lado){ return document.getElementById(PRESU_OPC_IDS[lado][0]).value.split('\n').map(l=>l.trim()).filter(Boolean); }
+function presuOpcLineas(id){ return document.getElementById(id).value.split('\n').map(l=>l.trim()).filter(Boolean); }
+function presuOpcEsFijo(lado, l){ return PRESU_OPC[lado].some(t=>presuOpcNorm(t)===presuOpcNorm(l)); }
+// Al abrir el presupuesto: separa los ítems extra del texto guardado.
+function presuOpcCargar(){
+  ['si','no'].forEach(lado=>{
+    const [idTxt,,idExtra]=PRESU_OPC_IDS[lado];
+    document.getElementById(idExtra).value=presuOpcLineas(idTxt).filter(l=>!presuOpcEsFijo(lado,l)).join('\n');
+  });
+  presuOpcRender();
+}
 function presuOpcRender(){
   ['si','no'].forEach(lado=>{
-    const box=document.getElementById(PRESU_OPC_IDS[lado][1]);
+    const [idTxt,idBox]=PRESU_OPC_IDS[lado];
+    const box=document.getElementById(idBox);
     if(!box) return;
-    const hay=new Set(presuOpcLineas(lado).map(presuOpcNorm));
-    box.innerHTML='<div class="presu-opc-ley">Por defecto salen todos en el PDF. Tildá un ítem para <b>sacarlo</b> de la lista.</div>'+
+    const hay=new Set(presuOpcLineas(idTxt).map(presuOpcNorm));
+    box.innerHTML='<div class="presu-opc-ley">Sin tildar = <b>sale en el PDF</b>. Si tildás un ítem, <b>no aparece</b> en el PDF.</div>'+
       PRESU_OPC[lado].map((t,i)=>{
         const quitado=!hay.has(presuOpcNorm(t));
         return `<label class="${quitado?'off':''}"><input type="checkbox" ${quitado?'checked':''} onchange="presuOpcToggle('${lado}',${i},this.checked)"> <span>${escH(t)}${quitado?' <em class="presu-opc-tag">no sale en el PDF</em>':''}</span></label>`;
       }).join('');
   });
 }
+// Rearma el texto completo: fijos que siguen puestos (en su orden) + extras.
+function presuOpcArmar(lado, cambio){
+  const [idTxt,,idExtra]=PRESU_OPC_IDS[lado];
+  const estan=new Set(presuOpcLineas(idTxt).map(presuOpcNorm));
+  if(cambio){ const n=presuOpcNorm(PRESU_OPC[lado][cambio.i]); cambio.quitar ? estan.delete(n) : estan.add(n); }
+  const fijos=PRESU_OPC[lado].filter(t=>estan.has(presuOpcNorm(t)));
+  const extras=presuOpcLineas(idExtra).filter(l=>!presuOpcEsFijo(lado,l));
+  document.getElementById(idTxt).value=[...fijos, ...extras].join('\n');
+}
 function presuOpcToggle(lado, i, quitar){
-  const fijos=PRESU_OPC[lado], fijosN=fijos.map(presuOpcNorm);
-  const lineas=presuOpcLineas(lado);
-  const estan=new Set(lineas.map(presuOpcNorm).filter(n=>fijosN.includes(n)));
-  if(quitar) estan.delete(fijosN[i]); else estan.add(fijosN[i]);
-  const extras=lineas.filter(l=>!fijosN.includes(presuOpcNorm(l)));
-  document.getElementById(PRESU_OPC_IDS[lado][0]).value=[...fijos.filter((t,k)=>estan.has(fijosN[k])), ...extras].join('\n');
+  presuOpcArmar(lado, {i, quitar});
   presuOpcRender();
 }
 function presuEstacionVacia(){ return {titulo:'', items:'', precio:'', unaOpcion:false}; }
@@ -11606,7 +11621,7 @@ function abrirModalPresupuesto(id){
   document.getElementById('presu-aclaracion-precios').value = _presuEdit.aclaracionPrecios||'';
   document.getElementById('presu-incluye').value = _presuEdit.incluye||'';
   document.getElementById('presu-no-incluye').value = _presuEdit.noIncluye||'';
-  presuOpcRender();
+  presuOpcCargar();
   document.getElementById('presu-cierre').value = _presuEdit.cierre||'';
   document.getElementById('presu-gracias-texto').value = _presuEdit.graciasTexto||'';
   document.getElementById('modal-presu-alert').className='alert';
