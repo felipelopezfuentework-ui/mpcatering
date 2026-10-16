@@ -12459,14 +12459,13 @@ function presuDibujarPDF(d, modo){
   pagesCondiciones();
   pageGracias();
 
-  // Nombre del archivo: cliente + fecha del evento (ej. "Presupuesto MP -
-  // Marval - 20-11-2026.pdf"). Se arma al descargar, así vale también para los
+  // Nombre del archivo: cliente + fecha + tipo de evento (ej. "Presupuesto MP -
+  // Marval - 20-11-2026 - Cóctel Alumni.pdf"). Se arma al descargar, así vale también para los
   // presupuestos ya guardados.
   const limpiarNombre=t=>String(t||'').replace(/[\\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim().slice(0,60);
-  const evNombre=limpiarNombre(d.cliente)||limpiarNombre(d.tipoEvento)||'Evento';
   const fm=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d.fechaEvento||''));
   const evFecha=fm?(fm[3]+'-'+fm[2]+'-'+fm[1]):'sin fecha';
-  const fname='Presupuesto MP - '+evNombre+' - '+evFecha+'.pdf';
+  const fname=['Presupuesto MP', limpiarNombre(d.cliente), evFecha, limpiarNombre(d.tipoEvento)].filter(Boolean).join(' - ')+'.pdf';
   // "Ver PDF" lo abre en una pestaña nueva; "Descargar PDF" solo lo baja
   // (antes un único botón hacía las dos cosas).
   if(modo==='descargar'){ doc.save(fname); return; }
