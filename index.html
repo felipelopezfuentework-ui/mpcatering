@@ -139,6 +139,26 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .form-field{display:flex;flex-direction:column;gap:4px}
 .form-field label{font-size:11px;color:var(--text3);font-weight:600}
 /* Corrector ortográfico del módulo Presupuestos */
+.prod-ev{display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:10px}
+.prod-badge{border:1px solid transparent;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap}
+.prod-pasos{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.prod-paso{display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.prod-paso span{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--surface2);font-size:12px}
+.prod-paso.on{border-color:var(--accent);color:var(--accent)}
+.prod-paso.on span{background:var(--accent);color:#fff}
+.prod-paso:disabled{opacity:.45;cursor:not-allowed}
+.prod-ayuda{font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.45}
+.prod-tabla td{vertical-align:top}
+.prod-menu-txt{font-weight:600;color:var(--text)}
+.prod-off td{opacity:.5}
+.prod-aviso{margin-top:6px;font-weight:400;font-size:11.5px;color:#9a7410;background:rgba(212,160,23,.1);border:1px solid rgba(212,160,23,.35);border-radius:6px;padding:5px 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.prod-pie{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
+.prod-ventana{border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:10px;background:var(--surface)}
+.prod-ventana>summary{cursor:pointer;font-size:13.5px;color:var(--text);display:flex;gap:10px;align-items:center;flex-wrap:wrap;list-style:revert}
+.prod-ventana[open]>summary{margin-bottom:10px}
+.prod-cerrada{background:var(--surface2)}
+.prod-para{font-size:11px;color:var(--text3)}
+.prod-cierre{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;font-size:13px;font-weight:600}
 .presu-seg-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .presu-seg-chip{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .presu-seg-chip b{font-weight:700;margin-left:4px;color:var(--text3)}
@@ -763,6 +783,7 @@ tr.rec-clic:hover td{background:var(--accent-light)}
   <div class="tab"         onclick="switchTab('subproductos')">🧩 Subproductos</div>
   <div class="tab"         onclick="switchTab('platos')">🍴 Platos</div>
   <div class="tab"         onclick="switchTab('proveedores')">👥 Proveedores</div>
+  <div class="tab"         onclick="switchTab('prod_eventos')">🍳 Eventos a producir</div>
 </div>
 <!-- Tabs Cotización -->
 <div class="tabs" id="tabs-cotizacion" style="display:none">
@@ -870,6 +891,13 @@ tr.rec-clic:hover td{background:var(--accent-light)}
 </div>
 
 <!-- ═══ 5. PROVEEDORES ══════════════════════════════════════════ -->
+<div class="content" id="tab-prod_eventos">
+  <div class="card">
+    <div class="card-title" style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:16px">🍳 Eventos a producir</div>
+    <div id="prod-eventos-cont"></div>
+  </div>
+</div>
+
 <div class="content" id="tab-proveedores">
   <div class="card">
     <div class="card-title">👥 Maestro de Proveedores <span class="badge badge-blue" id="prov-count">0</span></div>
@@ -2588,7 +2616,7 @@ const escH=(s)=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 // ══════════════════════════════════════════════════════════════════
 //  TABS
 // ══════════════════════════════════════════════════════════════════
-const TABS_PROD=['insumos','subproductos','platos','proveedores'];
+const TABS_PROD=['insumos','subproductos','platos','proveedores','prod_eventos'];
 const TABS_COT=['cotizaciones','costeo'];
 const TABS_COM=['comanda_periodos','comanda_clientes'];
 const TABS_STOCK=['stock','stock_historial'];
@@ -2615,7 +2643,7 @@ function switchTab(name){
     cotizaciones:renderCotizLista,costeo:renderCotizEditor,proveedores:renderProveedores,
     comanda_periodos:renderComandaPeriodos,comanda_clientes:renderClientes,
     stock:renderStockActual,stock_historial:renderStockHistorial,
-    presupuestos:renderPresupuestos})[name]?.();
+    presupuestos:renderPresupuestos,prod_eventos:renderProdEventos})[name]?.();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -6359,7 +6387,7 @@ function refrescarVistaActual(){
           cotizaciones:renderCotizLista,costeo:cotizActualizarNumeros,proveedores:renderProveedores,
           comanda_clientes:renderClientes,stock:renderStockActual,
           stock_historial:renderStockHistorial,
-          presupuestos:renderPresupuestos})[name]?.();
+          presupuestos:renderPresupuestos,prod_eventos:renderProdEventos})[name]?.();
       }
     }
   }catch(err){
@@ -6486,7 +6514,7 @@ function iniciarListenersComanda(){
     const porPeriodo={};
     snap.docs.forEach(d=>{
       const data=d.data();
-      const ev={id:d.id, nombre:data.nombre, creado:data.creado, datos:reconvertirArraysAnidados(data.datos||{})};
+      const ev={id:d.id, nombre:data.nombre, creado:data.creado, presupuesto_id:data.presupuesto_id||null, datos:reconvertirArraysAnidados(data.datos||{})};
       (porPeriodo[data.periodo_id]=porPeriodo[data.periodo_id]||[]).push(ev);
     });
     DB.comanda.eventos=porPeriodo;
@@ -6790,7 +6818,7 @@ let _guardadoAutoTimer=null;
 // vez de a sbSave(), o quedarían editados en memoria pero sin persistir
 // nunca. El resto de los módulos sigue exactamente igual que antes.
 function programarGuardadoAutomatico(el){
-  if(el && el.closest && el.closest('#tab-costeo,#tab-cotizaciones,#mp-menu')) return; // Cotización guarda por su cuenta
+  if(el && el.closest && el.closest('#tab-costeo,#tab-cotizaciones,#tab-prod_eventos,#mp-menu')) return; // Cotización guarda por su cuenta
   clearTimeout(_guardadoAutoTimer);
   const esCampoDeEvento = el && el.closest && el.closest('#modal-evento-detalle');
   _guardadoAutoTimer=setTimeout(()=>{
@@ -6845,7 +6873,7 @@ document.addEventListener('keydown', (e)=>{
   if(!esCampoEditable(e.target)) return;
   e.preventDefault();
   if(e.target.closest('#modal-evento-detalle')) guardarEventoActual();
-  else if(!e.target.closest('#tab-costeo,#tab-cotizaciones')) sbSave(true);
+  else if(!e.target.closest('#tab-costeo,#tab-cotizaciones,#tab-prod_eventos')) sbSave(true);
   if(!moverFocoAbajoEnReceta(e.target)) moverFocoAlSiguienteCampo(e.target);
 }, true);
 document.addEventListener('focusin', (e)=>{
@@ -7191,6 +7219,7 @@ function entrarComo(){
   iniciarListenersInsumosProveedores();
   iniciarListenersRecetas();
   iniciarListenerStock();
+  iniciarListenerProducciones();
   if(verPresu){ iniciarListenersPresupuestos(); iniciarListenersCotizaciones(); }
 }
 
@@ -7651,6 +7680,7 @@ async function guardarEventoActual(periodoId, eventoId){
       id: ev.id,
       periodo_id: pId,
       nombre: ev.nombre,
+      presupuesto_id: ev.presupuesto_id||null,
       cliente_id: (ev.datos && ev.datos.cliente_id) || null,
       creado: ev.creado,
       datos: convertirArraysAnidados(ev.datos||{}),
@@ -11158,6 +11188,403 @@ const PRESU_MENU_GRUPOS=[
 ];
 
 let _presuEdit=null; // borrador en memoria mientras el modal está abierto
+
+// ══════════════════════════════════════════════════════════════════
+//  PRODUCCIÓN → "Eventos a producir"
+//  Eventos de Fichas Técnicas que vienen de un presupuesto Confirmado
+//  (campo presupuesto_id del evento). Tres pasos, uno por pantalla:
+//   1) Armar: a cada renglón del menú se le elige la receta (se recuerda en
+//      PROD_ALIAS) y la cantidad, en la unidad de la receta; o "No se produce".
+//   2) Producir: una ventana por receta con los ingredientes escalados; los
+//      subproductos que usan los platos tienen su propia ventana.
+//   3) Cerrar (por receta): merma real por ingrediente (vacío = queda igual) y
+//      lo que salió (obligatorio). Actualiza la receta sola:
+//      rinde nuevo = rinde × salió ÷ planificado; los kilos no se tocan.
+//  Colección `producciones` (un doc por evento, id = id del evento; el doc
+//  `__alias` guarda las recetas elegidas por texto del menú). Espejo
+//  PRODUCCIONES fuera de DB (no pasa por sbSave).
+// ══════════════════════════════════════════════════════════════════
+const FB_COL_PRODUCCIONES=fbDb.collection('producciones');
+let PRODUCCIONES={}, PROD_ALIAS={}, _unsubProd=null;
+let _prodAbierto=null, _prodEdit=null, _prodPaso=1, _prodGuardarTimer=null;
+let _prodFiltro='pendientes';
+try{ const f=localStorage.getItem('prod_filtro'); if(f) _prodFiltro=f; }catch(e){}
+
+function iniciarListenerProducciones(){
+  _unsubProd=FB_COL_PRODUCCIONES.onSnapshot(snap=>{
+    const m={};
+    snap.docs.forEach(d=>{ if(d.id==='__alias') PROD_ALIAS=(d.data().m)||{}; else m[d.id]=d.data(); });
+    PRODUCCIONES=m;
+    // Si el evento abierto cambió desde otra compu (y acá no hay nada sin guardar), se toma lo nuevo.
+    if(_prodAbierto && !_prodGuardarTimer && m[_prodAbierto]) _prodEdit=JSON.parse(JSON.stringify(m[_prodAbierto]));
+    refrescarVistaSiCorresponde();
+  }, err=>console.error('Error al sincronizar producciones:', err));
+}
+
+// ── Recetas ──
+function prodNorm(t){ return String(t||'').trim().replace(/\s+/g,' ').toLowerCase(); }
+function prodEsSub(r){ return String(r||'').startsWith('SUB - '); }
+function prodCfg(r){ return ((prodEsSub(r)?DB.subs_config:DB.platos_config)||{})[r]||{}; }
+function prodFilas(r){ return prodEsSub(r)?(DB.subproductos||[]).filter(x=>x.subproducto===r):(DB.recetas_platos||[]).filter(x=>x.plato===r); }
+function prodExiste(r){ return prodEsSub(r)?(DB.maestro_subs||[]).includes(r):(DB.maestro_platos||[]).includes(r); }
+function prodRinde(r){ return parseFloat(prodCfg(r).rendimiento_unidades)||0; }
+function prodUnidad(r){ return prodCfg(r).tipo_unidad||'porcion'; }
+function prodUnidadLbl(r){ return UNIDAD_LABELS[prodUnidad(r)]||'porciones'; }
+function prodCorto(r){ return String(r||'').replace(/^(SUB|PLATO|INSUMO) - /,''); }
+function prodNombreComp(c){
+  if(String(c).startsWith('INSUMO - ')){ const i=(DB.insumos||[]).find(x=>x.key===c); return i?i.nombre:prodCorto(c); }
+  return prodCorto(c);
+}
+// Kg que entrega la receta entera (para saber cuánto sub hay que preparar).
+function prodKgSalida(r){
+  const u=prodUnidad(r), R=prodRinde(r);
+  if((u==='kg'||u==='litro') && R>0) return R;
+  return prodFilas(r).reduce((s,x)=>s+kgQuedanIng(x.kgs,x.merma),0);
+}
+function prodOpciones(){
+  return [...(DB.maestro_platos||[]).map(p=>({val:p,label:'🍴 '+prodCorto(p)})),
+          ...(DB.maestro_subs||[]).map(s=>({val:s,label:'🧩 '+prodCorto(s)}))];
+}
+function prodNum(n, dec=3){ return (Number(n)||0).toLocaleString('es-AR',{maximumFractionDigits:dec}); }
+function prodCant(l){ return parseKgCampo(l&&l.cantidad); }
+
+// ── Eventos ──
+function prodEventos(){
+  const out=[];
+  Object.entries((DB.comanda&&DB.comanda.eventos)||{}).forEach(([per,evs])=>(evs||[]).forEach(ev=>{ if(ev.presupuesto_id) out.push({...ev, periodo:per}); }));
+  return out.sort((a,b)=>String((a.datos&&a.datos.fecha)||'9999').localeCompare(String((b.datos&&b.datos.fecha)||'9999')));
+}
+function prodMenuLineas(ev){ return ((ev.datos&&ev.datos.com_menu)||[]).map(r=>String((r&&r[0])||'').trim()).filter(Boolean); }
+function prodDocDe(ev){
+  if(PRODUCCIONES[ev.id]) return JSON.parse(JSON.stringify(PRODUCCIONES[ev.id]));
+  return {eventoId:ev.id, paso:1, cierres:{},
+    lineas:prodMenuLineas(ev).map(t=>{ const r=PROD_ALIAS[prodNorm(t)]; return {texto:t, receta:(r&&prodExiste(r))?r:'', cantidad:'', noProduce:false}; })};
+}
+function prodFecha(ev){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec((ev.datos&&ev.datos.fecha)||''); return m?`${m[3]}/${m[2]}/${m[1]}`:'Sin fecha'; }
+
+// Trabajos = una ventana por receta. Las recetas cerradas usan lo que quedó
+// registrado al cerrar (no cambian si después se modifica la receta).
+function prodTrabajos(d){
+  const jobs={}, orden=[], cierres=(d&&d.cierres)||{};
+  const add=(r,f,de)=>{ if(!jobs[r]){ jobs[r]={receta:r,factor:0,para:[],directo:false}; orden.push(r); } jobs[r].factor+=f; if(de){ if(!jobs[r].para.includes(de)) jobs[r].para.push(de); } else jobs[r].directo=true; };
+  ((d&&d.lineas)||[]).forEach(l=>{
+    if(l.noProduce||!l.receta||!prodExiste(l.receta)) return;
+    const R=prodRinde(l.receta), c=prodCant(l);
+    if(R>0&&c>0) add(l.receta, c/R, null);
+  });
+  orden.forEach(r=>{ if(cierres[r]) jobs[r].factor=cierres[r].factor; });
+  orden.filter(r=>!prodEsSub(r)).forEach(r=>{
+    prodFilas(r).forEach(f=>{
+      if(!prodEsSub(f.componente) || !prodExiste(f.componente)) return;
+      const kg=(parseFloat(f.kgs)||0)*jobs[r].factor, sal=prodKgSalida(f.componente);
+      if(kg>0&&sal>0) add(f.componente, kg/sal, r);
+    });
+  });
+  return orden.map(r=>{
+    const j=jobs[r], c=cierres[r];
+    if(c){ j.factor=c.factor; j.planificado=c.planificado; j.cierre=c; }
+    else { j.planificado=j.factor*prodRinde(r); j.cierre=null; }
+    return j;
+  });
+}
+// Qué falta para pasar a producir: renglones sin receta o cantidad, y
+// recetas (o subs que usan) sin rendimiento cargado.
+function prodProblemas(d){
+  const sinR=new Set(); let faltan=0;
+  ((d&&d.lineas)||[]).forEach(l=>{
+    if(l.noProduce) return;
+    if(!l.receta || !prodExiste(l.receta) || !(prodCant(l)>0)) faltan++;
+    if(l.receta && prodExiste(l.receta)){
+      if(!(prodRinde(l.receta)>0)) sinR.add(l.receta);
+      if(!prodEsSub(l.receta)) prodFilas(l.receta).forEach(f=>{ if(prodEsSub(f.componente) && prodExiste(f.componente) && !(prodRinde(f.componente)>0)) sinR.add(f.componente); });
+    }
+  });
+  return {sinR:[...sinR], faltan};
+}
+const PROD_EST={
+  armar:     {lbl:'Por armar',     icon:'📝', css:'background:rgba(212,160,23,.14);color:#9a7410;border-color:rgba(212,160,23,.45)'},
+  produccion:{lbl:'En producción', icon:'🔥', css:'background:rgba(192,57,43,.1);color:#b03a2e;border-color:rgba(192,57,43,.35)'},
+  cerrado:   {lbl:'Cerrado',       icon:'✅', css:'background:rgba(45,122,90,.13);color:#2d7a5a;border-color:rgba(45,122,90,.4)'}
+};
+function prodEstado(ev){
+  const d=PRODUCCIONES[ev.id];
+  if(!d || !(d.paso>=2)) return 'armar';
+  const js=prodTrabajos(d);
+  return js.length && js.every(j=>j.cierre) ? 'cerrado' : 'produccion';
+}
+function prodBadge(est){ const v=PROD_EST[est]; return `<span class="prod-badge" style="${v.css}">${v.icon} ${v.lbl}</span>`; }
+
+// ── Guardado ──
+function prodGuardarLuego(){ clearTimeout(_prodGuardarTimer); _prodGuardarTimer=setTimeout(prodGuardarYa, 700); }
+async function prodGuardarYa(){
+  clearTimeout(_prodGuardarTimer); _prodGuardarTimer=null;
+  if(!_prodEdit || !_prodAbierto) return;
+  const d=JSON.parse(JSON.stringify({..._prodEdit, eventoId:_prodAbierto, updated_at:new Date().toISOString()}));
+  try{
+    await FB_COL_PRODUCCIONES.doc(_prodAbierto).set(d);
+    PRODUCCIONES[_prodAbierto]=d;
+    marcarSincronizado();
+  }catch(e){
+    marcarErrorSincronizacion(e); console.error('Error al guardar la producción:', e);
+    alert('⚠ No se pudo guardar la producción (revisá la conexión a internet).');
+  }
+}
+function prodGuardarAlias(texto, receta){
+  const k=prodNorm(texto);
+  if(!k || !receta || PROD_ALIAS[k]===receta) return;
+  PROD_ALIAS[k]=receta;
+  FB_COL_PRODUCCIONES.doc('__alias').set({m:PROD_ALIAS, updated_at:new Date().toISOString()}).catch(e=>console.error('Error al guardar recetas recordadas:', e));
+}
+
+// ── Pantallas ──
+function renderProdEventos(){
+  const cont=document.getElementById('prod-eventos-cont');
+  if(!cont) return;
+  if(_prodAbierto){
+    const ev=prodEventos().find(e=>e.id===_prodAbierto);
+    if(ev){ prodRenderEvento(ev); return; }
+    _prodAbierto=null; _prodEdit=null;
+  }
+  const evs=prodEventos().map(ev=>({ev, est:prodEstado(ev)}));
+  const cuenta=f=>evs.filter(x=>f==='pendientes'?x.est!=='cerrado':x.est===f).length;
+  const chip=(k,txt)=>`<button type="button" class="presu-seg-chip ${_prodFiltro===k?'on':''}" onclick="prodSetFiltro('${k}')">${txt}<b>${cuenta(k)}</b></button>`;
+  const lista=evs.filter(x=>_prodFiltro==='pendientes'?x.est!=='cerrado':x.est===_prodFiltro);
+  cont.innerHTML=`
+    <div class="presu-seg-chips" style="margin-bottom:14px">
+      ${chip('pendientes','Pendientes')}${chip('armar','📝 Por armar')}${chip('produccion','🔥 En producción')}${chip('cerrado','✅ Cerrados')}
+    </div>
+    ${lista.length?lista.map(({ev,est})=>{
+      const pers=(ev.datos&&ev.datos.cant_adultos)||'';
+      return `<div class="card prod-ev" onclick="prodAbrir('${ev.id}')">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:15px;color:var(--text)">${escH(ev.nombre||'Evento')}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:3px">📅 ${prodFecha(ev)}${pers?' · 👥 '+escH(pers)+' personas':''} · ${prodMenuLineas(ev).length} platos en el menú</div>
+        </div>
+        ${prodBadge(est)}
+        <button class="btn btn-outline" style="padding:5px 12px;font-size:11px">Abrir →</button>
+      </div>`;}).join(''):`<div class="empty">${evs.length?'No hay eventos en este estado.':'Todavía no hay eventos para producir. Aparecen acá cuando un presupuesto se pasa a Confirmado.'}</div>`}`;
+}
+function prodSetFiltro(f){ _prodFiltro=f; try{ localStorage.setItem('prod_filtro',f); }catch(e){} renderProdEventos(); }
+function prodAbrir(evId){
+  const ev=prodEventos().find(e=>e.id===evId);
+  if(!ev) return;
+  _prodAbierto=evId;
+  _prodEdit=prodDocDe(ev);
+  const est=prodEstado(ev);
+  _prodPaso=est==='armar'?1:est==='cerrado'?3:2;
+  renderProdEventos();
+}
+async function prodVolver(){
+  if(_prodGuardarTimer) await prodGuardarYa();
+  _prodAbierto=null; _prodEdit=null;
+  renderProdEventos();
+}
+function prodIrPaso(n){
+  if(!_prodEdit) return;
+  if(n>=2){
+    const pr=prodProblemas(_prodEdit);
+    if(pr.faltan || pr.sinR.length){
+      alert('Antes de pasar a producir:\n\n'+
+        (pr.faltan?'• Hay '+pr.faltan+' plato(s) sin receta o sin cantidad (o marcalos "No se produce").\n':'')+
+        (pr.sinR.length?'• Estas recetas no tienen cargado cuánto rinden: '+pr.sinR.map(prodCorto).join(', ')+'. Abrilas y cargalo.':''));
+      return;
+    }
+    if(!prodTrabajos(_prodEdit).length){ alert('No hay ninguna receta para producir.'); return; }
+    if(!(_prodEdit.paso>=2)){ _prodEdit.paso=2; prodGuardarYa(); }
+  }
+  _prodPaso=n;
+  renderProdEventos();
+}
+function prodAbrirReceta(r){ if(prodEsSub(r)) abrirModalSub(r); else abrirModalPlato(r); }
+
+function prodRenderEvento(ev){
+  const cont=document.getElementById('prod-eventos-cont');
+  const d=_prodEdit;
+  const listo=d.paso>=2;
+  const paso=(n,txt)=>`<button type="button" class="prod-paso ${_prodPaso===n?'on':''}" ${n>1&&!listo?'disabled':''} onclick="prodIrPaso(${n})"><span>${n}</span>${txt}</button>`;
+  const pers=(ev.datos&&ev.datos.cant_adultos)||'';
+  let html=`
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn btn-outline" onclick="prodVolver()">← Volver</button>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Playfair Display',serif;font-size:18px;color:var(--text)">${escH(ev.nombre||'Evento')}</div>
+        <div style="font-size:12px;color:var(--text3)">📅 ${prodFecha(ev)}${pers?' · 👥 '+escH(pers)+' personas':''}</div>
+      </div>
+      ${prodBadge(prodEstado(ev))}
+    </div>
+    <div class="prod-pasos">${paso(1,'Armar')}${paso(2,'Producir')}${paso(3,'Cerrar')}</div>`;
+  if(_prodPaso===1) html+=prodHtmlPaso1(d);
+  else if(_prodPaso===2) html+=prodHtmlPaso2(d);
+  else html+=prodHtmlPaso3(d);
+  cont.innerHTML=html;
+  if(_prodPaso===1) prodEnlazarBuscadores(d);
+}
+
+// Paso 1: Armar
+function prodHtmlPaso1(d){
+  if(!(d.lineas||[]).length) return '<div class="empty">El evento no tiene menú cargado en su ficha técnica.</div>';
+  const cerradas=new Set(Object.keys(d.cierres||{}));
+  const filas=d.lineas.map((l,i)=>{
+    const bloq=l.receta && cerradas.has(l.receta);
+    const r=l.receta && prodExiste(l.receta) ? l.receta : '';
+    const avisos=[];
+    if(!l.noProduce && r){
+      if(!(prodRinde(r)>0)) avisos.push(`<div class="prod-aviso">⚠ <b>${escH(prodCorto(r))}</b> no tiene cargado cuánto rinde. <button type="button" class="btn btn-outline" style="padding:2px 9px;font-size:11px" onclick="prodAbrirReceta(${JSON.stringify(r).replace(/"/g,'&quot;')})">Abrir receta</button></div>`);
+      if(!prodEsSub(r)) prodFilas(r).forEach(f=>{
+        if(prodEsSub(f.componente) && prodExiste(f.componente) && !(prodRinde(f.componente)>0))
+          avisos.push(`<div class="prod-aviso">⚠ Usa el subproducto <b>${escH(prodCorto(f.componente))}</b>, que no tiene cargado cuánto rinde. <button type="button" class="btn btn-outline" style="padding:2px 9px;font-size:11px" onclick="prodAbrirReceta(${JSON.stringify(f.componente).replace(/"/g,'&quot;')})">Abrir receta</button></div>`);
+      });
+    }
+    return `<tr class="${l.noProduce?'prod-off':''}">
+      <td class="prod-menu-txt">${escH(l.texto)}${avisos.join('')}</td>
+      <td><input class="dd-input" id="prod-rec-${i}" type="text" placeholder="Buscar receta…" style="width:100%" ${l.noProduce||bloq?'disabled':''}></td>
+      <td style="white-space:nowrap"><input type="text" inputmode="decimal" value="${escH(l.cantidad||'')}" placeholder="0" style="width:80px;text-align:right" ${l.noProduce||bloq||!r?'disabled':''}
+        oninput="_prodEdit.lineas[${i}].cantidad=this.value;prodGuardarLuego()" onchange="renderProdEventos()">
+        <span style="font-size:11px;color:var(--text3)">${r?escH(prodUnidadLbl(r)):''}</span></td>
+      <td style="text-align:center"><input type="checkbox" ${l.noProduce?'checked':''} ${bloq?'disabled':''} onchange="prodNoProduce(${i},this.checked)"></td>
+    </tr>`;
+  }).join('');
+  const pr=prodProblemas(d);
+  const ok=!pr.faltan && !pr.sinR.length;
+  return `
+    <div class="prod-ayuda">Elegí la receta de cada plato del menú y cuántas vas a hacer (en la unidad de esa receta). Lo que no se cocina, marcalo en "No se produce".</div>
+    <div class="tw"><table class="prod-tabla">
+      <thead><tr><th>Plato del menú</th><th style="width:34%">Receta</th><th style="width:150px">Cantidad a hacer</th><th style="width:90px;text-align:center">No se produce</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table></div>
+    <div class="prod-pie">
+      <span style="font-size:12px;color:var(--text3)">${ok?'✓ Todo listo para producir.':(pr.faltan?pr.faltan+' plato(s) sin receta o cantidad. ':'')+(pr.sinR.length?pr.sinR.length+' receta(s) sin rendimiento.':'')}</span>
+      <button class="btn btn-primary" ${ok?'':'style="opacity:.55"'} onclick="prodIrPaso(2)">Siguiente: Producir →</button>
+    </div>`;
+}
+function prodEnlazarBuscadores(d){
+  (d.lineas||[]).forEach((l,i)=>{
+    const inp=document.getElementById('prod-rec-'+i);
+    if(!inp) return;
+    const r=l.receta && prodExiste(l.receta) ? l.receta : '';
+    inp.dataset.val=r;
+    inp.value=r?(prodOpciones().find(o=>o.val===r)||{label:r}).label:'';
+    attachDD(inp, ()=>prodOpciones(), ()=>_prodEdit&&_prodEdit.lineas[i]?_prodEdit.lineas[i].receta||'':'', val=>{
+      if(!_prodEdit||!_prodEdit.lineas[i]) return;
+      const cambio=_prodEdit.lineas[i].receta!==val;
+      _prodEdit.lineas[i].receta=val;
+      if(cambio) _prodEdit.lineas[i].cantidad='';
+      prodGuardarAlias(_prodEdit.lineas[i].texto, val);
+      prodGuardarYa();
+      setTimeout(renderProdEventos, 0);
+    });
+  });
+}
+function prodNoProduce(i, v){
+  if(!_prodEdit||!_prodEdit.lineas[i]) return;
+  _prodEdit.lineas[i].noProduce=v;
+  prodGuardarYa();
+  renderProdEventos();
+}
+
+// Paso 2: Producir (una ventana por receta)
+function prodHtmlPaso2(d){
+  const js=prodTrabajos(d);
+  const ventanas=js.map((j,idx)=>{
+    const r=j.receta, f=j.factor;
+    const filas=prodFilas(r).map(x=>{
+      const kg=(parseFloat(x.kgs)||0)*f;
+      if(prodEsSub(x.componente)) return `<tr><td>🧩 <b>${escH(prodCorto(x.componente))}</b> <span style="font-size:11px;color:var(--text3)">(se prepara en su propia ventana)</span></td><td class="num">${prodNum(kg)} kg</td></tr>`;
+      return `<tr><td>${escH(prodNombreComp(x.componente))}</td><td class="num">${prodNum(kg)} kg</td></tr>`;
+    }).join('');
+    return `<details class="prod-ventana" ${idx===0?'open':''} ontoggle="prodAcordeon(this)">
+      <summary>
+        <span>${prodEsSub(r)?'🧩':'🍴'} <b>${escH(prodCorto(r))}</b> × ${prodNum(j.planificado,2)} ${escH(prodUnidadLbl(r))}</span>
+        ${j.para.length?`<span class="prod-para">para ${j.para.map(p=>escH(prodCorto(p))).join(', ')}${j.directo?' y el menú':''}</span>`:''}
+        ${j.cierre?'<span class="prod-para" style="color:var(--green)">✅ cerrada</span>':''}
+      </summary>
+      <div class="tw"><table class="prod-tabla"><thead><tr><th>Ingrediente</th><th class="num" style="width:140px">Cantidad</th></tr></thead><tbody>${filas||'<tr><td colspan="2" class="empty">La receta no tiene ingredientes.</td></tr>'}</tbody></table></div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">Es la receta × ${prodNum(f,2)}.</div>
+    </details>`;
+  }).join('');
+  return `
+    <div class="prod-ayuda">Una ventana por receta, con lo que necesitás para la cantidad a hacer. Tocá cada una para abrirla.</div>
+    ${ventanas||'<div class="empty">No hay recetas para producir.</div>'}
+    <div class="prod-pie"><span></span><button class="btn btn-primary" onclick="prodIrPaso(3)">Siguiente: Cerrar →</button></div>`;
+}
+// Solo una ventana abierta a la vez.
+function prodAcordeon(el){
+  if(!el.open) return;
+  el.parentElement.querySelectorAll('details.prod-ventana').forEach(o=>{ if(o!==el) o.open=false; });
+}
+
+// Paso 3: Cerrar (por receta)
+function prodHtmlPaso3(d){
+  const js=prodTrabajos(d);
+  const abierta=js.findIndex(j=>!j.cierre);
+  const ventanas=js.map((j,idx)=>{
+    const r=j.receta, lbl=prodUnidadLbl(r);
+    if(j.cierre){
+      const c=j.cierre, nm=Object.keys(c.mermas||{}).length;
+      return `<details class="prod-ventana prod-cerrada" ontoggle="prodAcordeon(this)">
+        <summary><span>✅ <b>${escH(prodCorto(r))}</b> — planificado ${prodNum(c.planificado,2)}, salieron ${prodNum(c.salio,2)} ${escH(UNIDAD_LABELS[c.unidad]||lbl)}</span></summary>
+        <div style="font-size:12.5px;color:var(--text2);line-height:1.7">
+          La receta pasó a rendir <b>${prodNum(c.rDespues,2)}</b> (antes ${prodNum(c.rAntes,2)}).<br>
+          ${nm?'Merma actualizada en '+nm+' ingrediente(s): '+Object.entries(c.mermas).map(([k,v])=>escH(prodNombreComp(k))+' '+prodNum(v,2)+'%').join(', ')+'.':'Sin cambios de merma.'}<br>
+          <span style="color:var(--text3)">Cerrada el ${new Date(c.fecha).toLocaleDateString('es-AR')}${c.por?' por '+escH(c.por):''}.</span>
+        </div>
+      </details>`;
+    }
+    const filas=prodFilas(r).map((x,k)=>`<tr>
+      <td>${prodEsSub(x.componente)?'🧩 ':''}${escH(prodNombreComp(x.componente))}</td>
+      <td class="num" style="color:var(--text3)">${prodNum(parseFloat(x.merma)||0,2)} %</td>
+      <td class="num"><input type="text" inputmode="decimal" id="prod-cm-${idx}-${k}" placeholder="igual" style="width:70px;text-align:right"> %</td>
+    </tr>`).join('');
+    return `<details class="prod-ventana" ${idx===abierta?'open':''} ontoggle="prodAcordeon(this)">
+      <summary><span>${prodEsSub(r)?'🧩':'🍴'} <b>${escH(prodCorto(r))}</b> — planificado ${prodNum(j.planificado,2)} ${escH(lbl)}</span></summary>
+      <div class="prod-ayuda" style="margin-top:4px">Cargá la merma real de los ingredientes que cambiaron (lo que dejes vacío queda como está).</div>
+      <div class="tw"><table class="prod-tabla"><thead><tr><th>Ingrediente</th><th class="num" style="width:120px">Merma actual</th><th class="num" style="width:140px">Merma real</th></tr></thead><tbody>${filas}</tbody></table></div>
+      <div class="prod-cierre">
+        <label>¿Cuántas ${escH(lbl)} salieron? <span style="color:var(--red)">*</span>
+          <input type="text" inputmode="decimal" id="prod-cs-${idx}" placeholder="${prodNum(j.planificado,2)}" style="width:100px;text-align:right;margin-left:6px"></label>
+        <button class="btn btn-primary" onclick="prodCerrarReceta(${idx})">✓ Cerrar y actualizar receta</button>
+      </div>
+    </details>`;
+  }).join('');
+  const pend=js.filter(j=>!j.cierre).length;
+  return `
+    <div class="prod-ayuda">${pend?`Cerrá cada receta cuando termines de producirla. Faltan <b>${pend}</b> de ${js.length}.`:'✅ Todas las recetas de este evento están cerradas.'}</div>
+    ${ventanas}`;
+}
+async function prodCerrarReceta(idx){
+  const d=_prodEdit;
+  if(!d) return;
+  const j=prodTrabajos(d)[idx];
+  if(!j || j.cierre) return;
+  const r=j.receta, lbl=prodUnidadLbl(r);
+  const salio=parseKgCampo((document.getElementById('prod-cs-'+idx)||{}).value);
+  if(!(salio>0)){ alert('Cargá cuántas '+lbl+' salieron de '+prodCorto(r)+'.'); return; }
+  const filas=prodFilas(r);
+  const mermas={};
+  filas.forEach((f,k)=>{
+    const el=document.getElementById(`prod-cm-${idx}-${k}`);
+    const v=el?String(el.value).trim():'';
+    if(v!=='') mermas[f.componente]=Math.min(Math.max(parseKgCampo(v),0),100);
+  });
+  const rAntes=prodRinde(r);
+  const rDespues=j.planificado>0 ? rAntes*salio/j.planificado : rAntes;
+  if(!confirm(`Cerrar ${prodCorto(r)}:\n\n• Planificado: ${prodNum(j.planificado,2)} ${lbl}\n• Salieron: ${prodNum(salio,2)} ${lbl}\n• La receta pasa a rendir ${prodNum(rDespues,2)} (antes ${prodNum(rAntes,2)})`+
+     (Object.keys(mermas).length?`\n• Se actualiza la merma de ${Object.keys(mermas).length} ingrediente(s)`:'')+'\n\nLa receta se actualiza ahora. ¿Seguir?')) return;
+  filas.forEach(f=>{ if(mermas[f.componente]!==undefined) f.merma=mermas[f.componente]; });
+  const esSub=prodEsSub(r);
+  if(esSub){ if(!DB.subs_config) DB.subs_config={}; } else { if(!DB.platos_config) DB.platos_config={}; }
+  const conf=esSub?DB.subs_config:DB.platos_config;
+  const totalQ=filas.reduce((s,x)=>s+kgQuedanIng(x.kgs,x.merma),0);
+  conf[r]={...(conf[r]||{}), rendimiento_modo:'unidades', rendimiento_unidades:rDespues,
+    rendimiento_peso_kg:rDespues>0?totalQ/rDespues:0, fecha_modificacion:new Date().toISOString()};
+  if(esSub) await guardarSubproductoDoc(r); else await guardarPlatoDoc(r);
+  d.cierres=d.cierres||{};
+  d.cierres[r]={planificado:j.planificado, factor:j.factor, salio, unidad:prodUnidad(r), mermas, rAntes, rDespues,
+    fecha:new Date().toISOString(), por:(fbAuth.currentUser&&fbAuth.currentUser.email)||''};
+  await prodGuardarYa();
+  try{ renderSubproductos(); renderPlatos(); }catch(e){}
+  renderProdEventos();
+}
 
 // ── Seguimiento: Pendiente / Confirmado / No se concretó ──────────────
 // Campo `seguimiento` del presupuesto (sin dato = pendiente). Confirmar crea
