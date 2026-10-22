@@ -6502,6 +6502,7 @@ function sbListen(){
 // evento/período/cliente ya es su propio documento, que es lo que evita que
 // se pisen entre sí, sin importar si el listener es "amplio" o "acotado".
 let _unsubComandaPeriodos=null, _unsubComandaEventos=null, _unsubComandaClientes=null;
+let _comandaEventosCargados=false;
 
 function iniciarListenersComanda(){
   if(!DB.comanda) DB.comanda={periodos:[],eventos:{}};
@@ -6519,6 +6520,8 @@ function iniciarListenersComanda(){
       (porPeriodo[data.periodo_id]=porPeriodo[data.periodo_id]||[]).push(ev);
     });
     DB.comanda.eventos=porPeriodo;
+    _comandaEventosCargados=true;
+    prodCompletarMenus();
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar comanda_eventos:', err));
   _unsubComandaClientes=FB_COL_CLIENTES.onSnapshot((snap)=>{
@@ -6693,9 +6696,12 @@ function detenerListenerStock(){
 
 // ── Módulo Presupuestos ─────────────────────────────────────────────────
 let _unsubPresupuestos=null;
+let _presuCargados=false;
 function iniciarListenersPresupuestos(){
   _unsubPresupuestos=FB_COL_PRESUPUESTOS.onSnapshot((snap)=>{
     DB.presupuestos=snap.docs.map(d=>({...d.data(), _id:Number(d.id)})).sort((a,b)=>b._id-a._id);
+    _presuCargados=true;
+    prodCompletarMenus();
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar presupuestos:', err));
 }
@@ -11285,17 +11291,35 @@ function prodDocDe(ev){
   if(!(d.paso>=2) && prodEstaciones(ev)) d.lineas=prodLineasDesdeMenu(ev, d.lineas);
   return d;
 }
-// Completa menu_presupuesto en eventos confirmados antes de este cambio.
-function prodCompletarMenus(){
-  if(!(DB.presupuestos||[]).length) return;
-  Object.entries((DB.comanda&&DB.comanda.eventos)||{}).forEach(([per,evs])=>(evs||[]).forEach(ev=>{
-    if(!ev.presupuesto_id || (ev.datos&&Array.isArray(ev.datos.menu_presupuesto))) return;
-    const p=DB.presupuestos.find(x=>x._id===ev.presupuesto_id);
-    if(!p) return;
-    if(!ev.datos) ev.datos={};
-    ev.datos.menu_presupuesto=presuMenuEstaciones(p);
-    guardarEventoActual(per, ev.id);
-  }));
+// Repara los eventos de presupuestos confirmados (solo en compus con acceso a
+// Presupuestos, con los datos ya sincronizados): les pone la marca
+// presupuesto_id si se perdió (eventos editados antes de que se conservara),
+// completa el menú de las estaciones (menu_presupuesto) y, si el evento ya no
+// existe, lo vuelve a crear.
+let _prodReparando=false;
+async function prodCompletarMenus(){
+  if(_prodReparando || !_presuCargados || !_comandaEventosCargados) return;
+  _prodReparando=true;
+  try{
+    const ubicar=id=>{ for(const [per,evs] of Object.entries((DB.comanda&&DB.comanda.eventos)||{})){ const ev=(evs||[]).find(e=>e.id===id); if(ev) return {per,ev}; } return null; };
+    for(const p of (DB.presupuestos||[])){
+      if(presuSegEstado(p)!=='confirmado') continue;
+      const u=p.eventoFichaId ? ubicar(p.eventoFichaId) : null;
+      if(!u){
+        const creado=await presuSegCrearEvento(p);
+        await FB_COL_PRESUPUESTOS.doc(String(p._id)).update({eventoFichaId:creado.id, eventoFichaPeriodo:creado.periodoId});
+        p.eventoFichaId=creado.id; p.eventoFichaPeriodo=creado.periodoId;
+        continue;
+      }
+      const {per, ev}=u;
+      let cambio=false;
+      if(ev.presupuesto_id!==p._id){ ev.presupuesto_id=p._id; cambio=true; }
+      if(!ev.datos) ev.datos={};
+      if(!Array.isArray(ev.datos.menu_presupuesto)){ ev.datos.menu_presupuesto=presuMenuEstaciones(p); cambio=true; }
+      if(cambio) await guardarEventoActual(per, ev.id);
+    }
+  }catch(e){ console.error('Eventos a producir: no se pudieron reparar los eventos', e); }
+  finally{ _prodReparando=false; }
 }
 function prodFecha(ev){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec((ev.datos&&ev.datos.fecha)||''); return m?`${m[3]}/${m[2]}/${m[1]}`:'Sin fecha'; }
 
