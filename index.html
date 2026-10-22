@@ -8116,6 +8116,51 @@ function formatFechaHoraCompacta(iso){
 }
 
 // ── Abrir período (ver lista de eventos) ─────────────────────────
+// Marca TEMPORAL para limpiar duplicados: eventos que ya estaban cargados a
+// mano y se volvieron a crear al confirmar su presupuesto. Se compara dentro
+// del período por fecha o nombre parecido.
+function comandaNormNombre(t){ return String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
+function comandaSonGemelos(a, b){
+  const fa=a.datos&&a.datos.fecha, fb=b.datos&&b.datos.fecha;
+  if(fa && fb && fa===fb) return true;
+  const na=comandaNormNombre(a.nombre), nb=comandaNormNombre(b.nombre);
+  return !!na && !!nb && (na===nb || (na.length>=4 && nb.length>=4 && (na.includes(nb) || nb.includes(na))));
+}
+function comandaMarcaDuplicado(periodoId, ev, evs){
+  const tag=(css,txt)=>`<span style="display:inline-block;margin-top:5px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 9px;${css}">${txt}</span>`;
+  if(ev.presupuesto_id){
+    const gem=(evs||[]).filter(o=>o.id!==ev.id && !o.presupuesto_id && comandaSonGemelos(ev,o));
+    return tag('background:rgba(45,122,90,.12);color:#2d7a5a','🧾 Creado al confirmar el presupuesto')+
+      (gem.length?' '+tag('background:rgba(212,160,23,.16);color:#9a7410','⚠ Posible copia de «'+escH(gem.map(g=>g.nombre).join('», «'))+'» (que ya estaba cargado)'):'');
+  }
+  const gem=(evs||[]).filter(o=>o.id!==ev.id && o.presupuesto_id && comandaSonGemelos(ev,o));
+  if(!gem.length) return '';
+  return tag('background:rgba(212,160,23,.16);color:#9a7410','⚠ Ya estaba cargado · parece el mismo que «'+escH(gem[0].nombre)+'» (creado desde el presupuesto)')+
+    ` <button class="btn btn-outline" style="padding:2px 10px;font-size:11px;margin-top:5px" onclick="comandaQuedarseConEste('${periodoId}','${ev.id}','${gem[0].id}')">✓ Quedarme con este y borrar la copia</button>`;
+}
+// Se queda con el evento que ya estaba cargado: le pasa el vínculo con el
+// presupuesto (y el menú de estaciones) y borra la copia creada al confirmar.
+async function comandaQuedarseConEste(periodoId, keepId, copiaId){
+  const evs=(DB.comanda.eventos[periodoId]||[]);
+  const keep=evs.find(e=>e.id===keepId), copia=evs.find(e=>e.id===copiaId);
+  if(!keep || !copia) return;
+  if(!confirm('Te quedás con «'+keep.nombre+'» (el que ya estaba cargado) y se borra «'+copia.nombre+'» (la copia creada al confirmar el presupuesto).\n\nEl que queda pasa a estar vinculado al presupuesto (aparece en Eventos a producir).\n\n¿Seguir?')) return;
+  try{
+    keep.presupuesto_id=copia.presupuesto_id;
+    if(!keep.datos) keep.datos={};
+    if(copia.datos && Array.isArray(copia.datos.menu_presupuesto)) keep.datos.menu_presupuesto=copia.datos.menu_presupuesto;
+    await guardarEventoActual(periodoId, keepId);
+    if(PRODUCCIONES[copiaId] && !PRODUCCIONES[keepId]){
+      await FB_COL_PRODUCCIONES.doc(keepId).set({...PRODUCCIONES[copiaId], eventoId:keepId});
+      await FB_COL_PRODUCCIONES.doc(copiaId).delete();
+    }
+    try{ await FB_COL_PRESUPUESTOS.doc(String(copia.presupuesto_id)).update({eventoFichaId:keepId, eventoFichaPeriodo:periodoId}); }
+    catch(e){ console.warn('No se pudo actualizar el presupuesto (se corrige solo cuando entre alguien con acceso a Presupuestos):', e); }
+    await FB_COL_EVENTOS.doc(copiaId).delete();
+  }catch(e){
+    alert('⚠ No se pudo completar (revisá la conexión a internet).\n\n'+e.message);
+  }
+}
 function abrirPeriodo(periodoId){
   comandaPeriodoActual = periodoId;
   const p = DB.comanda.periodos.find(x=>x.id===periodoId);
@@ -8146,6 +8191,7 @@ function abrirPeriodo(periodoId){
                   title="Editá el nombre del evento">
                 <span style="font-size:10px;color:var(--text3)">✏️</span>
               </div>
+              ${comandaMarcaDuplicado(periodoId, ev, evs)}
               <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
                 <input type="date" id="ev-fecha-${ev.id}" value="${escH(ev.datos?.fecha||'')}"${fechaMinMaxAttrs}
                   style="font-size:11px;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-family:inherit;outline:none;cursor:pointer"
@@ -8226,7 +8272,11 @@ function cambiarFechaEvento(periodoId, eventoId, nuevaFecha){
   guardarEventoActual(periodoId, eventoId);
 }
 function eliminarEvento(periodoId,eventoId){
-  if(!confirm('¿Eliminar este evento?'))return;
+  const ev=(DB.comanda.eventos[periodoId]||[]).find(e=>e.id===eventoId);
+  const msg=ev&&ev.presupuesto_id
+    ? '¿Eliminar este evento?\n\nOjo: es el que está vinculado al presupuesto confirmado (el que aparece en Eventos a producir). Si es una copia de otro que ya tenías, mejor usá «Quedarme con este y borrar la copia» en el otro.'
+    : '¿Eliminar este evento?';
+  if(!confirm(msg))return;
   FB_COL_EVENTOS.doc(eventoId).delete().catch(e=>alert('Error al eliminar el evento: '+e.message));
 }
 
@@ -11327,9 +11377,8 @@ function prodDocDe(ev){
 }
 // Repara los eventos de presupuestos confirmados (solo en compus con acceso a
 // Presupuestos, con los datos ya sincronizados): les pone la marca
-// presupuesto_id si se perdió (eventos editados antes de que se conservara),
-// completa el menú de las estaciones (menu_presupuesto) y, si el evento ya no
-// existe, lo vuelve a crear.
+// presupuesto_id si se perdió (eventos editados antes de que se conservara) y
+// completa el menú de las estaciones (menu_presupuesto). No recrea eventos.
 let _prodReparando=false;
 async function prodCompletarMenus(){
   if(_prodReparando || !_presuCargados || !_comandaEventosCargados) return;
@@ -11338,12 +11387,17 @@ async function prodCompletarMenus(){
     const ubicar=id=>{ for(const [per,evs] of Object.entries((DB.comanda&&DB.comanda.eventos)||{})){ const ev=(evs||[]).find(e=>e.id===id); if(ev) return {per,ev}; } return null; };
     for(const p of (DB.presupuestos||[])){
       if(presuSegEstado(p)!=='confirmado') continue;
-      const u=p.eventoFichaId ? ubicar(p.eventoFichaId) : null;
+      let u=p.eventoFichaId ? ubicar(p.eventoFichaId) : null;
       if(!u){
-        const creado=await presuSegCrearEvento(p);
-        await FB_COL_PRESUPUESTOS.doc(String(p._id)).update({eventoFichaId:creado.id, eventoFichaPeriodo:creado.periodoId});
-        p.eventoFichaId=creado.id; p.eventoFichaPeriodo=creado.periodoId;
-        continue;
+        // El evento vinculado ya no existe: si hay otro evento marcado con este
+        // presupuesto (ej. se eligió el que ya estaba cargado), se vincula ese.
+        for(const [per,evs] of Object.entries((DB.comanda&&DB.comanda.eventos)||{})){
+          const ev=(evs||[]).find(e=>e.presupuesto_id===p._id);
+          if(ev){ u={per,ev}; break; }
+        }
+        if(!u) continue;
+        await FB_COL_PRESUPUESTOS.doc(String(p._id)).update({eventoFichaId:u.ev.id, eventoFichaPeriodo:u.per});
+        p.eventoFichaId=u.ev.id; p.eventoFichaPeriodo=u.per;
       }
       const {per, ev}=u;
       let cambio=false;
