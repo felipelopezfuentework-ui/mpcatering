@@ -151,6 +151,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .prod-tabla td{vertical-align:top}
 .prod-menu-txt{font-weight:600;color:var(--text)}
 .prod-off td{opacity:.5}
+.prod-sec td{background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);padding:6px 10px}
 .prod-aviso{margin-top:6px;font-weight:400;font-size:11.5px;color:#9a7410;background:rgba(212,160,23,.1);border:1px solid rgba(212,160,23,.35);border-radius:6px;padding:5px 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .prod-pie{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
 .prod-ventana{border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:10px;background:var(--surface)}
@@ -11254,11 +11255,47 @@ function prodEventos(){
   Object.entries((DB.comanda&&DB.comanda.eventos)||{}).forEach(([per,evs])=>(evs||[]).forEach(ev=>{ if(ev.presupuesto_id) out.push({...ev, periodo:per}); }));
   return out.sort((a,b)=>String((a.datos&&a.datos.fecha)||'9999').localeCompare(String((b.datos&&b.datos.fecha)||'9999')));
 }
-function prodMenuLineas(ev){ return ((ev.datos&&ev.datos.com_menu)||[]).map(r=>String((r&&r[0])||'').trim()).filter(Boolean); }
+// Menú del evento = estaciones del presupuesto (guardadas en el evento al
+// confirmar, datos.menu_presupuesto). Eventos viejos sin ese dato: se toma
+// del presupuesto si esta compu lo tiene cargado (y se le guarda al evento).
+function prodEstaciones(ev){
+  const mp=ev.datos&&ev.datos.menu_presupuesto;
+  if(Array.isArray(mp)) return mp;
+  const p=(DB.presupuestos||[]).find(x=>x._id===ev.presupuesto_id);
+  return p ? presuMenuEstaciones(p) : null;
+}
+function prodMenuItems(ev){
+  const est=prodEstaciones(ev);
+  if(!est) return [];
+  return est.flatMap(e=>String(e.items||'').split('\n').map(t=>t.trim()).filter(Boolean).map(t=>({texto:t, seccion:e.titulo||''})));
+}
+function prodMenuLineas(ev){ return prodMenuItems(ev).map(x=>x.texto); }
+function prodLineasDesdeMenu(ev, previas){
+  const usadas=new Set();
+  return prodMenuItems(ev).map(({texto,seccion})=>{
+    const i=(previas||[]).findIndex((l,k)=>!usadas.has(k) && prodNorm(l.texto)===prodNorm(texto));
+    if(i>=0){ usadas.add(i); return {...previas[i], texto, seccion}; }
+    const r=PROD_ALIAS[prodNorm(texto)];
+    return {texto, seccion, receta:(r&&prodExiste(r))?r:'', cantidad:'', noProduce:false};
+  });
+}
 function prodDocDe(ev){
-  if(PRODUCCIONES[ev.id]) return JSON.parse(JSON.stringify(PRODUCCIONES[ev.id]));
-  return {eventoId:ev.id, paso:1, cierres:{},
-    lineas:prodMenuLineas(ev).map(t=>{ const r=PROD_ALIAS[prodNorm(t)]; return {texto:t, receta:(r&&prodExiste(r))?r:'', cantidad:'', noProduce:false}; })};
+  const d=PRODUCCIONES[ev.id] ? JSON.parse(JSON.stringify(PRODUCCIONES[ev.id])) : {eventoId:ev.id, paso:1, cierres:{}, lineas:[]};
+  // Mientras no se pasó a producir, los renglones siguen al menú de las estaciones.
+  if(!(d.paso>=2) && prodEstaciones(ev)) d.lineas=prodLineasDesdeMenu(ev, d.lineas);
+  return d;
+}
+// Completa menu_presupuesto en eventos confirmados antes de este cambio.
+function prodCompletarMenus(){
+  if(!(DB.presupuestos||[]).length) return;
+  Object.entries((DB.comanda&&DB.comanda.eventos)||{}).forEach(([per,evs])=>(evs||[]).forEach(ev=>{
+    if(!ev.presupuesto_id || (ev.datos&&Array.isArray(ev.datos.menu_presupuesto))) return;
+    const p=DB.presupuestos.find(x=>x._id===ev.presupuesto_id);
+    if(!p) return;
+    if(!ev.datos) ev.datos={};
+    ev.datos.menu_presupuesto=presuMenuEstaciones(p);
+    guardarEventoActual(per, ev.id);
+  }));
 }
 function prodFecha(ev){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec((ev.datos&&ev.datos.fecha)||''); return m?`${m[3]}/${m[2]}/${m[1]}`:'Sin fecha'; }
 
@@ -11345,6 +11382,7 @@ function renderProdEventos(){
     if(ev){ prodRenderEvento(ev); return; }
     _prodAbierto=null; _prodEdit=null;
   }
+  prodCompletarMenus();
   const evs=prodEventos().map(ev=>({ev, est:prodEstado(ev)}));
   const cuenta=f=>evs.filter(x=>f==='pendientes'?x.est!=='cerrado':x.est===f).length;
   const chip=(k,txt)=>`<button type="button" class="presu-seg-chip ${_prodFiltro===k?'on':''}" onclick="prodSetFiltro('${k}')">${txt}<b>${cuenta(k)}</b></button>`;
@@ -11422,9 +11460,12 @@ function prodRenderEvento(ev){
 
 // Paso 1: Armar
 function prodHtmlPaso1(d){
-  if(!(d.lineas||[]).length) return '<div class="empty">El evento no tiene menú cargado en su ficha técnica.</div>';
+  if(!(d.lineas||[]).length) return '<div class="empty">No se encontró el menú del presupuesto (las estaciones). Si el evento es de antes de este cambio, que alguien con acceso a Presupuestos abra esta solapa una vez y se completa solo.</div>';
   const cerradas=new Set(Object.keys(d.cierres||{}));
+  let secAnt=null;
   const filas=d.lineas.map((l,i)=>{
+    const titulo=(l.seccion!==undefined && l.seccion!==secAnt) ? `<tr class="prod-sec"><td colspan="4">${escH(l.seccion||'Sin título')}</td></tr>` : '';
+    secAnt=l.seccion;
     const bloq=l.receta && cerradas.has(l.receta);
     const r=l.receta && prodExiste(l.receta) ? l.receta : '';
     const avisos=[];
@@ -11435,7 +11476,7 @@ function prodHtmlPaso1(d){
           avisos.push(`<div class="prod-aviso">⚠ Usa el subproducto <b>${escH(prodCorto(f.componente))}</b>, que no tiene cargado cuánto rinde. <button type="button" class="btn btn-outline" style="padding:2px 9px;font-size:11px" onclick="prodAbrirReceta(${JSON.stringify(f.componente).replace(/"/g,'&quot;')})">Abrir receta</button></div>`);
       });
     }
-    return `<tr class="${l.noProduce?'prod-off':''}">
+    return titulo+`<tr class="${l.noProduce?'prod-off':''}">
       <td class="prod-menu-txt">${escH(l.texto)}${avisos.join('')}</td>
       <td><input class="dd-input" id="prod-rec-${i}" type="text" placeholder="Buscar receta…" style="width:100%" ${l.noProduce||bloq?'disabled':''}></td>
       <td style="white-space:nowrap"><input type="text" inputmode="decimal" value="${escH(l.cantidad||'')}" placeholder="0" style="width:80px;text-align:right" ${l.noProduce||bloq||!r?'disabled':''}
@@ -11662,6 +11703,14 @@ function comandaDatosVacios(){
 }
 // Arma los datos del evento de Fichas Técnicas desde el presupuesto (mismo
 // criterio que el import desde PDF, confirmarImportarPDF).
+// Menú para producir: solo las estaciones del presupuesto que salen en el PDF
+// (sin la Barra clásica). [{titulo, items:'plato\nplato'}]
+function presuMenuEstaciones(p){
+  const esBarra=e=>e.barra || /^barra cl[aá]sica$/i.test(String(e.titulo||'').trim());
+  return ((p&&p.estaciones)||[]).filter(e=>e.incluir!==false && !esBarra(e))
+    .map(e=>({titulo:String(e.titulo||'').trim(), items:String(e.items||'').split('\n').map(l=>l.trim()).filter(Boolean).join('\n')}))
+    .filter(e=>e.items);
+}
 function presuSegDatosEvento(p){
   const datos=comandaDatosVacios();
   datos.fecha=/^\d{4}-\d{2}-\d{2}$/.test(p.fechaEvento||'') ? p.fechaEvento : '';
@@ -11685,6 +11734,7 @@ function presuSegDatosEvento(p){
   const bebidas=ests.filter(esBarra).flatMap(lineas);
   if(menu.length) datos.com_menu=menu.map(l=>[l,'','','','','','']);
   if(bebidas.length) datos.bar_bebidas=bebidas.map(l=>[l,'','','','','']);
+  datos.menu_presupuesto=presuMenuEstaciones(p);
   return datos;
 }
 async function presuSegCrearEvento(p){
