@@ -11798,7 +11798,63 @@ function presuSegChipsRender(){
   const cuenta=k=>todos.filter(p=>presuSegEstado(p)===k).length;
   const chip=(k,txt,n)=>`<button type="button" class="presu-seg-chip ${_presuSegFiltro===k?'on':''}" onclick="presuSegSetFiltro('${k}')">${txt}<b>${n}</b></button>`;
   box.innerHTML=chip('todos','Todos',todos.length)+
-    Object.entries(PRESU_SEG).map(([k,v])=>chip(k, v.icon+' '+(k==='pendiente'?'Pendientes':k==='confirmado'?'Confirmados':v.lbl), cuenta(k))).join('');
+    Object.entries(PRESU_SEG).map(([k,v])=>chip(k, v.icon+' '+(k==='pendiente'?'Pendientes':k==='confirmado'?'Confirmados':v.lbl), cuenta(k))).join('')+
+    (()=>{ const n=presuEventosCreados().length; return n?`<button type="button" class="btn btn-outline" style="padding:4px 12px;font-size:11.5px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuDeshacerEventosAbrir()">🧹 Deshacer eventos creados en Fichas Técnicas (${n})</button>`:''; })();
+}
+// TEMPORAL: eventos de Fichas Técnicas que se crearon solos al confirmar los
+// presupuestos que ya estaban confirmados. Se revisan en una lista y se
+// borran los tildados; esos presupuestos quedan sin evento (y fuera de
+// Eventos a producir). Los que se confirmen después sí crean su evento.
+function presuEventosCreados(){
+  const out=[];
+  (DB.presupuestos||[]).forEach(p=>{
+    if(presuSegEstado(p)!=='confirmado' || !p.eventoFichaId) return;
+    for(const [per,evs] of Object.entries((DB.comanda&&DB.comanda.eventos)||{})){
+      const ev=(evs||[]).find(e=>e.id===p.eventoFichaId);
+      if(ev){ out.push({p, ev, per}); break; }
+    }
+  });
+  return out;
+}
+function presuDeshacerEventosAbrir(){
+  const lista=presuEventosCreados();
+  if(!lista.length){ alert('No hay eventos para deshacer.'); return; }
+  const filas=lista.map((x,i)=>{
+    const per=(DB.comanda.periodos||[]).find(pp=>pp.id===x.per);
+    const f=/^(\d{4})-(\d{2})-(\d{2})$/.exec((x.ev.datos&&x.ev.datos.fecha)||'');
+    return `<label style="display:flex;gap:10px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid var(--border);cursor:pointer">
+      <input type="checkbox" class="presu-desh-chk" data-i="${i}" checked style="margin-top:3px">
+      <span style="flex:1"><b>${escH(x.ev.nombre||'Evento')}</b>
+        <span style="display:block;font-size:11.5px;color:var(--text3)">Presupuesto: ${escH(x.p.cliente||'—')} · ${escH(x.p.tipoEvento||'')} · Período ${per?MESES[per.mes]+' '+per.anio:x.per} · ${f?f[3]+'/'+f[2]+'/'+f[1]:'sin fecha'} · creado el ${escH(x.ev.creado||'—')}</span></span>
+    </label>`;
+  }).join('');
+  _presuDeshacerLista=lista;
+  mpModalGen('🧹 Deshacer eventos creados en Fichas Técnicas',
+    `<div style="font-size:12.5px;color:var(--text2);margin-bottom:10px;line-height:1.5">Estos eventos se crearon solos en Fichas Técnicas al confirmar los presupuestos. <b>Los tildados se borran</b>; destildá los que quieras conservar. Los presupuestos siguen confirmados, pero sin evento (no aparecen en Eventos a producir).</div>
+    <div style="max-height:55vh;overflow:auto">${filas}</div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+      <button class="btn btn-outline" onclick="mpCerrarModalGen()">Cancelar</button>
+      <button class="btn btn-primary" style="background:var(--red);border-color:var(--red)" onclick="presuDeshacerEventosConfirmar()">🗑 Borrar los tildados</button>
+    </div>`, 640);
+}
+let _presuDeshacerLista=[];
+async function presuDeshacerEventosConfirmar(){
+  const elegidos=[...document.querySelectorAll('.presu-desh-chk')].filter(c=>c.checked).map(c=>_presuDeshacerLista[Number(c.dataset.i)]).filter(Boolean);
+  if(!elegidos.length){ mpCerrarModalGen(); return; }
+  if(!confirm('Se van a borrar '+elegidos.length+' evento(s) de Fichas Técnicas. ¿Seguir?')) return;
+  let ok=0;
+  for(const x of elegidos){
+    try{
+      await FB_COL_PRESUPUESTOS.doc(String(x.p._id)).update({eventoFichaId:null, eventoFichaPeriodo:null, updated_at:new Date().toISOString()});
+      x.p.eventoFichaId=null; x.p.eventoFichaPeriodo=null;
+      await FB_COL_EVENTOS.doc(x.ev.id).delete();
+      if(PRODUCCIONES[x.ev.id]) await FB_COL_PRODUCCIONES.doc(x.ev.id).delete();
+      ok++;
+    }catch(e){ console.error('No se pudo deshacer el evento', x.ev.id, e); }
+  }
+  mpCerrarModalGen();
+  renderPresupuestos();
+  presuSegAviso(ok===elegidos.length?'✓ Listo: se borraron '+ok+' evento(s) de Fichas Técnicas.':'Se borraron '+ok+' de '+elegidos.length+'. Revisá la conexión y probá de nuevo con los que quedaron.', ok===elegidos.length?null:'rgba(192,57,43,.92)');
 }
 function presuSegBadge(p){
   const est=presuSegEstado(p), v=PRESU_SEG[est];
