@@ -139,6 +139,12 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .form-field{display:flex;flex-direction:column;gap:4px}
 .form-field label{font-size:11px;color:var(--text3);font-weight:600}
 /* Corrector ortográfico del módulo Presupuestos */
+.presu-seg-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.presu-seg-chip{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.presu-seg-chip b{font-weight:700;margin-left:4px;color:var(--text3)}
+.presu-seg-chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.presu-seg-chip.on b{color:#fff}
+.presu-seg-badge{border:1px solid transparent;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit}
 .presu-opc{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px}
 .presu-opc-ley{font-size:11px;color:var(--text3);margin-bottom:6px;line-height:1.35}
 .presu-opc label{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--text);cursor:pointer;padding:3px 0;line-height:1.3}
@@ -910,9 +916,10 @@ tr.rec-clic:hover td{background:var(--accent-light)}
     </div>
     <div class="toolbar">
       <div class="sbox"><input type="text" id="presu-search" placeholder="Buscar por cliente/tipo de evento…" oninput="renderPresupuestos()"></div>
+      <div id="presu-seg-chips" class="presu-seg-chips"></div>
     </div>
     <div class="tw"><table>
-      <thead><tr><th>Cliente</th><th>Tipo de evento</th><th>Fecha del evento</th><th class="num">Pax</th><th>Lugar</th><th>Cotización</th><th></th></tr></thead>
+      <thead><tr><th>Estado</th><th>Cliente</th><th>Tipo de evento</th><th>Fecha del evento</th><th class="num">Pax</th><th>Lugar</th><th>Cotización</th><th></th></tr></thead>
       <tbody id="presu-tbody"></tbody>
     </table></div>
   </div>
@@ -8100,39 +8107,7 @@ async function guardarNuevoEvento(){
   const id = 'ev_'+FB_COL_EVENTOS.doc().id;
   const fecha = new Date().toLocaleDateString('es-AR');
   // Crear evento con datos vacíos basados en el template
-  const datos = {};
-  COMANDA_TEMPLATE.forEach(sheet=>{
-    sheet.campos.forEach(c=>{
-      if(c.key) datos[c.key]='';
-      if(c.keys) c.keys.forEach(k=>datos[k.k]='');
-      if(c.campos) c.campos.forEach(f=>{ if(f.key) datos[f.key]=''; });
-      if(c.obsKey) datos[c.obsKey]='';
-      if(c.opciones_bool) c.opciones_bool.forEach(o=>datos[o.k]=false);
-      if(c.opciones) c.opciones && (datos[c.key||c.label]=[]);
-    });
-    // Inicializar tablas
-    sheet.campos.filter(c=>c.tipo==='tabla_libre'||c.tipo==='tabla_menu'||c.tipo==='tabla_timing'||c.tipo==='tabla_checks'||c.tipo==='tabla_personal').forEach(c=>{
-      if(c.tipo==='tabla_menu' && c.defaultRows){
-        datos[c.key] = Array.from({length:c.defaultRows}, ()=>c.cols.map(()=>''));
-      } else {
-        datos[c.key]=c.rows?JSON.parse(JSON.stringify(c.rows)):[];
-      }
-    });
-    // Evaluación
-    sheet.campos.filter(c=>c.tipo==='tabla_evaluacion').forEach(c=>{
-      datos[c.key]=JSON.parse(JSON.stringify(c.rows));
-    });
-    // Checklists (Comida / Vajilla Cocina / Vajilla Salón)
-    sheet.campos.filter(c=>c.tipo==='checklist_comida').forEach(c=>{
-      datos[c.key]={};
-    });
-    sheet.campos.filter(c=>c.tipo==='checklist_vajilla').forEach(c=>{
-      datos[c.key]=(c.defaultSecciones||[]).map(sec=>({
-        nombre: sec.nombre,
-        items: (sec.items||[]).map(nombre=>({nombre, cantidad:'', armado:false, ingreso:false, egreso:false, reingreso:false, obs:''}))
-      }));
-    });
-  });
+  const datos = comandaDatosVacios();
   datos['fecha'] = fechaEventoAlta || '';
   const periodoId = comandaPeriodoActual;
   cerrarModal('modal-evento-nuevo');
@@ -11184,10 +11159,163 @@ const PRESU_MENU_GRUPOS=[
 
 let _presuEdit=null; // borrador en memoria mientras el modal está abierto
 
+// ── Seguimiento: Pendiente / Confirmado / No se concretó ──────────────
+// Campo `seguimiento` del presupuesto (sin dato = pendiente). Confirmar crea
+// el evento en Fichas Técnicas (período del mes de la fecha del evento, o el
+// mes actual si no tiene fecha) con datos y menú del presupuesto; sacarlo de
+// Confirmado borra ese evento (eventoFichaId / eventoFichaPeriodo).
+const PRESU_SEG={
+  pendiente: {lbl:'Pendiente',       icon:'🟡', css:'background:rgba(212,160,23,.14);color:#9a7410;border-color:rgba(212,160,23,.45)'},
+  confirmado:{lbl:'Confirmado',      icon:'🟢', css:'background:rgba(45,122,90,.13);color:#2d7a5a;border-color:rgba(45,122,90,.4)'},
+  no:        {lbl:'No se concretó',  icon:'⚪', css:'background:var(--surface2);color:var(--text3);border-color:var(--border)'}
+};
+let _presuSegFiltro='todos';
+try{ const f=localStorage.getItem('presu_seg_filtro'); if(f && (f==='todos'||PRESU_SEG[f])) _presuSegFiltro=f; }catch(e){}
+function presuSegEstado(p){ return PRESU_SEG[p&&p.seguimiento] ? p.seguimiento : 'pendiente'; }
+function presuSegSetFiltro(f){
+  _presuSegFiltro=f;
+  try{ localStorage.setItem('presu_seg_filtro', f); }catch(e){}
+  renderPresupuestos();
+}
+function presuSegChipsRender(){
+  const box=document.getElementById('presu-seg-chips');
+  if(!box) return;
+  const todos=DB.presupuestos||[];
+  const cuenta=k=>todos.filter(p=>presuSegEstado(p)===k).length;
+  const chip=(k,txt,n)=>`<button type="button" class="presu-seg-chip ${_presuSegFiltro===k?'on':''}" onclick="presuSegSetFiltro('${k}')">${txt}<b>${n}</b></button>`;
+  box.innerHTML=chip('todos','Todos',todos.length)+
+    Object.entries(PRESU_SEG).map(([k,v])=>chip(k, v.icon+' '+(k==='pendiente'?'Pendientes':k==='confirmado'?'Confirmados':v.lbl), cuenta(k))).join('');
+}
+function presuSegBadge(p){
+  const est=presuSegEstado(p), v=PRESU_SEG[est];
+  const items=Object.entries(PRESU_SEG).filter(([k])=>k!==est)
+    .map(([k,o])=>`{icon:'${o.icon}',label:'Pasar a ${o.lbl}',accion:()=>presuSegCambiar(${p._id},'${k}')}`).join(',');
+  return `<button type="button" class="presu-seg-badge" style="${v.css}" title="Cambiar estado" onclick="mpMenuAbrir(this,[${items}])">${v.icon} ${v.lbl} ▾</button>`;
+}
+function presuSegAviso(msg, color){
+  const el=document.createElement('div');
+  el.style.cssText='position:fixed;top:80px;right:20px;z-index:9999;background:'+(color||'rgba(45,122,90,.92)')+';color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;font-weight:600;max-width:360px';
+  el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 4500);
+}
+// Datos vacíos de un evento según COMANDA_TEMPLATE (lo mismo que "+ Agregar evento").
+function comandaDatosVacios(){
+  const datos = {};
+  COMANDA_TEMPLATE.forEach(sheet=>{
+    sheet.campos.forEach(c=>{
+      if(c.key) datos[c.key]='';
+      if(c.keys) c.keys.forEach(k=>datos[k.k]='');
+      if(c.campos) c.campos.forEach(f=>{ if(f.key) datos[f.key]=''; });
+      if(c.obsKey) datos[c.obsKey]='';
+      if(c.opciones_bool) c.opciones_bool.forEach(o=>datos[o.k]=false);
+      if(c.opciones) c.opciones && (datos[c.key||c.label]=[]);
+    });
+    sheet.campos.filter(c=>c.tipo==='tabla_libre'||c.tipo==='tabla_menu'||c.tipo==='tabla_timing'||c.tipo==='tabla_checks'||c.tipo==='tabla_personal').forEach(c=>{
+      if(c.tipo==='tabla_menu' && c.defaultRows){
+        datos[c.key] = Array.from({length:c.defaultRows}, ()=>c.cols.map(()=>''));
+      } else {
+        datos[c.key]=c.rows?JSON.parse(JSON.stringify(c.rows)):[];
+      }
+    });
+    sheet.campos.filter(c=>c.tipo==='tabla_evaluacion').forEach(c=>{
+      datos[c.key]=JSON.parse(JSON.stringify(c.rows));
+    });
+    sheet.campos.filter(c=>c.tipo==='checklist_comida').forEach(c=>{
+      datos[c.key]={};
+    });
+    sheet.campos.filter(c=>c.tipo==='checklist_vajilla').forEach(c=>{
+      datos[c.key]=(c.defaultSecciones||[]).map(sec=>({
+        nombre: sec.nombre,
+        items: (sec.items||[]).map(nombre=>({nombre, cantidad:'', armado:false, ingreso:false, egreso:false, reingreso:false, obs:''}))
+      }));
+    });
+  });
+  return datos;
+}
+// Arma los datos del evento de Fichas Técnicas desde el presupuesto (mismo
+// criterio que el import desde PDF, confirmarImportarPDF).
+function presuSegDatosEvento(p){
+  const datos=comandaDatosVacios();
+  datos.fecha=/^\d{4}-\d{2}-\d{2}$/.test(p.fechaEvento||'') ? p.fechaEvento : '';
+  if(p.horarioInicio) datos.horario_inicio=p.horarioInicio;
+  if(p.horarioFin) datos.horario_fin=p.horarioFin;
+  if(p.tipoEvento) datos.tipo_evento=p.tipoEvento;
+  if(p.lugar){ datos.locacion=p.lugar; datos.ubicacion=p.lugar; }
+  if(p.cantidadPersonas) datos.cant_adultos=p.cantidadPersonas;
+  if(p.cliente) datos.contacto=p.cliente;
+  Object.entries(CAMPOS_COMPARTIDOS).forEach(([origen,destinos])=>{
+    if(datos[origen]) destinos.forEach(d=>{ datos[d]=datos[origen]; });
+  });
+  if(p.cantidadPersonas){
+    ['com_inv_total','vco_invitados','vsa_invitados','eva_invitados','fm_invitados','bar_personas'].forEach(k=>datos[k]=p.cantidadPersonas);
+  }
+  // Menú: los ítems de las estaciones que salen en el PDF; la Barra clásica va a la solapa BARRA.
+  const esBarra=e=>e.barra || /^barra cl[aá]sica$/i.test(String(e.titulo||'').trim());
+  const lineas=e=>String(e.items||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  const ests=(p.estaciones||[]).filter(e=>e.incluir!==false);
+  const menu=ests.filter(e=>!esBarra(e)).flatMap(lineas);
+  const bebidas=ests.filter(esBarra).flatMap(lineas);
+  if(menu.length) datos.com_menu=menu.map(l=>[l,'','','','','','']);
+  if(bebidas.length) datos.bar_bebidas=bebidas.map(l=>[l,'','','','','']);
+  return datos;
+}
+async function presuSegCrearEvento(p){
+  const f=/^(\d{4})-(\d{2})-\d{2}$/.exec(p.fechaEvento||'');
+  const hoy=new Date();
+  const mes=f?parseInt(f[2],10):hoy.getMonth()+1, anio=f?parseInt(f[1],10):hoy.getFullYear();
+  const periodoId=`p_${mes}_${anio}`;
+  if(!(DB.comanda&&DB.comanda.periodos||[]).find(x=>x.id===periodoId)){
+    await FB_COL_PERIODOS.doc(periodoId).set({mes,anio,updated_at:new Date().toISOString()});
+  }
+  const id='ev_'+FB_COL_EVENTOS.doc().id;
+  const nombre=(p.tipoEvento||'').trim()||(p.cliente||'').trim()||'Evento';
+  await FB_COL_EVENTOS.doc(id).set({
+    id, periodo_id:periodoId, nombre, cliente_id:null, creado:new Date().toLocaleDateString('es-AR'),
+    datos:convertirArraysAnidados(presuSegDatosEvento(p)), updated_at:new Date().toISOString(),
+    presupuesto_id:p._id
+  });
+  return {id, periodoId, mes, anio, nombre, sinFecha:!f};
+}
+let _presuSegOcupado=false;
+async function presuSegCambiar(id, nuevo){
+  const p=(DB.presupuestos||[]).find(x=>x._id===id);
+  if(!p || !PRESU_SEG[nuevo] || _presuSegOcupado) return;
+  const antes=presuSegEstado(p);
+  if(antes===nuevo) return;
+  const cambios={seguimiento:nuevo};
+  if(antes==='confirmado' && p.eventoFichaId){
+    if(!confirm('Este presupuesto tiene un evento creado en Fichas Técnicas ("'+(p.tipoEvento||p.cliente||'evento')+'").\n\nSi lo pasás a "'+PRESU_SEG[nuevo].lbl+'", ese evento se borra (con todo lo que se haya cargado en su ficha).\n\n¿Seguir?')) return;
+  }
+  _presuSegOcupado=true;
+  try{
+    if(antes==='confirmado' && p.eventoFichaId){
+      await FB_COL_EVENTOS.doc(p.eventoFichaId).delete();
+      cambios.eventoFichaId=null; cambios.eventoFichaPeriodo=null;
+    }
+    let creado=null;
+    if(nuevo==='confirmado'){
+      creado=await presuSegCrearEvento(p);
+      cambios.eventoFichaId=creado.id; cambios.eventoFichaPeriodo=creado.periodoId;
+    }
+    await FB_COL_PRESUPUESTOS.doc(String(id)).update({...cambios, updated_at:new Date().toISOString()});
+    Object.assign(p, cambios);
+    marcarSincronizado();
+    renderPresupuestos();
+    if(creado) presuSegAviso('✅ Confirmado. Se creó el evento "'+creado.nombre+'" en Fichas Técnicas, período '+MESES[creado.mes]+' '+creado.anio+(creado.sinFecha?' (sin fecha: cargala en la ficha).':'.'));
+    else if(cambios.eventoFichaId===null) presuSegAviso('Pasado a "'+PRESU_SEG[nuevo].lbl+'". Se borró el evento de Fichas Técnicas.', 'rgba(90,90,90,.92)');
+  }catch(e){
+    marcarErrorSincronizacion(e);
+    alert('⚠ No se pudo cambiar el estado (revisá la conexión a internet).\n\n'+e.message);
+  }finally{ _presuSegOcupado=false; }
+}
+
 function renderPresupuestos(){
   const searchEl=document.getElementById('presu-search');
   const q=(searchEl?searchEl.value:'').trim().toLowerCase();
+  presuSegChipsRender();
   const lista=(DB.presupuestos||[]).filter(p=>{
+    if(_presuSegFiltro!=='todos' && presuSegEstado(p)!==_presuSegFiltro) return false;
     if(!q) return true;
     return (p.cliente||'').toLowerCase().includes(q) || (p.tipoEvento||'').toLowerCase().includes(q);
   }).sort((a,b)=>b._id-a._id);
@@ -11197,6 +11325,7 @@ function renderPresupuestos(){
   if(!tbody) return;
   tbody.innerHTML = lista.map(p=>`
     <tr>
+      <td style="white-space:nowrap;width:1%">${presuSegBadge(p)}</td>
       <td>${escH(p.cliente||'—')}</td>
       <td>${escH(p.tipoEvento||'—')}</td>
       <td>${escH(presuTextoFechaEvento(p)||'—')}</td>
@@ -11210,7 +11339,7 @@ function renderPresupuestos(){
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="mpMenuAbrir(this,[{icon:'👁',label:'Ver PDF',accion:()=>generarPresupuestoPDF(${p._id},'ver')},{icon:'⬇',label:'Descargar PDF',accion:()=>generarPresupuestoPDF(${p._id},'descargar')}])">📄 PDF ▾</button>
         <button class="btn btn-outline mp-mas" title="Más opciones" onclick="mpMenuAbrir(this,[{icon:'⧉',label:'Duplicar',accion:()=>duplicarPresupuesto(${p._id})},'-',{icon:'🗑',label:'Eliminar',peligro:true,accion:()=>delPresupuesto(${p._id})}])">⋯</button>
       </div></td>
-    </tr>`).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Todavía no hay presupuestos. Hacé clic en "+ Nuevo presupuesto".</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">${(DB.presupuestos||[]).length?'No hay presupuestos en este estado.':'Todavía no hay presupuestos. Hacé clic en "+ Nuevo presupuesto".'}</td></tr>`;
 }
 
 // ── Fotos: lectura + recorte "a lo cover" + compresión, todo en el navegador ──
@@ -11743,6 +11872,10 @@ async function presuGuardarDesdeModal({cerrar}){
   if(!_presuEdit || _presuGuardando) return null;
   const datos=presuRecolectarDatosDesdeModal();
   if(!datos.cliente && !datos.tipoEvento){ showAlert('modal-presu-alert','error','Ingresá al menos el cliente o el tipo de evento para poder guardar el presupuesto.'); return null; }
+  // El estado (Pendiente/Confirmado/…) se cambia desde la lista: se toma el
+  // vigente para no pisarlo con el que había al abrir el presupuesto.
+  const vigente=(DB.presupuestos||[]).find(x=>x._id===Number(document.getElementById('presu-edit-id').value));
+  ['seguimiento','eventoFichaId','eventoFichaPeriodo'].forEach(k=>{ if(vigente && vigente[k]!==undefined) datos[k]=vigente[k]; else delete datos[k]; });
   delete datos._id;
   const idEl=document.getElementById('presu-edit-id');
   const id=idEl.value?Number(idEl.value):Date.now();
@@ -11805,7 +11938,7 @@ function cancelarModalPresupuesto(){
 async function duplicarPresupuesto(id){
   const orig=DB.presupuestos.find(p=>p._id===id);
   if(!orig){ alert('No se encontró el presupuesto.'); return; }
-  const {_id, updated_at, ...datos}=JSON.parse(JSON.stringify(orig));
+  const {_id, updated_at, seguimiento, eventoFichaId, eventoFichaPeriodo, ...datos}=JSON.parse(JSON.stringify(orig));
   const nuevoId=Date.now();
   if(!(await guardarPresupuesto(nuevoId, datos))){
     alert('⚠ No se pudo duplicar el presupuesto (revisá la conexión a internet).');
