@@ -8116,51 +8116,6 @@ function formatFechaHoraCompacta(iso){
 }
 
 // ── Abrir período (ver lista de eventos) ─────────────────────────
-// Marca TEMPORAL para limpiar duplicados: eventos que ya estaban cargados a
-// mano y se volvieron a crear al confirmar su presupuesto. Se compara dentro
-// del período por fecha o nombre parecido.
-function comandaNormNombre(t){ return String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
-function comandaSonGemelos(a, b){
-  const fa=a.datos&&a.datos.fecha, fb=b.datos&&b.datos.fecha;
-  if(fa && fb && fa===fb) return true;
-  const na=comandaNormNombre(a.nombre), nb=comandaNormNombre(b.nombre);
-  return !!na && !!nb && (na===nb || (na.length>=4 && nb.length>=4 && (na.includes(nb) || nb.includes(na))));
-}
-function comandaMarcaDuplicado(periodoId, ev, evs){
-  const tag=(css,txt)=>`<span style="display:inline-block;margin-top:5px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 9px;${css}">${txt}</span>`;
-  if(ev.presupuesto_id){
-    const gem=(evs||[]).filter(o=>o.id!==ev.id && !o.presupuesto_id && comandaSonGemelos(ev,o));
-    return tag('background:rgba(45,122,90,.12);color:#2d7a5a','🧾 Creado al confirmar el presupuesto')+
-      (gem.length?' '+tag('background:rgba(212,160,23,.16);color:#9a7410','⚠ Posible copia de «'+escH(gem.map(g=>g.nombre).join('», «'))+'» (que ya estaba cargado)'):'');
-  }
-  const gem=(evs||[]).filter(o=>o.id!==ev.id && o.presupuesto_id && comandaSonGemelos(ev,o));
-  if(!gem.length) return '';
-  return tag('background:rgba(212,160,23,.16);color:#9a7410','⚠ Ya estaba cargado · parece el mismo que «'+escH(gem[0].nombre)+'» (creado desde el presupuesto)')+
-    ` <button class="btn btn-outline" style="padding:2px 10px;font-size:11px;margin-top:5px" onclick="comandaQuedarseConEste('${periodoId}','${ev.id}','${gem[0].id}')">✓ Quedarme con este y borrar la copia</button>`;
-}
-// Se queda con el evento que ya estaba cargado: le pasa el vínculo con el
-// presupuesto (y el menú de estaciones) y borra la copia creada al confirmar.
-async function comandaQuedarseConEste(periodoId, keepId, copiaId){
-  const evs=(DB.comanda.eventos[periodoId]||[]);
-  const keep=evs.find(e=>e.id===keepId), copia=evs.find(e=>e.id===copiaId);
-  if(!keep || !copia) return;
-  if(!confirm('Te quedás con «'+keep.nombre+'» (el que ya estaba cargado) y se borra «'+copia.nombre+'» (la copia creada al confirmar el presupuesto).\n\nEl que queda pasa a estar vinculado al presupuesto (aparece en Eventos a producir).\n\n¿Seguir?')) return;
-  try{
-    keep.presupuesto_id=copia.presupuesto_id;
-    if(!keep.datos) keep.datos={};
-    if(copia.datos && Array.isArray(copia.datos.menu_presupuesto)) keep.datos.menu_presupuesto=copia.datos.menu_presupuesto;
-    await guardarEventoActual(periodoId, keepId);
-    if(PRODUCCIONES[copiaId] && !PRODUCCIONES[keepId]){
-      await FB_COL_PRODUCCIONES.doc(keepId).set({...PRODUCCIONES[copiaId], eventoId:keepId});
-      await FB_COL_PRODUCCIONES.doc(copiaId).delete();
-    }
-    try{ await FB_COL_PRESUPUESTOS.doc(String(copia.presupuesto_id)).update({eventoFichaId:keepId, eventoFichaPeriodo:periodoId}); }
-    catch(e){ console.warn('No se pudo actualizar el presupuesto (se corrige solo cuando entre alguien con acceso a Presupuestos):', e); }
-    await FB_COL_EVENTOS.doc(copiaId).delete();
-  }catch(e){
-    alert('⚠ No se pudo completar (revisá la conexión a internet).\n\n'+e.message);
-  }
-}
 function abrirPeriodo(periodoId){
   comandaPeriodoActual = periodoId;
   const p = DB.comanda.periodos.find(x=>x.id===periodoId);
@@ -8191,7 +8146,6 @@ function abrirPeriodo(periodoId){
                   title="Editá el nombre del evento">
                 <span style="font-size:10px;color:var(--text3)">✏️</span>
               </div>
-              ${comandaMarcaDuplicado(periodoId, ev, evs)}
               <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
                 <input type="date" id="ev-fecha-${ev.id}" value="${escH(ev.datos?.fecha||'')}"${fechaMinMaxAttrs}
                   style="font-size:11px;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-family:inherit;outline:none;cursor:pointer"
@@ -8274,7 +8228,7 @@ function cambiarFechaEvento(periodoId, eventoId, nuevaFecha){
 function eliminarEvento(periodoId,eventoId){
   const ev=(DB.comanda.eventos[periodoId]||[]).find(e=>e.id===eventoId);
   const msg=ev&&ev.presupuesto_id
-    ? '¿Eliminar este evento?\n\nOjo: es el que está vinculado al presupuesto confirmado (el que aparece en Eventos a producir). Si es una copia de otro que ya tenías, mejor usá «Quedarme con este y borrar la copia» en el otro.'
+    ? '¿Eliminar este evento?\n\nOjo: está vinculado a un presupuesto confirmado y deja de aparecer en Eventos a producir.'
     : '¿Eliminar este evento?';
   if(!confirm(msg))return;
   FB_COL_EVENTOS.doc(eventoId).delete().catch(e=>alert('Error al eliminar el evento: '+e.message));
@@ -11798,63 +11752,7 @@ function presuSegChipsRender(){
   const cuenta=k=>todos.filter(p=>presuSegEstado(p)===k).length;
   const chip=(k,txt,n)=>`<button type="button" class="presu-seg-chip ${_presuSegFiltro===k?'on':''}" onclick="presuSegSetFiltro('${k}')">${txt}<b>${n}</b></button>`;
   box.innerHTML=chip('todos','Todos',todos.length)+
-    Object.entries(PRESU_SEG).map(([k,v])=>chip(k, v.icon+' '+(k==='pendiente'?'Pendientes':k==='confirmado'?'Confirmados':v.lbl), cuenta(k))).join('')+
-    (()=>{ const n=presuEventosCreados().length; return n?`<button type="button" class="btn btn-outline" style="padding:4px 12px;font-size:11.5px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuDeshacerEventosAbrir()">🧹 Deshacer eventos creados en Fichas Técnicas (${n})</button>`:''; })();
-}
-// TEMPORAL: eventos de Fichas Técnicas que se crearon solos al confirmar los
-// presupuestos que ya estaban confirmados. Se revisan en una lista y se
-// borran los tildados; esos presupuestos quedan sin evento (y fuera de
-// Eventos a producir). Los que se confirmen después sí crean su evento.
-function presuEventosCreados(){
-  const out=[];
-  (DB.presupuestos||[]).forEach(p=>{
-    if(presuSegEstado(p)!=='confirmado' || !p.eventoFichaId) return;
-    for(const [per,evs] of Object.entries((DB.comanda&&DB.comanda.eventos)||{})){
-      const ev=(evs||[]).find(e=>e.id===p.eventoFichaId);
-      if(ev){ out.push({p, ev, per}); break; }
-    }
-  });
-  return out;
-}
-function presuDeshacerEventosAbrir(){
-  const lista=presuEventosCreados();
-  if(!lista.length){ alert('No hay eventos para deshacer.'); return; }
-  const filas=lista.map((x,i)=>{
-    const per=(DB.comanda.periodos||[]).find(pp=>pp.id===x.per);
-    const f=/^(\d{4})-(\d{2})-(\d{2})$/.exec((x.ev.datos&&x.ev.datos.fecha)||'');
-    return `<label style="display:flex;gap:10px;align-items:flex-start;padding:9px 4px;border-bottom:1px solid var(--border);cursor:pointer">
-      <input type="checkbox" class="presu-desh-chk" data-i="${i}" checked style="margin-top:3px">
-      <span style="flex:1"><b>${escH(x.ev.nombre||'Evento')}</b>
-        <span style="display:block;font-size:11.5px;color:var(--text3)">Presupuesto: ${escH(x.p.cliente||'—')} · ${escH(x.p.tipoEvento||'')} · Período ${per?MESES[per.mes]+' '+per.anio:x.per} · ${f?f[3]+'/'+f[2]+'/'+f[1]:'sin fecha'} · creado el ${escH(x.ev.creado||'—')}</span></span>
-    </label>`;
-  }).join('');
-  _presuDeshacerLista=lista;
-  mpModalGen('🧹 Deshacer eventos creados en Fichas Técnicas',
-    `<div style="font-size:12.5px;color:var(--text2);margin-bottom:10px;line-height:1.5">Estos eventos se crearon solos en Fichas Técnicas al confirmar los presupuestos. <b>Los tildados se borran</b>; destildá los que quieras conservar. Los presupuestos siguen confirmados, pero sin evento (no aparecen en Eventos a producir).</div>
-    <div style="max-height:55vh;overflow:auto">${filas}</div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
-      <button class="btn btn-outline" onclick="mpCerrarModalGen()">Cancelar</button>
-      <button class="btn btn-primary" style="background:var(--red);border-color:var(--red)" onclick="presuDeshacerEventosConfirmar()">🗑 Borrar los tildados</button>
-    </div>`, 640);
-}
-let _presuDeshacerLista=[];
-async function presuDeshacerEventosConfirmar(){
-  const elegidos=[...document.querySelectorAll('.presu-desh-chk')].filter(c=>c.checked).map(c=>_presuDeshacerLista[Number(c.dataset.i)]).filter(Boolean);
-  if(!elegidos.length){ mpCerrarModalGen(); return; }
-  if(!confirm('Se van a borrar '+elegidos.length+' evento(s) de Fichas Técnicas. ¿Seguir?')) return;
-  let ok=0;
-  for(const x of elegidos){
-    try{
-      await FB_COL_PRESUPUESTOS.doc(String(x.p._id)).update({eventoFichaId:null, eventoFichaPeriodo:null, updated_at:new Date().toISOString()});
-      x.p.eventoFichaId=null; x.p.eventoFichaPeriodo=null;
-      await FB_COL_EVENTOS.doc(x.ev.id).delete();
-      if(PRODUCCIONES[x.ev.id]) await FB_COL_PRODUCCIONES.doc(x.ev.id).delete();
-      ok++;
-    }catch(e){ console.error('No se pudo deshacer el evento', x.ev.id, e); }
-  }
-  mpCerrarModalGen();
-  renderPresupuestos();
-  presuSegAviso(ok===elegidos.length?'✓ Listo: se borraron '+ok+' evento(s) de Fichas Técnicas.':'Se borraron '+ok+' de '+elegidos.length+'. Revisá la conexión y probá de nuevo con los que quedaron.', ok===elegidos.length?null:'rgba(192,57,43,.92)');
+    Object.entries(PRESU_SEG).map(([k,v])=>chip(k, v.icon+' '+(k==='pendiente'?'Pendientes':k==='confirmado'?'Confirmados':v.lbl), cuenta(k))).join('');
 }
 function presuSegBadge(p){
   const est=presuSegEstado(p), v=PRESU_SEG[est];
