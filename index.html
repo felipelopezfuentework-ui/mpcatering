@@ -151,15 +151,49 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .prod-tabla td{vertical-align:top}
 .prod-menu-txt{font-weight:600;color:var(--text)}
 .prod-off td{opacity:.5}
+.prod-plato.prod-off{opacity:.6}
 .prod-sec td{background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);padding:6px 10px}
 .prod-aviso{margin-top:6px;font-weight:400;font-size:11.5px;color:#9a7410;background:rgba(212,160,23,.1);border:1px solid rgba(212,160,23,.35);border-radius:6px;padding:5px 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .prod-pie{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
-.prod-ventana{border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:10px;background:var(--surface)}
-.prod-ventana>summary{cursor:pointer;font-size:13.5px;color:var(--text);display:flex;gap:10px;align-items:center;flex-wrap:wrap;list-style:revert}
-.prod-ventana[open]>summary{margin-bottom:10px}
-.prod-cerrada{background:var(--surface2)}
-.prod-para{font-size:11px;color:var(--text3)}
-.prod-cierre{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;font-size:13px;font-weight:600}
+.prod-est{border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:14px;overflow:hidden}
+.prod-est-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);font-weight:700;font-size:13px;letter-spacing:.4px;text-transform:uppercase;color:var(--text)}
+.prod-est-cnt{font-size:11px;font-weight:600;text-transform:none;letter-spacing:0;color:#9a7410;background:rgba(212,160,23,.14);border-radius:999px;padding:2px 9px}
+.prod-est-cnt.ok{color:#2d7a5a;background:rgba(45,122,90,.13)}
+.prod-plato{padding:10px 14px;border-bottom:1px solid var(--border)}
+.prod-plato:last-child{border-bottom:none}
+.prod-plato-hd{display:flex;justify-content:space-between;gap:8px;margin-bottom:7px}
+.prod-plato-nom{font-weight:600;font-size:13.5px;color:var(--text)}
+.prod-plato-campos{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.prod-plato-campos .dd-input{flex:1;min-width:200px}
+.prod-cant{display:flex;align-items:center;gap:5px}
+.prod-cant input{width:80px;text-align:right}
+.prod-cant small{font-size:11px;color:var(--text3);min-width:56px}
+.prod-nop{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text3);cursor:pointer;white-space:nowrap}
+.prod-off .prod-plato-nom{text-decoration:line-through;color:var(--text3)}
+.prod-grupo{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text3);margin:4px 0 8px}
+.prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:18px}
+.prod-tile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:14px;border:1px solid var(--border);border-top:4px solid #d4a017;border-radius:10px;background:var(--surface);cursor:pointer;font-family:inherit;color:var(--text);transition:transform .12s,box-shadow .12s}
+.prod-tile:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.prod-tile.cerrada{border-top-color:#2d7a5a;background:var(--surface2)}
+.prod-tile-ico{font-size:22px}
+.prod-tile-nom{font-weight:700;font-size:14px;line-height:1.25}
+.prod-tile-cant{font-size:20px;font-weight:700;color:var(--accent)}
+.prod-tile-cant small{font-size:12px;font-weight:600;color:var(--text3)}
+.prod-tile-sub{font-size:11px;color:var(--text3)}
+.prod-tile-est{margin-top:4px;font-size:11px;font-weight:600;color:#9a7410}
+.prod-tile-est.ok{color:#2d7a5a}
+.prod-ing td{font-size:13.5px;padding:8px 10px}
+.prod-kg{font-weight:700;white-space:nowrap}
+.prod-nav{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text3)}
+.prod-salio{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface2);border-radius:8px;padding:12px}
+.prod-salio label{font-weight:700;font-size:14px}
+.prod-salio input{width:110px;text-align:right;font-size:15px}
+.prod-salio small{color:var(--text3);font-size:11.5px}
+.prod-resumen{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.prod-resumen div{background:var(--surface2);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:2px}
+.prod-resumen span{font-size:11px;color:var(--text3)}
+.prod-resumen b{font-size:20px}
+.prod-resumen small{font-size:11px;color:var(--text3)}
 .presu-seg-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .presu-seg-chip{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .presu-seg-chip b{font-weight:700;margin-left:4px;color:var(--text3)}
@@ -11482,41 +11516,60 @@ function prodRenderEvento(ev){
   if(_prodPaso===1) prodEnlazarBuscadores(d);
 }
 
-// Paso 1: Armar
+// Paso 1: Armar — una tarjeta por estación, con sus platos adentro.
+function prodLineaLista(l){ return l.noProduce || (l.receta && prodExiste(l.receta) && prodCant(l)>0 && prodRinde(l.receta)>0); }
 function prodHtmlPaso1(d){
-  if(!(d.lineas||[]).length) return '<div class="empty">No se encontró el menú del presupuesto (las estaciones). Si el evento es de antes de este cambio, que alguien con acceso a Presupuestos abra esta solapa una vez y se completa solo.</div>';
+  if(!(d.lineas||[]).length) return '<div class="empty">No se encontró el menú del presupuesto (las estaciones). Si el evento es de antes de este cambio, que alguien con acceso a Presupuestos entre al sistema y se completa solo.</div>';
   const cerradas=new Set(Object.keys(d.cierres||{}));
-  let secAnt=null;
-  const filas=d.lineas.map((l,i)=>{
-    const titulo=(l.seccion!==undefined && l.seccion!==secAnt) ? `<tr class="prod-sec"><td colspan="4">${escH(l.seccion||'Sin título')}</td></tr>` : '';
-    secAnt=l.seccion;
-    const bloq=l.receta && cerradas.has(l.receta);
-    const r=l.receta && prodExiste(l.receta) ? l.receta : '';
-    const avisos=[];
-    if(!l.noProduce && r){
-      if(!(prodRinde(r)>0)) avisos.push(`<div class="prod-aviso">⚠ <b>${escH(prodCorto(r))}</b> no tiene cargado cuánto rinde. <button type="button" class="btn btn-outline" style="padding:2px 9px;font-size:11px" onclick="prodAbrirReceta(${JSON.stringify(r).replace(/"/g,'&quot;')})">Abrir receta</button></div>`);
-      if(!prodEsSub(r)) prodFilas(r).forEach(f=>{
-        if(prodEsSub(f.componente) && prodExiste(f.componente) && !(prodRinde(f.componente)>0))
-          avisos.push(`<div class="prod-aviso">⚠ Usa el subproducto <b>${escH(prodCorto(f.componente))}</b>, que no tiene cargado cuánto rinde. <button type="button" class="btn btn-outline" style="padding:2px 9px;font-size:11px" onclick="prodAbrirReceta(${JSON.stringify(f.componente).replace(/"/g,'&quot;')})">Abrir receta</button></div>`);
-      });
-    }
-    return titulo+`<tr class="${l.noProduce?'prod-off':''}">
-      <td class="prod-menu-txt">${escH(l.texto)}${avisos.join('')}</td>
-      <td><input class="dd-input" id="prod-rec-${i}" type="text" placeholder="Buscar receta…" style="width:100%" ${l.noProduce||bloq?'disabled':''}></td>
-      <td style="white-space:nowrap"><input type="text" inputmode="decimal" value="${escH(l.cantidad||'')}" placeholder="0" style="width:80px;text-align:right" ${l.noProduce||bloq||!r?'disabled':''}
-        oninput="_prodEdit.lineas[${i}].cantidad=this.value;prodGuardarLuego()" onchange="renderProdEventos()">
-        <span style="font-size:11px;color:var(--text3)">${r?escH(prodUnidadLbl(r)):''}</span></td>
-      <td style="text-align:center"><input type="checkbox" ${l.noProduce?'checked':''} ${bloq?'disabled':''} onchange="prodNoProduce(${i},this.checked)"></td>
-    </tr>`;
+  const grupos=[];
+  d.lineas.forEach((l,i)=>{
+    const sec=l.seccion||'';
+    if(!grupos.length || grupos[grupos.length-1].sec!==sec) grupos.push({sec, items:[]});
+    grupos[grupos.length-1].items.push(i);
+  });
+  const btnAbrir=r=>`<button type="button" class="btn btn-outline" style="padding:2px 9px;font-size:11px" onclick="prodAbrirReceta(${JSON.stringify(r).replace(/"/g,'&quot;')})">Abrir receta</button>`;
+  const tarjetas=grupos.map(g=>{
+    const listos=g.items.filter(i=>prodLineaLista(d.lineas[i])).length;
+    const platos=g.items.map(i=>{
+      const l=d.lineas[i];
+      const bloq=l.receta && cerradas.has(l.receta);
+      const r=l.receta && prodExiste(l.receta) ? l.receta : '';
+      const avisos=[];
+      if(!l.noProduce && r){
+        if(!(prodRinde(r)>0)) avisos.push(`<div class="prod-aviso">⚠ Esta receta no tiene cargado cuánto rinde. ${btnAbrir(r)}</div>`);
+        if(!prodEsSub(r)) prodFilas(r).forEach(f=>{
+          if(prodEsSub(f.componente) && prodExiste(f.componente) && !(prodRinde(f.componente)>0))
+            avisos.push(`<div class="prod-aviso">⚠ Usa <b>${escH(prodCorto(f.componente))}</b>, que no tiene cargado cuánto rinde. ${btnAbrir(f.componente)}</div>`);
+        });
+      }
+      const ok=prodLineaLista(l);
+      return `<div class="prod-plato ${l.noProduce?'prod-off':''}">
+        <div class="prod-plato-hd">
+          <span class="prod-plato-nom">${escH(l.texto)}</span>
+          <span class="prod-plato-ok" title="${ok?'Listo':'Falta completar'}">${l.noProduce?'—':ok?'✅':'⭕'}</span>
+        </div>
+        <div class="prod-plato-campos">
+          <input class="dd-input" id="prod-rec-${i}" type="text" placeholder="🔍 Buscar receta…" ${l.noProduce||bloq?'disabled':''}>
+          <span class="prod-cant">
+            <input type="text" inputmode="decimal" value="${escH(l.cantidad||'')}" placeholder="Cant." ${l.noProduce||bloq||!r?'disabled':''}
+              oninput="_prodEdit.lineas[${i}].cantidad=this.value;prodGuardarLuego()" onchange="renderProdEventos()">
+            <small>${r?escH(prodUnidadLbl(r)):''}</small>
+          </span>
+          <label class="prod-nop"><input type="checkbox" ${l.noProduce?'checked':''} ${bloq?'disabled':''} onchange="prodNoProduce(${i},this.checked)"> No se produce</label>
+        </div>
+        ${avisos.join('')}
+      </div>`;
+    }).join('');
+    return `<div class="prod-est">
+      <div class="prod-est-hd"><span>${escH(g.sec||'Menú')}</span><span class="prod-est-cnt ${listos===g.items.length?'ok':''}">${listos} de ${g.items.length} listos</span></div>
+      ${platos}
+    </div>`;
   }).join('');
   const pr=prodProblemas(d);
   const ok=!pr.faltan && !pr.sinR.length;
   return `
-    <div class="prod-ayuda">Elegí la receta de cada plato del menú y cuántas vas a hacer (en la unidad de esa receta). Lo que no se cocina, marcalo en "No se produce".</div>
-    <div class="tw"><table class="prod-tabla">
-      <thead><tr><th>Plato del menú</th><th style="width:34%">Receta</th><th style="width:150px">Cantidad a hacer</th><th style="width:90px;text-align:center">No se produce</th></tr></thead>
-      <tbody>${filas}</tbody>
-    </table></div>
+    <div class="prod-ayuda">Elegí la receta de cada plato y cuánto vas a hacer (en la unidad de esa receta). Lo que no se cocina, marcalo "No se produce".</div>
+    ${tarjetas}
     <div class="prod-pie">
       <span style="font-size:12px;color:var(--text3)">${ok?'✓ Todo listo para producir.':(pr.faltan?pr.faltan+' plato(s) sin receta o cantidad. ':'')+(pr.sinR.length?pr.sinR.length+' receta(s) sin rendimiento.':'')}</span>
       <button class="btn btn-primary" ${ok?'':'style="opacity:.55"'} onclick="prodIrPaso(2)">Siguiente: Producir →</button>
@@ -11547,75 +11600,89 @@ function prodNoProduce(i, v){
   renderProdEventos();
 }
 
-// Paso 2: Producir (una ventana por receta)
-function prodHtmlPaso2(d){
+// Pasos 2 y 3: una tarjeta por receta; al tocarla se abre una ventana solo con esa receta.
+function prodTarjetas(d, modo){
   const js=prodTrabajos(d);
-  const ventanas=js.map((j,idx)=>{
-    const r=j.receta, f=j.factor;
-    const filas=prodFilas(r).map(x=>{
-      const kg=(parseFloat(x.kgs)||0)*f;
-      if(prodEsSub(x.componente)) return `<tr><td>🧩 <b>${escH(prodCorto(x.componente))}</b> <span style="font-size:11px;color:var(--text3)">(se prepara en su propia ventana)</span></td><td class="num">${prodNum(kg)} kg</td></tr>`;
-      return `<tr><td>${escH(prodNombreComp(x.componente))}</td><td class="num">${prodNum(kg)} kg</td></tr>`;
-    }).join('');
-    return `<details class="prod-ventana" ${idx===0?'open':''} ontoggle="prodAcordeon(this)">
-      <summary>
-        <span>${prodEsSub(r)?'🧩':'🍴'} <b>${escH(prodCorto(r))}</b> × ${prodNum(j.planificado,2)} ${escH(prodUnidadLbl(r))}</span>
-        ${j.para.length?`<span class="prod-para">para ${j.para.map(p=>escH(prodCorto(p))).join(', ')}${j.directo?' y el menú':''}</span>`:''}
-        ${j.cierre?'<span class="prod-para" style="color:var(--green)">✅ cerrada</span>':''}
-      </summary>
-      <div class="tw"><table class="prod-tabla"><thead><tr><th>Ingrediente</th><th class="num" style="width:140px">Cantidad</th></tr></thead><tbody>${filas||'<tr><td colspan="2" class="empty">La receta no tiene ingredientes.</td></tr>'}</tbody></table></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:6px">Es la receta × ${prodNum(f,2)}.</div>
-    </details>`;
-  }).join('');
+  const tarjeta=(j,idx)=>{
+    const r=j.receta, n=prodFilas(r).length;
+    const est=j.cierre?'<span class="prod-tile-est ok">✅ Cerrada</span>':'<span class="prod-tile-est">🟠 A producir</span>';
+    return `<button type="button" class="prod-tile ${j.cierre?'cerrada':''}" onclick="prodVentana(${idx},'${modo}')">
+      <span class="prod-tile-ico">${prodEsSub(r)?'🧩':'🍴'}</span>
+      <span class="prod-tile-nom">${escH(prodCorto(r))}</span>
+      <span class="prod-tile-cant">${prodNum(j.planificado,2)} <small>${escH(prodUnidadLbl(r))}</small></span>
+      <span class="prod-tile-sub">${n} ingrediente${n===1?'':'s'}${j.para.length?' · para '+j.para.map(p=>escH(prodCorto(p))).join(', '):''}</span>
+      ${est}
+    </button>`;
+  };
+  const platos=js.map((j,i)=>({j,i})).filter(x=>!prodEsSub(x.j.receta));
+  const subs=js.map((j,i)=>({j,i})).filter(x=>prodEsSub(x.j.receta));
+  let html='';
+  if(platos.length) html+=`<div class="prod-grupo">Platos</div><div class="prod-grid">${platos.map(x=>tarjeta(x.j,x.i)).join('')}</div>`;
+  if(subs.length) html+=`<div class="prod-grupo">Subproductos a preparar</div><div class="prod-grid">${subs.map(x=>tarjeta(x.j,x.i)).join('')}</div>`;
+  return html||'<div class="empty">No hay recetas para producir.</div>';
+}
+function prodHtmlPaso2(d){
   return `
-    <div class="prod-ayuda">Una ventana por receta, con lo que necesitás para la cantidad a hacer. Tocá cada una para abrirla.</div>
-    ${ventanas||'<div class="empty">No hay recetas para producir.</div>'}
+    <div class="prod-ayuda">Tocá una receta para ver qué necesitás para la cantidad a hacer.</div>
+    ${prodTarjetas(d,'ver')}
     <div class="prod-pie"><span></span><button class="btn btn-primary" onclick="prodIrPaso(3)">Siguiente: Cerrar →</button></div>`;
 }
-// Solo una ventana abierta a la vez.
-function prodAcordeon(el){
-  if(!el.open) return;
-  el.parentElement.querySelectorAll('details.prod-ventana').forEach(o=>{ if(o!==el) o.open=false; });
+function prodHtmlPaso3(d){
+  const js=prodTrabajos(d), pend=js.filter(j=>!j.cierre).length;
+  return `
+    <div class="prod-ayuda">${pend?`Tocá cada receta cuando termines de producirla para cerrarla. Faltan <b>${pend}</b> de ${js.length}.`:'✅ Todas las recetas de este evento están cerradas.'}</div>
+    ${prodTarjetas(d,'cerrar')}`;
 }
 
-// Paso 3: Cerrar (por receta)
-function prodHtmlPaso3(d){
-  const js=prodTrabajos(d);
-  const abierta=js.findIndex(j=>!j.cierre);
-  const ventanas=js.map((j,idx)=>{
-    const r=j.receta, lbl=prodUnidadLbl(r);
-    if(j.cierre){
-      const c=j.cierre, nm=Object.keys(c.mermas||{}).length;
-      return `<details class="prod-ventana prod-cerrada" ontoggle="prodAcordeon(this)">
-        <summary><span>✅ <b>${escH(prodCorto(r))}</b> — planificado ${prodNum(c.planificado,2)}, salieron ${prodNum(c.salio,2)} ${escH(UNIDAD_LABELS[c.unidad]||lbl)}</span></summary>
-        <div style="font-size:12.5px;color:var(--text2);line-height:1.7">
-          La receta pasó a rendir <b>${prodNum(c.rDespues,2)}</b> (antes ${prodNum(c.rAntes,2)}).<br>
-          ${nm?'Merma actualizada en '+nm+' ingrediente(s): '+Object.entries(c.mermas).map(([k,v])=>escH(prodNombreComp(k))+' '+prodNum(v,2)+'%').join(', ')+'.':'Sin cambios de merma.'}<br>
-          <span style="color:var(--text3)">Cerrada el ${new Date(c.fecha).toLocaleDateString('es-AR')}${c.por?' por '+escH(c.por):''}.</span>
-        </div>
-      </details>`;
-    }
+// Ventana de una receta (modo 'ver' = ingredientes; 'cerrar' = formulario de cierre o resumen).
+function prodVentana(idx, modo){
+  const d=_prodEdit; if(!d) return;
+  const js=prodTrabajos(d), j=js[idx]; if(!j) return;
+  const r=j.receta, lbl=prodUnidadLbl(r), f=j.factor;
+  let cuerpo='';
+  if(modo==='ver'){
+    const filas=prodFilas(r).map(x=>{
+      const kg=(parseFloat(x.kgs)||0)*f;
+      return prodEsSub(x.componente)
+        ? `<tr><td>🧩 <b>${escH(prodCorto(x.componente))}</b><div style="font-size:11px;color:var(--text3)">Se prepara aparte (tiene su tarjeta)</div></td><td class="num prod-kg">${prodNum(kg)} kg</td></tr>`
+        : `<tr><td>${escH(prodNombreComp(x.componente))}</td><td class="num prod-kg">${prodNum(kg)} kg</td></tr>`;
+    }).join('');
+    cuerpo=`<table class="prod-tabla prod-ing"><thead><tr><th>Ingrediente</th><th class="num">Cantidad</th></tr></thead><tbody>${filas||'<tr><td colspan="2" class="empty">La receta no tiene ingredientes.</td></tr>'}</tbody></table>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">Es la receta × ${prodNum(f,2)}${j.para.length?' · se usa en '+j.para.map(p=>escH(prodCorto(p))).join(', '):''}.</div>`;
+  } else if(j.cierre){
+    const c=j.cierre, nm=Object.keys(c.mermas||{}).length;
+    cuerpo=`<div class="prod-resumen">
+      <div><span>Planificado</span><b>${prodNum(c.planificado,2)}</b></div>
+      <div><span>Salieron</span><b>${prodNum(c.salio,2)}</b></div>
+      <div><span>Ahora rinde</span><b>${prodNum(c.rDespues,2)}</b><small>antes ${prodNum(c.rAntes,2)}</small></div>
+    </div>
+    <div style="font-size:12.5px;color:var(--text2);line-height:1.7;margin-top:10px">
+      ${nm?'Merma actualizada: '+Object.entries(c.mermas).map(([k,v])=>escH(prodNombreComp(k))+' '+prodNum(v,2)+'%').join(', ')+'.':'Sin cambios de merma.'}<br>
+      <span style="color:var(--text3)">Cerrada el ${new Date(c.fecha).toLocaleDateString('es-AR')}${c.por?' por '+escH(c.por):''}.</span>
+    </div>`;
+  } else {
     const filas=prodFilas(r).map((x,k)=>`<tr>
       <td>${prodEsSub(x.componente)?'🧩 ':''}${escH(prodNombreComp(x.componente))}</td>
       <td class="num" style="color:var(--text3)">${prodNum(parseFloat(x.merma)||0,2)} %</td>
       <td class="num"><input type="text" inputmode="decimal" id="prod-cm-${idx}-${k}" placeholder="igual" style="width:70px;text-align:right"> %</td>
     </tr>`).join('');
-    return `<details class="prod-ventana" ${idx===abierta?'open':''} ontoggle="prodAcordeon(this)">
-      <summary><span>${prodEsSub(r)?'🧩':'🍴'} <b>${escH(prodCorto(r))}</b> — planificado ${prodNum(j.planificado,2)} ${escH(lbl)}</span></summary>
-      <div class="prod-ayuda" style="margin-top:4px">Cargá la merma real de los ingredientes que cambiaron (lo que dejes vacío queda como está).</div>
-      <div class="tw"><table class="prod-tabla"><thead><tr><th>Ingrediente</th><th class="num" style="width:120px">Merma actual</th><th class="num" style="width:140px">Merma real</th></tr></thead><tbody>${filas}</tbody></table></div>
-      <div class="prod-cierre">
-        <label>¿Cuántas ${escH(lbl)} salieron? <span style="color:var(--red)">*</span>
-          <input type="text" inputmode="decimal" id="prod-cs-${idx}" placeholder="${prodNum(j.planificado,2)}" style="width:100px;text-align:right;margin-left:6px"></label>
-        <button class="btn btn-primary" onclick="prodCerrarReceta(${idx})">✓ Cerrar y actualizar receta</button>
+    cuerpo=`<div class="prod-salio">
+        <label>¿Cuántas ${escH(lbl)} salieron? <span style="color:var(--red)">*</span></label>
+        <input type="text" inputmode="decimal" id="prod-cs-${idx}" placeholder="${prodNum(j.planificado,2)}">
+        <small>Planificado: ${prodNum(j.planificado,2)} ${escH(lbl)}</small>
       </div>
-    </details>`;
-  }).join('');
-  const pend=js.filter(j=>!j.cierre).length;
-  return `
-    <div class="prod-ayuda">${pend?`Cerrá cada receta cuando termines de producirla. Faltan <b>${pend}</b> de ${js.length}.`:'✅ Todas las recetas de este evento están cerradas.'}</div>
-    ${ventanas}`;
+      <div class="prod-ayuda" style="margin:12px 0 6px">Merma real: cargá solo los ingredientes que cambiaron (lo vacío queda como está).</div>
+      <table class="prod-tabla prod-ing"><thead><tr><th>Ingrediente</th><th class="num">Merma actual</th><th class="num">Merma real</th></tr></thead><tbody>${filas}</tbody></table>
+      <div style="text-align:right;margin-top:14px"><button class="btn btn-primary" onclick="prodCerrarReceta(${idx})">✓ Cerrar y actualizar receta</button></div>`;
+  }
+  const nav=`<div class="prod-nav">
+    <button class="btn btn-outline" ${idx>0?'':'disabled'} onclick="prodVentana(${idx-1},'${modo}')">← Anterior</button>
+    <span>${idx+1} de ${js.length}</span>
+    <button class="btn btn-outline" ${idx<js.length-1?'':'disabled'} onclick="prodVentana(${idx+1},'${modo}')">Siguiente →</button>
+  </div>`;
+  mpModalGen(`${prodEsSub(r)?'🧩':'🍴'} ${escH(prodCorto(r))} × ${prodNum(j.planificado,2)} ${escH(lbl)}${j.cierre?' · ✅ Cerrada':''}`, cuerpo+nav, 620);
 }
+
 async function prodCerrarReceta(idx){
   const d=_prodEdit;
   if(!d) return;
@@ -11649,6 +11716,7 @@ async function prodCerrarReceta(idx){
   await prodGuardarYa();
   try{ renderSubproductos(); renderPlatos(); }catch(e){}
   renderProdEventos();
+  prodVentana(idx, 'cerrar');
 }
 
 // ── Seguimiento: Pendiente / Confirmado / No se concretó ──────────────
