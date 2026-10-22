@@ -194,6 +194,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .prod-resumen span{font-size:11px;color:var(--text3)}
 .prod-resumen b{font-size:20px}
 .prod-resumen small{font-size:11px;color:var(--text3)}
+.cotiz-menu-sec td{background:var(--surface2);font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);padding:6px 10px}
+.cotiz-menu-txt{font-weight:600;color:var(--text)}
 .presu-seg-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .presu-seg-chip{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .presu-seg-chip b{font-weight:700;margin-left:4px;color:var(--text3)}
@@ -10555,12 +10557,45 @@ function cotizAgregarOtro(tipo){
 }
 function cotizQuitar(id){
   if(!_cotizEdit) return;
+  // Si era la receta de un plato del menú, ese plato no se vuelve a completar solo.
+  const q=cotizItem(id);
+  if(q && q.menuTexto){ const n=prodNorm(q.menuTexto); _cotizEdit.menuOmitidos=[...new Set([...(_cotizEdit.menuOmitidos||[]), n])]; }
   _cotizEdit.items=_cotizEdit.items.filter(x=>x.id!==id);
   cotizCambio(); renderCotizEditor();
 }
-function cotizCopiarItemsDe(id){
-  const src=COTIZACIONES.find(x=>x._id===Number(id)); if(!src||!_cotizEdit) return;
-  _cotizEdit.items=JSON.parse(JSON.stringify(src.items||[])).map(x=>({...x,id:cotizNuevoId()}));
+// Menú del presupuesto vinculado (solo estaciones, igual que Producción):
+// cada renglón lleva al lado su receta (ítem con menuTexto = texto del renglón).
+function cotizMenuLineas(c){
+  const p=c&&c.presupuestoId?(DB.presupuestos||[]).find(x=>x._id===c.presupuestoId):null;
+  if(!p) return null;
+  return presuMenuEstaciones(p).flatMap(e=>String(e.items||'').split('\n').map(t=>t.trim()).filter(Boolean).map(t=>({texto:t, seccion:e.titulo||''})));
+}
+function cotizItemDeLinea(c, texto){ return (c.items||[]).find(it=>it.menuTexto && prodNorm(it.menuTexto)===prodNorm(texto)); }
+// Renglones sin receta: se completa con la receta ya elegida antes para ese
+// plato (en Producción o en otra cotización); si ya había un ítem suelto con
+// esa receta, se le asigna el renglón.
+function cotizAutoVincular(c, lineas){
+  let cambio=false;
+  lineas.forEach(l=>{
+    if(cotizItemDeLinea(c, l.texto) || (c.menuOmitidos||[]).includes(prodNorm(l.texto))) return;
+    const alias=PROD_ALIAS[prodNorm(l.texto)];
+    if(!alias || !prodExiste(alias)) return;
+    const suelto=c.items.find(it=>(it.tipo==='plato'||it.tipo==='sub') && !it.menuTexto && it.plato===alias);
+    if(suelto) suelto.menuTexto=l.texto;
+    else c.items.push({id:cotizNuevoId(), tipo:prodEsSub(alias)?'sub':'plato', plato:alias, porPersona:1, cant:1, menuTexto:l.texto});
+    cambio=true;
+  });
+  return cambio;
+}
+function cotizElegirRecetaLinea(idx, val){
+  const c=_cotizEdit; if(!c||!val) return;
+  const l=(cotizMenuLineas(c)||[])[idx]; if(!l) return;
+  const tipo=prodEsSub(val)?'sub':'plato';
+  const it=cotizItemDeLinea(c, l.texto);
+  if(it){ it.plato=val; it.tipo=tipo; }
+  else c.items.push({id:cotizNuevoId(), tipo, plato:val, porPersona:1, cant:1, menuTexto:l.texto});
+  c.menuOmitidos=(c.menuOmitidos||[]).filter(t=>t!==prodNorm(l.texto));
+  prodGuardarAlias(l.texto, val);
   cotizCambio(); renderCotizEditor();
 }
 function cotizToggleDetalle(id){
@@ -10569,7 +10604,7 @@ function cotizToggleDetalle(id){
   const rows=it.tipo==='sub'?DB.subproductos.filter(x=>x.subproducto===it.plato):DB.recetas_platos.filter(x=>x.plato===it.plato);
   const tr=document.getElementById('cotiz-fila'+id); if(!tr) return;
   const det=document.createElement('tr'); det.id='cotiz-det'+id;
-  det.innerHTML=`<td colspan="6" style="background:var(--surface2);padding:8px 12px"><div class="tw"><table>
+  det.innerHTML=`<td colspan="7" style="background:var(--surface2);padding:8px 12px"><div class="tw"><table>
     <thead><tr><th>Componente</th><th class="num">Kg</th><th class="num">% Merma</th><th class="num">Kg que quedan</th><th class="num">Costo unitario</th><th class="num">Costo total</th></tr></thead>
     <tbody>${rows.map(r=>`<tr><td>${escH(r.componente)}</td><td class="num">${fmtN(r.kgs,4)}</td>
       <td class="num" style="color:var(--text3)">${parseFloat(r.merma)>0?fmtN(r.merma,1)+'%':'—'}</td>
@@ -10584,6 +10619,7 @@ function cotizOpcionesRecetas(){
   return [...platos,...subs].sort((a,b)=>a.label.slice(2).localeCompare(b.label.slice(2),'es'));
 }
 
+function lineasMenuTmp(c){ const l=cotizMenuLineas(c); return l&&l.length?l:null; }
 function renderCotizEditor(){
   const cont=document.getElementById('cotiz-editor'); if(!cont) return;
   const c=_cotizEdit;
@@ -10594,9 +10630,10 @@ function renderCotizEditor(){
   }
   const p=c.presupuestoId?(DB.presupuestos||[]).find(x=>x._id===c.presupuestoId):null;
   const INP='background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 7px;font-size:12px';
-  const recetas=c.items.filter(x=>x.tipo==='plato'||x.tipo==='sub');
+  const recetas=c.items.filter(x=>(x.tipo==='plato'||x.tipo==='sub') && !(lineasMenuTmp(c)&&x.menuTexto));
   const otros=c.items.filter(x=>!(x.tipo==='plato'||x.tipo==='sub'));
-  const otrasCotiz=COTIZACIONES.filter(x=>x._id!==c._id&&(x.items||[]).length);
+  const lineasMenu=cotizMenuLineas(c);
+  if(lineasMenu && cotizAutoVincular(c, lineasMenu)) cotizCambio();
   const filaReceta=it=>{
     const info=cotizRecetaInfo(it);
     const costo=info&&!info.sinPorciones?fmt(info.costoPorcion):`<span style="color:var(--red);font-size:11px">⚠ Sin porciones</span>
@@ -10612,6 +10649,33 @@ function renderCotizEditor(){
       <td style="white-space:nowrap;width:1%">
         <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Ver receta" onclick="cotizToggleDetalle(${it.id})">🔍</button>
         <button class="btn btn-danger" onclick="cotizQuitar(${it.id})">🗑</button></td>
+    </tr>`;
+  };
+  // Renglón del menú del presupuesto: plato | buscador de receta | números.
+  let secAnt=null;
+  const filaMenu=(l,i)=>{
+    const it=cotizItemDeLinea(c, l.texto);
+    const titulo=l.seccion!==secAnt?`<tr class="cotiz-menu-sec"><td colspan="7">${escH(l.seccion||'Menú')}</td></tr>`:'';
+    secAnt=l.seccion;
+    if(!it) return titulo+`<tr>
+      <td class="cotiz-menu-txt">${escH(l.texto)}</td>
+      <td><input class="dd-input" id="cotiz-lin${i}" type="text" placeholder="🔍 Buscar receta…" style="width:100%"></td>
+      <td class="num" colspan="4" style="color:var(--text3);font-size:11px">Elegí la receta para calcular el costo</td><td></td></tr>`;
+    const info=cotizRecetaInfo(it);
+    const costo=info&&!info.sinPorciones?fmt(info.costoPorcion):`<span style="color:var(--red);font-size:11px">⚠ Sin porciones</span>
+      ${info?`<button class="btn btn-outline" style="padding:1px 6px;font-size:10px" onclick="abrirRecetaDesdeCotizador('${it.tipo}',${escH(JSON.stringify(info.nombre))})">Cargar</button>`:''}`;
+    return titulo+`<tr id="cotiz-fila${it.id}">
+      <td class="cotiz-menu-txt">${escH(l.texto)}</td>
+      <td><input class="dd-input" id="cotiz-lin${i}" type="text" style="width:100%"></td>
+      <td class="num">${costo}</td>
+      <td class="num"><input type="text" inputmode="decimal" value="${kgTexto(it.porPersona)}" style="width:60px;text-align:right;${INP}"
+        oninput="cotizSetItem(${it.id},'porPersona',this.value)" id="cotiz-pp${it.id}"></td>
+      <td class="num"><input type="text" inputmode="decimal" value="${kgTexto(cotizCantidad(c,it))}" style="width:75px;text-align:right;${INP}"
+        oninput="cotizSetItem(${it.id},'cant',this.value)" id="cotiz-cant${it.id}"></td>
+      <td class="num" id="cotiz-tot${it.id}" style="font-weight:600"></td>
+      <td style="white-space:nowrap;width:1%">
+        <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Ver receta" onclick="cotizToggleDetalle(${it.id})">🔍</button>
+        <button class="btn btn-danger" title="Quitar la receta de este plato" onclick="cotizQuitar(${it.id})">🗑</button></td>
     </tr>`;
   };
   const filaOtro=it=>`<tr>
@@ -10652,16 +10716,20 @@ function renderCotizEditor(){
   </div>
 
   <div class="card cotiz-card">${sec(2,'Menú (platos y subproductos)')}
+    <div id="cotiz-alerta" class="alert alert-error" style="display:none;margin-bottom:10px"></div>
+    ${lineasMenu&&lineasMenu.length?`
+    <div style="font-size:11.5px;color:var(--text3);margin-bottom:8px">El menú viene de las estaciones del presupuesto. Elegí al lado de cada plato la receta con la que se cotiza.</div>
+    <div class="tw"><table>
+      <thead><tr><th>Plato del menú</th><th style="width:28%">Receta</th><th class="num">Costo x porción</th><th class="num">Por persona</th><th class="num">Cantidad</th><th class="num">Total</th><th></th></tr></thead>
+      <tbody>${lineasMenu.map(filaMenu).join('')}</tbody>
+    </table></div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);margin:16px 0 8px">Otros platos (fuera del menú)</div>`:''}
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
       <input class="dd-input" id="cotiz-buscar" type="text" placeholder="🔍 Buscar plato o subproducto para agregar…" style="flex:1;min-width:260px">
-      ${!c.items.length&&otrasCotiz.length?`<select onchange="if(this.value)cotizCopiarItemsDe(this.value)" style="font-size:12px;max-width:280px">
-        <option value="">⧉ Copiar ítems de otra cotización…</option>
-        ${otrasCotiz.sort((a,b)=>b._id-a._id).map(x=>`<option value="${x._id}">${escH((x.cliente||'—')+' · '+(x.titulo||''))}</option>`).join('')}</select>`:''}
     </div>
-    <div id="cotiz-alerta" class="alert alert-error" style="display:none;margin-bottom:10px"></div>
     <div class="tw"><table>
       <thead><tr><th>Plato / subproducto</th><th class="num">Costo x porción</th><th class="num">Por persona</th><th class="num">Cantidad</th><th class="num">Total</th><th></th></tr></thead>
-      <tbody>${recetas.map(filaReceta).join('')||'<tr><td colspan="6" class="empty">Buscá arriba los platos del menú. La cantidad arranca en 1 por persona.</td></tr>'}</tbody>
+      <tbody>${recetas.map(filaReceta).join('')||`<tr><td colspan="6" class="empty">${lineasMenu&&lineasMenu.length?'Si hace falta algo que no está en el menú, buscalo arriba.':'Buscá arriba los platos del menú. La cantidad arranca en 1 por persona.'}</td></tr>`}</tbody>
       <tfoot><tr class="mp-tot-row"><td colspan="4">Subtotal menú</td><td class="num" id="cotiz-sub-menu"></td><td></td></tr></tfoot>
     </table></div>
   </div>
@@ -10693,6 +10761,14 @@ function renderCotizEditor(){
 
   const buscar=document.getElementById('cotiz-buscar');
   if(buscar) attachDD(buscar,cotizOpcionesRecetas,()=> '',val=>{ buscar.value=''; buscar.dataset.val=''; cotizAgregarReceta(val); });
+  (lineasMenu||[]).forEach((l,i)=>{
+    const inp=document.getElementById('cotiz-lin'+i); if(!inp) return;
+    const it=cotizItemDeLinea(c, l.texto);
+    const r=it?it.plato:'';
+    inp.dataset.val=r;
+    inp.value=r?(cotizOpcionesRecetas().find(o=>o.val===r)||{label:r}).label:'';
+    attachDD(inp, cotizOpcionesRecetas, ()=>{ const x=cotizItemDeLinea(_cotizEdit, l.texto); return x?x.plato:''; }, val=>setTimeout(()=>cotizElegirRecetaLinea(i, val),0));
+  });
   cotizActualizarNumeros();
 }
 // Actualiza solo los números (sin re-dibujar: no se pierde el foco al tipear).
