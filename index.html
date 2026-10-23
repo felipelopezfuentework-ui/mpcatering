@@ -381,6 +381,24 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .mod-fichas{--c1:#6a3a80;--c2:#9668ad;--sh:150,104,173}
 .mod-stock{--c1:#2d7a5a;--c2:#4fa57f;--sh:79,165,127}
 .mod-presu{--c1:#c9b6dc;--c2:#ece2f5;--sh:201,182,220;color:#3d1a52}
+.mod-nov{--c1:#c2611f;--c2:#e8954a;--sh:232,149,74}
+.mod-nov-badge{position:absolute;top:14px;right:14px;z-index:3;background:#e0533d;color:#fff;font-size:13px;font-weight:800;border-radius:999px;min-width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;padding:0 8px;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.nov-badge-chico{background:#e0533d;color:#fff;font-size:10px;font-weight:800;border-radius:999px;padding:1px 6px;margin-left:4px}
+.nov-barra{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.nov-dia{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text3);margin:16px 0 6px}
+.nov-item{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);margin-bottom:6px}
+.nov-es-nuevo{border-left:4px solid #e0533d}
+.nov-ico{font-size:18px;line-height:1.2;width:24px;text-align:center}
+.nov-cuerpo{flex:1;min-width:0}
+.nov-linea{font-size:13px;color:var(--text);line-height:1.4}
+.nov-det{font-size:12px;color:var(--text2);margin-top:3px}
+.nov-det span{color:var(--text3);margin-right:6px}
+.nov-det s{color:var(--text3)}
+.nov-det em{color:var(--text3)}
+.nov-mas{background:none;border:none;color:var(--accent);font-size:11.5px;cursor:pointer;padding:2px 0;font-family:inherit}
+.nov-meta{font-size:11px;color:var(--text3);margin-top:4px}
+.nov-btns{display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+.nov-nuevo{font-size:10px;font-weight:800;color:#fff;background:#e0533d;border-radius:999px;padding:1px 7px;vertical-align:middle}
 @keyframes modIn{from{opacity:0;transform:translateY(26px) scale(.96)}to{opacity:1;transform:none}}
 @keyframes modFlota{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 @keyframes modFlotaFuerte{0%,100%{transform:translateY(-4px) rotate(-1.5deg)}50%{transform:translateY(-12px) rotate(1.5deg)}}
@@ -773,6 +791,13 @@ tr.rec-clic:hover td{background:var(--accent-light)}
         <span class="mod-sub">Propuestas para clientes</span>
         <svg class="mod-ilu" viewBox="0 0 250 210" aria-hidden="true"><defs><linearGradient id="mgMoneda" x1="0" x2="1"><stop offset="0" stop-color="#ffe680"/><stop offset="1" stop-color="#f5b800"/></linearGradient></defs><g class="chispas" fill="#fff"><path class="chispa" d="M40 40 l3 9 9 3 -9 3 -3 9 -3 -9 -9 -3 9 -3z"/><path class="chispa c2" d="M205 58 l2 6 6 2 -6 2 -2 6 -2 -6 -6 -2 6 -2z"/><path class="chispa c3" d="M60 95 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z"/></g><g class="ped"><path d="M17 172 L125 202 L125 228 L17 198 Z" fill="#d6d3e2"/><path d="M233 172 L125 202 L125 228 L233 198 Z" fill="#e9e7f1"/><path d="M17 172 L125 142 L233 172 L125 202 Z" fill="#fbfbfd"/></g><g class="ped2"><path d="M55 152 L125 171 L125 187 L55 168 Z" fill="#8f76a8"/><path d="M195 152 L125 171 L125 187 L195 168 Z" fill="#ad97c4"/><path d="M55 152 L125 133 L195 152 L125 171 Z" fill="#ffffff"/></g><g class="obj"><rect x="94" y="54" width="76" height="100" rx="8" fill="#d9c3e6" transform="rotate(8 132 104)"/><path d="M84 50 h56 l20 20 v80 a8 8 0 0 1 -8 8 h-68 a8 8 0 0 1 -8 -8 v-92 a8 8 0 0 1 8 -8z" fill="#ffffff"/><path d="M140 50 v14 a6 6 0 0 0 6 6 h14z" fill="#e3e0f5"/><rect x="88" y="64" width="38" height="8" rx="3" fill="#5c2d6e"/><rect x="88" y="82" width="58" height="5" rx="2.5" fill="#e1ddf2"/><rect x="88" y="94" width="50" height="5" rx="2.5" fill="#e1ddf2"/><rect x="88" y="106" width="56" height="5" rx="2.5" fill="#e1ddf2"/><rect x="88" y="124" width="30" height="7" rx="3" fill="#c9b3d9"/><g class="moneda"><ellipse cx="160" cy="132" rx="22" ry="22" fill="#d89b00"/><circle cx="156" cy="129" r="22" fill="url(#mgMoneda)"/><circle cx="156" cy="129" r="16" fill="none" stroke="#e3a600" stroke-width="2.5"/><text x="156" y="137" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" font-weight="800" fill="#a86f00">$</text></g></g></svg>
       </button>
+      <button type="button" class="mod-card mod-nov" style="--i:5" onclick="cambiarModulo('novedades')">
+        <span class="mod-brillo"></span>
+        <span class="nov-badge mod-nov-badge" style="display:none"></span>
+        <span class="mod-tit">Novedades</span>
+        <span class="mod-sub">Qué cambió, quién y cuándo</span>
+        <svg class="mod-ilu" viewBox="0 0 250 210" aria-hidden="true"><g class="chispas" fill="#fff"><path class="chispa" d="M40 40 l3 9 9 3 -9 3 -3 9 -3 -9 -9 -3 9 -3z"/><path class="chispa c2" d="M205 58 l2 6 6 2 -6 2 -2 6 -2 -6 -6 -2 6 -2z"/><path class="chispa c3" d="M60 95 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z"/></g><g class="ped"><path d="M17 172 L125 202 L125 228 L17 198 Z" fill="#d6d3e2"/><path d="M233 172 L125 202 L125 228 L233 198 Z" fill="#e9e7f1"/><path d="M17 172 L125 142 L233 172 L125 202 Z" fill="#fbfbfd"/></g><g class="ped2"><path d="M55 152 L125 171 L125 187 L55 168 Z" fill="#b5651d"/><path d="M195 152 L125 171 L125 187 L195 168 Z" fill="#d4873a"/><path d="M55 152 L125 133 L195 152 L125 171 Z" fill="#fbd9b0"/></g><g class="obj"><g class="campana"><path d="M125 58 c-24 0 -36 18 -36 42 v22 l-10 14 h92 l-10 -14 v-22 c0 -24 -12 -42 -36 -42z" fill="#ffffff"/><path d="M89 122 h72 l-4 -6 h-64z" fill="#e8e3f3"/><circle cx="125" cy="54" r="7" fill="#3d3850"/><path d="M113 140 a12 12 0 0 0 24 0z" fill="#3d3850"/><circle cx="160" cy="70" r="13" fill="#e0533d"/><text x="160" y="75" text-anchor="middle" font-family="Arial,sans-serif" font-size="14" font-weight="800" fill="#fff">!</text></g></g></svg>
+      </button>
     </div>
   </div>
 </div>
@@ -805,6 +830,7 @@ tr.rec-clic:hover td{background:var(--accent-light)}
           <button class="btn btn-outline" style="color:var(--text2)" onclick="cambiarModulo('comanda')">📋 Fichas Técnicas</button>
           <button class="btn btn-outline" style="color:var(--text2)" onclick="cambiarModulo('stock')">📊 Stock</button>
           <button class="btn btn-outline solo-presupuestos" style="color:var(--text2)" onclick="cambiarModulo('presupuestos')">🧮 Presupuestos</button>
+          <button class="btn btn-outline" style="color:var(--text2)" onclick="cambiarModulo('novedades')">🔔 Novedades <span class="nov-badge nov-badge-chico" style="display:none"></span></button>
         </div>
       </div>
       <button class="btn-logout" onclick="volverASeleccionModulo()">Cambiar de módulo</button>
@@ -840,6 +866,9 @@ tr.rec-clic:hover td{background:var(--accent-light)}
 <!-- Tabs Presupuestos -->
 <div class="tabs" id="tabs-presupuestos" style="display:none">
   <div class="tab active" onclick="switchTab('presupuestos')">🧮 Presupuestos</div>
+</div>
+<div class="tabs" id="tabs-novedades" style="display:none">
+  <div class="tab active" onclick="switchTab('novedades')">🔔 Novedades</div>
 </div>
 
 <!-- ═══ 1. INSUMOS ══════════════════════════════════════════════ -->
@@ -928,6 +957,13 @@ tr.rec-clic:hover td{background:var(--accent-light)}
 </div>
 
 <!-- ═══ 5. PROVEEDORES ══════════════════════════════════════════ -->
+<div class="content" id="tab-novedades">
+  <div class="card">
+    <div class="card-title" style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:16px">🔔 Novedades <span style="font-size:12px;font-weight:400;color:var(--text3);margin-left:8px">Últimos 90 días</span></div>
+    <div id="nov-cont"></div>
+  </div>
+</div>
+
 <div class="content" id="tab-prod_eventos">
   <div class="card">
     <div class="card-title" style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:16px">🍳 Eventos a producir</div>
@@ -2659,6 +2695,7 @@ const TABS_COT=['cotizaciones','costeo'];
 const TABS_COM=['comanda_periodos','comanda_clientes'];
 const TABS_STOCK=['stock','stock_historial'];
 const TABS_PRESU=['presupuestos'];
+const TABS_NOV=['novedades'];
 const TABS=[...TABS_PROD,...TABS_COT,...TABS_COM,...TABS_STOCK,...TABS_PRESU];
 
 function switchTab(name){
@@ -2670,8 +2707,9 @@ function switchTab(name){
   const isCom=TABS_COM.includes(name);
   const isStock=TABS_STOCK.includes(name);
   const isPresu=TABS_PRESU.includes(name);
-  const barId=isProd?'tabs-produccion':isCot?'tabs-cotizacion':isCom?'tabs-comanda':isStock?'tabs-stock':'tabs-presupuestos';
-  const arr=isProd?TABS_PROD:isCot?TABS_COT:isCom?TABS_COM:isStock?TABS_STOCK:TABS_PRESU;
+  const isNov=TABS_NOV.includes(name);
+  const barId=isProd?'tabs-produccion':isCot?'tabs-cotizacion':isCom?'tabs-comanda':isStock?'tabs-stock':isNov?'tabs-novedades':'tabs-presupuestos';
+  const arr=isProd?TABS_PROD:isCot?TABS_COT:isCom?TABS_COM:isStock?TABS_STOCK:isNov?TABS_NOV:TABS_PRESU;
   const tabsInBar=document.getElementById(barId).querySelectorAll('.tab');
   const idx=arr.indexOf(name);
   if(tabsInBar[idx])tabsInBar[idx].classList.add('active');
@@ -2681,7 +2719,7 @@ function switchTab(name){
     cotizaciones:renderCotizLista,costeo:renderCotizEditor,proveedores:renderProveedores,
     comanda_periodos:renderComandaPeriodos,comanda_clientes:renderClientes,
     stock:renderStockActual,stock_historial:renderStockHistorial,
-    presupuestos:renderPresupuestos,prod_eventos:renderProdEventos})[name]?.();
+    presupuestos:renderPresupuestos,prod_eventos:renderProdEventos,novedades:abrirNovedades})[name]?.();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -2978,12 +3016,13 @@ function provWhatsApp(tel){
 }
 function delProv(id){
   if(!confirm('¿Eliminar proveedor?'))return;
+  { const x=DB.proveedores.find(i=>i._id===id); if(x){ const {_id,...d}=x; novRegistrar({mod:'produccion', acc:'borrar', que:'el proveedor', titulo:x.proveedor, ref:{tipo:'proveedor'}, copia:{col:'proveedores', id, data:JSON.parse(JSON.stringify(d))}}); } }
   FB_COL_PROVEEDORES.doc(String(id)).delete().catch(e=>alert('Error al eliminar el proveedor: '+e.message));
 }
 function addProveedor(){
   const id=Date.now();
   FB_COL_PROVEEDORES.doc(String(id)).set({rubro:'',proveedor:'NUEVO',razon_social:'',vendedor:'',mail:'',telefono:'',cuit:'',updated_at:new Date().toISOString()})
-    .then(()=>showAlert('prov-alert','success','Proveedor agregado.'))
+    .then(()=>{ showAlert('prov-alert','success','Proveedor agregado.'); novRegistrar({mod:'produccion', acc:'crear', que:'un proveedor', titulo:'', ref:{tipo:'proveedor'}}); })
     .catch(e=>alert('Error al agregar el proveedor: '+e.message));
 }
 
@@ -3286,6 +3325,7 @@ function updInsKgFormato(id,val){
 }
 function delIns(id){
   if(!confirm('¿Eliminar insumo?'))return;
+  { const x=DB.insumos.find(i=>i._id===id); if(x){ const {_id,...d}=x; novRegistrar({mod:'produccion', acc:'borrar', que:'el insumo', titulo:x.nombre, ref:{tipo:'insumo', nombre:x.nombre}, copia:{col:'insumos', id, data:JSON.parse(JSON.stringify(d))}}); } }
   FB_COL_INSUMOS.doc(String(id)).delete().catch(e=>alert('Error al eliminar el insumo: '+e.message));
 }
 // ── Actualizar precios de insumos desde una lista de proveedor (Excel) ──
@@ -3711,10 +3751,12 @@ function facAplicar(){
         aplicado:!!(f.ok&&f.ins&&f.puFactura>0)}; })};
   _recetasDiferidas={subs:new Set(), platos:new Set()};
   const guardar=[];
+  const _novFac=[];
   try{
     aplicar.forEach(f=>{
       const x=DB.insumos.find(i=>i._id===f.ins); if(!x) return;
       const c=facCalc(f);
+      _novFac.push({c:x.nombre, a:fmt(parseFloat(x.costo)||0), d:fmt(c.pk)});
       insHistSemilla(x);
       x.precio_formato=Math.round(c.neto*100)/100; x.formato_kg=f.kg; x.costo=c.pk;
       if(f.desc) x.formato=f.desc.toLowerCase();
@@ -3755,6 +3797,7 @@ function facAplicar(){
     try{ await FB_COL_FACTURAS.doc(String(Date.now())).set(registro); }
     catch(e){ console.error('No se pudo guardar el registro de la factura',e); alert('Los precios se actualizaron, pero no se pudo guardar el registro de la factura: '+e.message); }
     showAlert('upload-alert','success','✓ Se actualizaron '+guardar.length+' precios desde la factura (sin IVA). Quedó registrada en "Facturas cargadas".');
+    novRegistrar({mod:'produccion', acc:'precios', que:'de', titulo:guardar.length+' insumo(s) · factura '+(_fac&&_fac.cab&&_fac.cab.numero||''), det:_novFac, ref:{tipo:'insumo', nombre:''}});
   })().catch(e=>{ marcarErrorSincronizacion(e); console.error('Error al guardar precios de factura:',e); alert('No se pudieron guardar los precios: '+e.message); });
 }
 // Historial de facturas cargadas (solo lectura).
@@ -3977,6 +4020,8 @@ function lpAplicarVarios(ps){
     _recetasDiferidas=null;
   }
   renderInsumos(); _repintarRecetasTrasRecalculo(); renderListaPrecios();
+  novRegistrar({mod:'produccion', acc:'precios', que:'de', titulo:insumosAGuardar.length+' insumo(s) · lista '+(_lpArchivo||''),
+    det:ps.filter(p=>p.estado==='hecho').map(p=>({c:p.ins.nombre, a:fmt(p.antes), d:fmt(p.nuevo)})), ref:{tipo:'insumo', nombre:''}});
   _lpTandas++; _lpError=''; lpPintarEstado();
   (async ()=>{
     const ahora=new Date().toISOString();
@@ -4089,6 +4134,7 @@ function addInsumo(overrides){
   const {_id, ...datosInsumo}=nuevo;
   FB_COL_INSUMOS.doc(String(nuevoId)).set({...datosInsumo, updated_at:new Date().toISOString()})
     .catch(e=>alert('Error al guardar el insumo: '+e.message));
+  novRegistrar({mod:'produccion', acc:'crear', que:'el insumo', titulo:nombre, ref:{tipo:'insumo', nombre}});
   return nuevo;
 }
 
@@ -4564,6 +4610,9 @@ function confirmarConteo(){
   // vista apenas confirme el servidor -no hace falta tocar DB a mano acá.
   FB_COL_STOCK.doc(String(id)).set({...nuevoConteo, updated_at:new Date().toISOString()})
     .catch(e=>alert('Error al guardar el conteo: '+e.message));
+  { const conDif=nuevoConteo.items.filter(it=>parseFloat(it.diferencia));
+    novRegistrar({mod:'stock', acc:'crear', que:'un conteo de stock', titulo:'('+nuevoConteo.items.length+' insumos)',
+      det:conDif.slice(0,30).map(it=>{ const ins=DB.insumos.find(x=>x._id===it.insumoId); return {c:ins?ins.nombre:'Insumo', a:novTxt(it.cantidadAnterior), d:novTxt(it.cantidadContada)}; }), ref:{tipo:'stock'}}); }
 }
 
 // ── Historial de movimientos ─────────────────────────────────────────
@@ -5112,6 +5161,7 @@ function guardarSub(){
   _guardarSubReal(nombre);
 }
 function _guardarSubReal(nombre){
+  const _novAntes=novRecetaSnap('sub', editSubOld||null);
   DB.subproductos=DB.subproductos.filter(x=>x.subproducto!==nombre&&x.subproducto!==editSubOld);
   subItems.filter(x=>x.comp).forEach(item=>{
     const pk=getCompPrice(item.comp);
@@ -5156,6 +5206,7 @@ function _guardarSubReal(nombre){
   ddClose();cerrarModal('modal-sub');renderSubproductos();renderMaestros();renderMaestros();
   const seRenombroSub=editSubOld&&editSubOld!==nombre;
   if(seRenombroSub) eliminarSubproductoDoc(editSubOld);
+  novRecetaGuardada('sub', _novAntes, nombre);
   guardarSubproductoDoc(nombre);
   guardarMaestroSubs();
   cotizActualizarNumeros();
@@ -5273,6 +5324,7 @@ function renderSubproductos(){
 }
 function delSub(sub){
   if(!confirm('¿Eliminar "'+sub.replace('SUB - ','')+'"?'))return;
+  novRecetaBorrada('sub', sub);
   DB.subproductos=DB.subproductos.filter(x=>x.subproducto!==sub);
   DB.maestro_subs=DB.maestro_subs.filter(s=>s!==sub);
   if(DB.subs_config)delete DB.subs_config[sub];
@@ -5449,6 +5501,7 @@ function guardarPlato(){
   _guardarPlatoReal(nombre);
 }
 function _guardarPlatoReal(nombre){
+  const _novAntes=novRecetaSnap('plato', editPlatoOld||null);
   DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==nombre&&x.plato!==editPlatoOld);
   platoItems.filter(x=>x.comp).forEach(item=>{
     const pk=getCompPrice(item.comp);
@@ -5497,6 +5550,7 @@ function _guardarPlatoReal(nombre){
   ddClose();cerrarModal('modal-plato');renderPlatos();renderMaestros();renderMaestros();
   const seRenombroPlato=editPlatoOld&&editPlatoOld!==nombre;
   if(seRenombroPlato) eliminarPlatoDoc(editPlatoOld);
+  novRecetaGuardada('plato', _novAntes, nombre);
   guardarPlatoDoc(nombre);
   guardarMaestroPlatos();
   cotizActualizarNumeros();
@@ -5522,6 +5576,7 @@ function renderPlatos(){
 }
 function delPlato(plato){
   if(!confirm('¿Eliminar "'+plato.replace('PLATO - ','')+'"?'))return;
+  novRecetaBorrada('plato', plato);
   DB.recetas_platos=DB.recetas_platos.filter(x=>x.plato!==plato);
   DB.maestro_platos=DB.maestro_platos.filter(p=>p!==plato);
   if(DB.platos_config)delete DB.platos_config[plato];
@@ -6425,7 +6480,7 @@ function refrescarVistaActual(){
           cotizaciones:renderCotizLista,costeo:cotizActualizarNumeros,proveedores:renderProveedores,
           comanda_clientes:renderClientes,stock:renderStockActual,
           stock_historial:renderStockHistorial,
-          presupuestos:renderPresupuestos,prod_eventos:renderProdEventos})[name]?.();
+          presupuestos:renderPresupuestos,prod_eventos:renderProdEventos,novedades:renderNovedades})[name]?.();
       }
     }
   }catch(err){
@@ -6554,6 +6609,7 @@ function iniciarListenersComanda(){
     snap.docs.forEach(d=>{
       const data=d.data();
       const ev={id:d.id, nombre:data.nombre, creado:data.creado, presupuesto_id:data.presupuesto_id||null, datos:reconvertirArraysAnidados(data.datos||{})};
+      _novBase['ev:'+d.id]=JSON.stringify({nombre:ev.nombre, datos:ev.datos});
       (porPeriodo[data.periodo_id]=porPeriodo[data.periodo_id]||[]).push(ev);
     });
     DB.comanda.eventos=porPeriodo;
@@ -6563,6 +6619,7 @@ function iniciarListenersComanda(){
   }, (err)=>console.error('Error al sincronizar comanda_eventos:', err));
   _unsubComandaClientes=FB_COL_CLIENTES.onSnapshot((snap)=>{
     DB.maestro_clientes=snap.docs.map(d=>({cliente_id:d.id,...d.data()}));
+    DB.maestro_clientes.forEach(x=>{ _novBase['cli:'+x.cliente_id]=JSON.stringify(x); });
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar maestro_clientes:', err));
 }
@@ -6589,6 +6646,7 @@ function iniciarListenersInsumosProveedores(){
     // _id nuevos son Date.now(), siempre el número más grande) para que un
     // insumo recién agregado quede siempre arriba de todo, como antes.
     DB.insumos=snap.docs.map(d=>({...d.data(), _id:Number(d.id)})).sort((a,b)=>b._id-a._id);
+    DB.insumos.forEach(x=>{ _novBase['ins:'+x._id]=JSON.stringify(x); });
     // Antes corría una sola vez al cargar la página, contra datos todavía
     // sin sincronizar; ahora corre en el primer snapshot real de la
     // colección de insumos (ver limpiarInsumosRevisarEliminar).
@@ -6599,6 +6657,7 @@ function iniciarListenersInsumosProveedores(){
   _unsubProveedores=FB_COL_PROVEEDORES.onSnapshot((snap)=>{
     // Mismo motivo que en insumos: orden estable, más nuevo primero.
     DB.proveedores=snap.docs.map(d=>({...d.data(), _id:Number(d.id)})).sort((a,b)=>b._id-a._id);
+    DB.proveedores.forEach(x=>{ _novBase['prov:'+x._id]=JSON.stringify(x); });
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar proveedores:', err));
 }
@@ -6823,6 +6882,7 @@ function guardarInsumo(id){
       // undefined por defecto -esto hacía fallar el guardado en silencio.
       // Hay que desestructurar para omitirlo de verdad.
       const {_id, ...datosInsumo}=x;
+      try{ const b=_novBase['ins:'+id]; if(b) novRegistrar({mod:'produccion', acc:'editar', que:'el insumo', titulo:x.nombre, det:novDiff(JSON.parse(b), x, NOV_CAMPOS_INSUMO), ref:{tipo:'insumo', nombre:x.nombre}, clave:'ins:'+id}); }catch(e){}
       await FB_COL_INSUMOS.doc(String(id)).set({...datosInsumo, updated_at:new Date().toISOString()});
       try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
       marcarSincronizado();
@@ -6836,6 +6896,7 @@ function guardarProveedor(id){
     if(!x) return;
     try{
       const {_id, ...datosProveedor}=x;
+      try{ const b=_novBase['prov:'+id]; if(b) novRegistrar({mod:'produccion', acc:'editar', que:'el proveedor', titulo:x.proveedor, det:novDiff(JSON.parse(b), x, NOV_CAMPOS_PROV), ref:{tipo:'proveedor'}, clave:'prov:'+id}); }catch(e){}
       await FB_COL_PROVEEDORES.doc(String(id)).set({...datosProveedor, updated_at:new Date().toISOString()});
       try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
       marcarSincronizado();
@@ -7202,7 +7263,8 @@ function _cambiarModuloReal(perfil){
   document.getElementById('tabs-comanda').style.display = perfil==='comanda' ? 'flex' : 'none';
   document.getElementById('tabs-stock').style.display = perfil==='stock' ? 'flex' : 'none';
   document.getElementById('tabs-presupuestos').style.display = perfil==='presupuestos' ? 'flex' : 'none';
-  const labels={produccion:'🍳 Producción', cotizacion:'🧾 Cotización', comanda:'📋 Fichas Técnicas', stock:'📊 Stock', presupuestos:'🧮 Presupuestos'};
+  document.getElementById('tabs-novedades').style.display = perfil==='novedades' ? 'flex' : 'none';
+  const labels={produccion:'🍳 Producción', cotizacion:'🧾 Cotización', comanda:'📋 Fichas Técnicas', stock:'📊 Stock', presupuestos:'🧮 Presupuestos', novedades:'🔔 Novedades'};
   const badge=document.getElementById('header-perfil');
   if(badge)badge.textContent=(labels[perfil]||perfil)+' ▾';
   const menu=document.getElementById('modulo-menu');
@@ -7218,6 +7280,8 @@ function _cambiarModuloReal(perfil){
     switchTab('stock');
   } else if(perfil==='presupuestos'){
     switchTab('presupuestos');
+  } else if(perfil==='novedades'){
+    switchTab('novedades');
   }
 }
 
@@ -7264,6 +7328,7 @@ function entrarComo(){
   iniciarListenersRecetas();
   iniciarListenerStock();
   iniciarListenerProducciones();
+  iniciarListenerNovedades();
   if(verPresu){ iniciarListenersPresupuestos(); iniciarListenersCotizaciones(); }
 }
 
@@ -7719,6 +7784,7 @@ async function guardarEventoActual(periodoId, eventoId){
   if(!pId || !eId) return;
   const ev = DB.comanda.eventos[pId]?.find(e=>e.id===eId);
   if(!ev) return;
+  novEventoEditado(pId, ev);
   try{
     await FB_COL_EVENTOS.doc(ev.id).set({
       id: ev.id,
@@ -7792,6 +7858,8 @@ async function eliminarPeriodo(id){
   // comanda_eventos escucha la colección completa), así que no hace falta
   // una consulta aparte para saber cuáles borrar en cascada.
   const eventosDelPeriodo = DB.comanda.eventos[id]||[];
+  eventosDelPeriodo.forEach(ev=>novEventoBorrado(id, ev));
+  { const pp=(DB.comanda.periodos||[]).find(x=>x.id===id); novRegistrar({mod:'comanda', acc:'borrar', que:'el período', titulo:pp?MESES[pp.mes]+' '+pp.anio:id}); }
   try{
     await Promise.all(eventosDelPeriodo.map(ev=>FB_COL_EVENTOS.doc(ev.id).delete()));
     await FB_COL_PERIODOS.doc(id).delete();
@@ -7964,12 +8032,16 @@ function guardarCliente(){
   cerrarModal('modal-cliente');
   // El listener de maestro_clientes actualiza DB.maestro_clientes y refresca
   // la vista apenas confirme el servidor -no hace falta tocar DB a mano acá.
+  { const b=_novBase['cli:'+clienteId];
+    if(id && b) novRegistrar({mod:'comanda', acc:'editar', que:'el cliente', titulo:nombre_cliente, det:novDiff(JSON.parse(b), datos, NOV_CAMPOS_CLIENTE), ref:{tipo:'cliente'}, clave:'cli:'+clienteId});
+    else if(!id) novRegistrar({mod:'comanda', acc:'crear', que:'el cliente', titulo:nombre_cliente, ref:{tipo:'cliente'}}); }
   FB_COL_CLIENTES.doc(clienteId).set({...datos, updated_at:new Date().toISOString()})
     .catch(e=>alert('Error al guardar el cliente: '+e.message));
 }
 
 function delCliente(id){
   if(!confirm('¿Eliminar este cliente del maestro? Los eventos ya vinculados no se eliminan.'))return;
+  { const x=(DB.maestro_clientes||[]).find(c=>c.cliente_id===id); if(x){ const {cliente_id,...d}=x; novRegistrar({mod:'comanda', acc:'borrar', que:'el cliente', titulo:x.nombre_cliente||'', ref:{tipo:'cliente'}, copia:{col:'maestro_clientes', id, data:JSON.parse(JSON.stringify(d))}}); } }
   FB_COL_CLIENTES.doc(id).delete().catch(e=>alert('Error al eliminar el cliente: '+e.message));
 }
 
@@ -8303,6 +8375,7 @@ async function guardarNuevoEvento(){
       datos:convertirArraysAnidados(datos), updated_at:new Date().toISOString()
     });
   }catch(e){ alert('Error al crear el evento: '+e.message); return; }
+  novRegistrar({mod:'comanda', acc:'crear', que:'el evento', titulo:nombre, ref:{tipo:'evento', per:periodoId, id}});
   abrirPeriodo(periodoId);
 }
 
@@ -8344,6 +8417,7 @@ function eliminarEvento(periodoId,eventoId){
     ? '¿Eliminar este evento?\n\nOjo: está vinculado a un presupuesto confirmado y deja de aparecer en Eventos a producir.'
     : '¿Eliminar este evento?';
   if(!confirm(msg))return;
+  if(ev) novEventoBorrado(periodoId, ev);
   FB_COL_EVENTOS.doc(eventoId).delete().catch(e=>alert('Error al eliminar el evento: '+e.message));
 }
 
@@ -10467,6 +10541,7 @@ const COTIZ_OTROS_TIPOS=['personal','vajilla','descartables','flete','seguro'];
 function iniciarListenersCotizaciones(){
   _unsubCotiz=FB_COL_COTIZ.onSnapshot((snap)=>{
     COTIZACIONES=snap.docs.map(d=>({...d.data(), _id:Number(d.id)}));
+    COTIZACIONES.forEach(x=>{ _novBase['cot:'+x._id]=JSON.stringify(x); });
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar cotizaciones:', err));
 }
@@ -10573,6 +10648,7 @@ function cotizNueva(datos){
     items:[],precioPersona:0,creado:new Date().toISOString(),...datos};
   COTIZACIONES.push(c);
   cotizGuardarDoc(c);
+  novRegistrar({mod:'cotizacion', acc:'crear', que:'la cotización', titulo:[c.cliente,c.titulo].filter(Boolean).join(' · '), ref:{tipo:'cotizacion', id:c._id}});
   return c;
 }
 function cotizAbrirPresupuesto(pid){
@@ -10602,6 +10678,7 @@ function cotizMenuMas(btn,id){
 function cotizBorrar(id){
   const c=COTIZACIONES.find(x=>x._id===id); if(!c) return;
   if(!confirm('¿Borrar la cotización de "'+(c.cliente||c.titulo||'sin nombre')+'"?'+(c.presupuestoId?'\n\nEl evento vuelve a quedar como Pendiente.':''))) return;
+  { const {_id,...d}=c; novRegistrar({mod:'cotizacion', acc:'borrar', que:'la cotización', titulo:[c.cliente,c.titulo].filter(Boolean).join(' · '), ref:{tipo:'cotizacion', id}, copia:{col:'cotizaciones', id, data:JSON.parse(JSON.stringify(d))}}); }
   COTIZACIONES=COTIZACIONES.filter(x=>x._id!==id);
   if(_cotizEdit&&_cotizEdit._id===id) _cotizEdit=null;
   FB_COL_COTIZ.doc(String(id)).delete().catch(e=>{ marcarErrorSincronizacion(e); console.error('Error al borrar cotización:',e); });
@@ -10610,6 +10687,11 @@ function cotizBorrar(id){
 async function cotizGuardarDoc(c){
   try{
     const {_id,...datos}=c;
+    try{ const b=_novBase['cot:'+_id]; if(b){ const a=JSON.parse(b); const det=novDiff(a, c, NOV_CAMPOS_COTIZ);
+      const ka=cotizCalc(a), kd=cotizCalc(c);
+      if(Math.round(ka.total)!==Math.round(kd.total)) det.push({c:'Costo total', a:fmt(ka.total), d:fmt(kd.total)});
+      if((a.items||[]).length!==(c.items||[]).length) det.push({c:'Ítems', a:String((a.items||[]).length), d:String((c.items||[]).length)});
+      novRegistrar({mod:'cotizacion', acc:'editar', que:'la cotización', titulo:[c.cliente,c.titulo].filter(Boolean).join(' · '), det, ref:{tipo:'cotizacion', id:_id}, clave:'cot:'+_id}); } }catch(e){}
     await FB_COL_COTIZ.doc(String(_id)).set({...datos,actualizado:new Date().toISOString()});
     marcarSincronizado();
   }catch(e){ marcarErrorSincronizacion(e); console.error('Error al guardar cotización:',e);
@@ -11422,6 +11504,325 @@ const PRESU_MENU_GRUPOS=[
 let _presuEdit=null; // borrador en memoria mientras el modal está abierto
 
 // ══════════════════════════════════════════════════════════════════
+//  NOVEDADES — registro de cambios por módulo (quién, qué, antes → después)
+//  Colección `novedades` (un doc por cambio, se guardan 90 días) y
+//  `novedades_copias` (copia de lo borrado, mismo id, para ♻ Restaurar).
+//  novRegistrar() se llama desde cada guardado/borrado; las ediciones
+//  seguidas del mismo elemento por la misma persona (15 min) se juntan en una
+//  sola novedad. Cada uno ve los módulos a los que tiene acceso. "No leídas"
+//  por persona en este navegador (localStorage). Pestaña Sistema = NOV_SISTEMA.
+// ══════════════════════════════════════════════════════════════════
+const FB_COL_NOV=fbDb.collection('novedades');
+const FB_COL_NOV_COPIAS=fbDb.collection('novedades_copias');
+const NOV_DIAS=90, NOV_JUNTAR_MIN=15;
+const NOV_MODS={
+  produccion:{lbl:'Producción', icon:'🍳'},
+  cotizacion:{lbl:'Cotización', icon:'🧾', presu:true},
+  comanda:{lbl:'Fichas Técnicas', icon:'📋'},
+  stock:{lbl:'Stock', icon:'📊'},
+  presupuestos:{lbl:'Presupuestos', icon:'🧮', presu:true}
+};
+const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
+// Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
+const NOV_SISTEMA=[
+  {f:'2026-10-23', t:'Nuevo módulo <b>Novedades</b>: cada cambio queda registrado por módulo, con quién lo hizo y qué cambió. Lo borrado se puede restaurar desde acá.'},
+  {f:'2026-10-23', t:'Fichas Técnicas: <b>♻ Recuperar eventos borrados</b> mirando cómo estaba el sistema en un momento de los últimos 7 días.'},
+  {f:'2026-10-23', t:'Presupuestos: en "⋯" de un confirmado sin evento, <b>Crear evento en Fichas Técnicas</b>.'},
+  {f:'2026-10-22', t:'Cotización: el menú trae los platos de las estaciones del presupuesto con el buscador de receta al lado.'},
+  {f:'2026-10-22', t:'Producción: nueva solapa <b>Eventos a producir</b> (armar, producir y cerrar cada receta; al cerrar se actualiza la receta).'},
+  {f:'2026-10-22', t:'Presupuestos: estados <b>Pendiente / Confirmado / No se concretó</b>; al confirmar se crea el evento en Fichas Técnicas.'}
+];
+let NOVEDADES=[], _unsubNov=null, _novFiltro='todo', _novPersona='', _novQ='', _novVistoPrev=0, _novAbiertos=new Set();
+const _novUltimas={}; // clave elemento → {id, ts, det} (para juntar ediciones seguidas)
+const _novBase={};    // última versión conocida (del servidor) para calcular antes → después
+
+function novMail(){ return String((fbAuth.currentUser&&fbAuth.currentUser.email)||'').toLowerCase(); }
+function novNombre(mail){ mail=String(mail||'').toLowerCase(); return NOV_NOMBRES[mail]||NOMBRES_POR_EMAIL[mail]||mail.split('@')[0]||'Alguien'; }
+function novPuedeVer(mod){ return mod==='sistema' || !(NOV_MODS[mod]&&NOV_MODS[mod].presu) || puedeVerPresupuestos(); }
+function novTxt(v){
+  if(v===undefined||v===null||v==='') return '—';
+  if(typeof v==='number') return (Math.round(v*100)/100).toLocaleString('es-AR');
+  if(typeof v==='boolean') return v?'Sí':'No';
+  if(typeof v==='object') return '(cambió)';
+  const s=String(v);
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if(m) return m[3]+'/'+m[2]+'/'+m[1];
+  return s.length>80?s.slice(0,77)+'…':s;
+}
+// Diferencias entre dos objetos para los campos indicados ({campo:'Etiqueta'}).
+function novDiff(antes, despues, campos){
+  const out=[];
+  Object.entries(campos).forEach(([k,lbl])=>{
+    const a=antes?antes[k]:undefined, d=despues?despues[k]:undefined;
+    const ja=JSON.stringify(a===undefined?'':a), jd=JSON.stringify(d===undefined?'':d);
+    if(ja===jd) return;
+    if(typeof a==='object'&&a!==null || typeof d==='object'&&d!==null) out.push({c:lbl, a:'', d:'(cambió)'});
+    else out.push({c:lbl, a:novTxt(a), d:novTxt(d)});
+  });
+  return out;
+}
+
+// Registrar una novedad. o = {mod, acc, que, titulo, det:[{c,a,d}], ref:{...}, clave, copia:{col,id,data}}
+async function novRegistrar(o){
+  try{
+    if(!o || !o.mod || !fbAuth.currentUser) return;
+    const ahora=Date.now(), quien=novMail();
+    const det=(o.det||[]).filter(x=>x && x.a!==x.d).slice(0,40);
+    if(o.acc==='editar' && !det.length) return;
+    const clave=o.clave ? quien+'|'+o.clave : null;
+    // Ediciones seguidas del mismo elemento: se suman a la novedad anterior.
+    if(o.acc==='editar' && clave && _novUltimas[clave] && ahora-_novUltimas[clave].ts<NOV_JUNTAR_MIN*60000){
+      const u=_novUltimas[clave];
+      det.forEach(x=>{ const i=u.det.findIndex(y=>y.c===x.c); if(i>=0) u.det[i].d=x.d; else u.det.push(x); });
+      u.det=u.det.filter(x=>x.a!==x.d || x.d==='(cambió)');
+      u.ts=ahora;
+      await FB_COL_NOV.doc(u.id).update({det:u.det.slice(0,40), ts:ahora, t:new Date(ahora).toISOString(), titulo:o.titulo||''});
+      return;
+    }
+    const ref=FB_COL_NOV.doc();
+    const doc={ts:ahora, t:new Date(ahora).toISOString(), mod:o.mod, acc:o.acc, que:o.que||'', titulo:o.titulo||'',
+      det, ref:o.ref||null, quien, tieneCopia:false};
+    if(o.copia){
+      try{ await FB_COL_NOV_COPIAS.doc(ref.id).set({col:o.copia.col, id:String(o.copia.id), data:o.copia.data, ts:ahora}); doc.tieneCopia=true; }
+      catch(e){ console.warn('Novedades: no se pudo guardar la copia de lo borrado', e); }
+    }
+    await ref.set(doc);
+    if(clave) _novUltimas[clave]={id:ref.id, ts:ahora, det:det.map(x=>({...x}))};
+  }catch(e){ console.warn('Novedades: no se pudo registrar', e); }
+}
+
+function iniciarListenerNovedades(){
+  const desde=Date.now()-NOV_DIAS*86400000;
+  // Primera vez en este navegador: lo anterior no cuenta como "no leído".
+  if(!novVisto()) novMarcarVisto();
+  _unsubNov=FB_COL_NOV.where('ts','>=',desde).orderBy('ts','desc').limit(1000).onSnapshot(snap=>{
+    NOVEDADES=snap.docs.map(d=>({...d.data(), _id:d.id}));
+    novPintarBadge();
+    refrescarVistaSiCorresponde();
+  }, err=>console.error('Error al sincronizar novedades:', err));
+  // Limpieza de lo viejo (una vez por sesión, desde una compu con acceso total).
+  setTimeout(async ()=>{
+    if(!puedeVerPresupuestos()) return;
+    try{
+      const viejas=await FB_COL_NOV.where('ts','<',desde).limit(200).get();
+      const lote=fbDb.batch();
+      viejas.docs.forEach(d=>{ lote.delete(d.ref); if(d.data().tieneCopia) lote.delete(FB_COL_NOV_COPIAS.doc(d.id)); });
+      if(viejas.docs.length) await lote.commit();
+    }catch(e){ console.warn('Novedades: limpieza', e); }
+  }, 20000);
+}
+
+// ── No leídas ──
+function novVistoKey(){ return 'nov_visto_'+novMail(); }
+function novVisto(){ try{ return Number(localStorage.getItem(novVistoKey()))||0; }catch(e){ return 0; } }
+function novMarcarVisto(){ try{ localStorage.setItem(novVistoKey(), String(Date.now())); }catch(e){} }
+function novVisibles(){ return NOVEDADES.filter(n=>novPuedeVer(n.mod)); }
+function novNoLeidas(){
+  const v=novVisto(), yo=novMail();
+  return novVisibles().filter(n=>n.ts>v && n.quien!==yo).length + NOV_SISTEMA.filter(s=>new Date(s.f+'T23:59:59').getTime()>v && v>0).length;
+}
+function novPintarBadge(){
+  const n=novNoLeidas();
+  document.querySelectorAll('.nov-badge').forEach(el=>{ el.textContent=n>99?'99+':n; el.style.display=n?'':'none'; });
+}
+
+// ── Pantalla ──
+const NOV_VERBO={crear:'creó', editar:'cambió', borrar:'borró', restaurar:'restauró', estado:'cambió el estado de', precios:'actualizó precios', cierre:'cerró la producción de', duplicar:'duplicó'};
+const NOV_ICON={crear:'🟢', editar:'✏️', borrar:'🗑', restaurar:'♻', estado:'🔄', precios:'💲', cierre:'✅', duplicar:'⧉'};
+function novSetFiltro(f){ _novFiltro=f; renderNovedades(); }
+function novToggle(id){ if(_novAbiertos.has(id)) _novAbiertos.delete(id); else _novAbiertos.add(id); renderNovedades(); }
+function novDia(ts){
+  const d=new Date(ts), hoy=new Date(); hoy.setHours(0,0,0,0);
+  const dd=new Date(d); dd.setHours(0,0,0,0);
+  const dif=Math.round((hoy-dd)/86400000);
+  if(dif===0) return 'Hoy';
+  if(dif===1) return 'Ayer';
+  return d.toLocaleDateString('es-AR',{weekday:'long', day:'2-digit', month:'2-digit'});
+}
+function renderNovedades(){
+  const cont=document.getElementById('nov-cont'); if(!cont) return;
+  const mods=Object.entries(NOV_MODS).filter(([k])=>novPuedeVer(k));
+  const vis=novVisibles();
+  const cuenta=k=>k==='todo'?vis.length:vis.filter(n=>n.mod===k).length;
+  const chip=(k,txt)=>`<button type="button" class="presu-seg-chip ${_novFiltro===k?'on':''}" onclick="novSetFiltro('${k}')">${txt}${k==='sistema'?'':`<b>${cuenta(k)}</b>`}</button>`;
+  const personas=[...new Set(vis.map(n=>n.quien))].sort();
+  let html=`<div class="nov-barra">
+    <div class="presu-seg-chips">${chip('todo','Todo')}${mods.map(([k,m])=>chip(k,m.icon+' '+m.lbl)).join('')}${chip('sistema','⚙️ Sistema')}</div>
+    ${_novFiltro==='sistema'?'':`<div style="display:flex;gap:8px;flex-wrap:wrap">
+      <select onchange="_novPersona=this.value;renderNovedades()" style="font-size:12px"><option value="">Todas las personas</option>${personas.map(p=>`<option value="${escH(p)}" ${_novPersona===p?'selected':''}>${escH(novNombre(p))}</option>`).join('')}</select>
+      <input type="text" placeholder="🔍 Buscar…" value="${escH(_novQ)}" oninput="_novQ=this.value;clearTimeout(window._novQT);window._novQT=setTimeout(renderNovedades,250)" style="font-size:12px;min-width:180px">
+    </div>`}
+  </div>`;
+  if(_novFiltro==='sistema'){
+    html+=NOV_SISTEMA.map(s=>{
+      const nuevo=_novVistoPrev && new Date(s.f+'T23:59:59').getTime()>_novVistoPrev;
+      return `<div class="nov-item"><div class="nov-ico">⚙️</div><div class="nov-cuerpo"><div class="nov-linea">${s.t}${nuevo?' <span class="nov-nuevo">Nuevo</span>':''}</div><div class="nov-meta">${novTxt(s.f)}</div></div></div>`;
+    }).join('');
+    cont.innerHTML=html; return;
+  }
+  const q=prodNorm(_novQ);
+  const lista=vis.filter(n=>(_novFiltro==='todo'||n.mod===_novFiltro) && (!_novPersona||n.quien===_novPersona) &&
+    (!q || prodNorm([n.titulo,n.que,novNombre(n.quien),...(n.det||[]).map(x=>x.c+' '+x.a+' '+x.d)].join(' ')).includes(q)));
+  if(!lista.length){ cont.innerHTML=html+'<div class="empty">No hay novedades para mostrar.</div>'; return; }
+  let diaAnt='';
+  html+=lista.slice(0,400).map(n=>{
+    const dia=novDia(n.ts);
+    const encab=dia!==diaAnt?`<div class="nov-dia">${escH(dia)}</div>`:''; diaAnt=dia;
+    const det=n.det||[], abierto=_novAbiertos.has(n._id);
+    const verDet=det.slice(0, abierto?det.length:3).map(x=>`<div class="nov-det"><span>${escH(x.c)}</span>${x.d==='(cambió)'&&!x.a?'<em>cambió</em>':`<s>${escH(x.a)}</s> → <b>${escH(x.d)}</b>`}</div>`).join('');
+    const nuevo=_novVistoPrev && n.ts>_novVistoPrev && n.quien!==novMail();
+    const m=NOV_MODS[n.mod]||{};
+    const botones=[];
+    if(n.ref && n.acc!=='borrar') botones.push(`<button class="btn btn-outline" style="padding:2px 9px;font-size:11px" onclick="novIr('${n._id}')">Ir →</button>`);
+    if(n.acc==='borrar' && n.tieneCopia && !n.restaurado) botones.push(`<button class="btn btn-outline" style="padding:2px 9px;font-size:11px;color:var(--green);border-color:rgba(45,122,90,.4)" onclick="novRestaurar('${n._id}')">♻ Restaurar</button>`);
+    if(n.restaurado) botones.push('<span style="font-size:11px;color:var(--green)">♻ Restaurado</span>');
+    return encab+`<div class="nov-item ${nuevo?'nov-es-nuevo':''}">
+      <div class="nov-ico">${NOV_ICON[n.acc]||'•'}</div>
+      <div class="nov-cuerpo">
+        <div class="nov-linea"><b>${escH(novNombre(n.quien))}</b> ${NOV_VERBO[n.acc]||n.acc} ${escH(n.que||'')} <b>${escH(n.titulo||'')}</b>${nuevo?' <span class="nov-nuevo">Nuevo</span>':''}</div>
+        ${verDet}${det.length>3?`<button class="nov-mas" onclick="novToggle('${n._id}')">${abierto?'ver menos':'ver '+(det.length-3)+' más'}</button>`:''}
+        <div class="nov-meta">${new Date(n.ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}${_novFiltro==='todo'&&m.lbl?' · '+m.icon+' '+m.lbl:''}</div>
+      </div>
+      <div class="nov-btns">${botones.join('')}</div>
+    </div>`;
+  }).join('');
+  cont.innerHTML=html;
+}
+function abrirNovedades(){
+  _novVistoPrev=novVisto();
+  novMarcarVisto();
+  novPintarBadge();
+  renderNovedades();
+}
+
+// ── Ir al elemento ──
+function novIr(id){
+  const n=NOVEDADES.find(x=>x._id===id); if(!n||!n.ref) return;
+  const r=n.ref;
+  try{
+    if(r.tipo==='presupuesto'){ cambiarModulo('presupuestos'); setTimeout(()=>abrirModalPresupuesto(r.id),50); }
+    else if(r.tipo==='cotizacion'){ cambiarModulo('cotizacion'); setTimeout(()=>cotizAbrir(r.id),50); }
+    else if(r.tipo==='evento'){ cambiarModulo('comanda'); setTimeout(()=>{ abrirPeriodo(r.per); if(r.id) abrirEvento(r.per, r.id); },50); }
+    else if(r.tipo==='periodo'){ cambiarModulo('comanda'); setTimeout(()=>abrirPeriodo(r.per),50); }
+    else if(r.tipo==='sub'){ cambiarModulo('produccion'); switchTab('subproductos'); setTimeout(()=>abrirModalSub(r.nombre),50); }
+    else if(r.tipo==='plato'){ cambiarModulo('produccion'); switchTab('platos'); setTimeout(()=>abrirModalPlato(r.nombre),50); }
+    else if(r.tipo==='insumo'){ cambiarModulo('produccion'); switchTab('insumos'); setTimeout(()=>{ const s=document.getElementById('ins-search'); if(s){ s.value=r.nombre||''; renderInsumos(); } },50); }
+    else if(r.tipo==='proveedor'){ cambiarModulo('produccion'); switchTab('proveedores'); }
+    else if(r.tipo==='produccion'){ cambiarModulo('produccion'); switchTab('prod_eventos'); setTimeout(()=>prodAbrir(r.id),50); }
+    else if(r.tipo==='cliente'){ cambiarModulo('comanda'); switchTab('comanda_clientes'); }
+    else if(r.tipo==='stock'){ cambiarModulo('stock'); switchTab('stock_historial'); }
+  }catch(e){ console.warn('Novedades: no se pudo abrir', e); }
+}
+
+// ── Restaurar lo borrado ──
+async function novRestaurar(id){
+  const n=NOVEDADES.find(x=>x._id===id); if(!n) return;
+  let copia;
+  try{ const s=await FB_COL_NOV_COPIAS.doc(id).get(); copia=s.exists?s.data():null; }catch(e){ alert('No se pudo leer la copia: '+e.message); return; }
+  if(!copia){ alert('No hay copia guardada de esto.'); return; }
+  const col=fbDb.collection(copia.col);
+  try{
+    const ya=await col.doc(copia.id).get();
+    if(ya.exists){ alert('Ya existe en el sistema (no hace falta restaurarlo).'); return; }
+    if(!confirm('Restaurar '+(n.que||'')+' «'+(n.titulo||'')+'» tal cual estaba cuando se borró?\n\nNo se toca ningún otro dato.')) return;
+    if(copia.col==='comanda_eventos' && copia.data.periodo_id && !(DB.comanda.periodos||[]).find(p=>p.id===copia.data.periodo_id)){
+      const m=/^p_(\d+)_(\d+)$/.exec(copia.data.periodo_id);
+      if(m) await FB_COL_PERIODOS.doc(copia.data.periodo_id).set({mes:parseInt(m[1],10), anio:parseInt(m[2],10), updated_at:new Date().toISOString()});
+    }
+    await col.doc(copia.id).set({...copia.data, updated_at:new Date().toISOString()});
+    if(copia.col==='subproductos' && copia.data.nombre && !DB.maestro_subs.includes(copia.data.nombre)){ DB.maestro_subs.push(copia.data.nombre); guardarMaestroSubs(); }
+    if(copia.col==='platos' && copia.data.nombre && !DB.maestro_platos.includes(copia.data.nombre)){ DB.maestro_platos.push(copia.data.nombre); guardarMaestroPlatos(); }
+    await FB_COL_NOV.doc(id).update({restaurado:true});
+    novRegistrar({mod:n.mod, acc:'restaurar', que:n.que, titulo:n.titulo, ref:n.ref});
+    alert('✅ Restaurado.');
+  }catch(e){ alert('⚠ No se pudo restaurar: '+e.message); }
+}
+
+// ── Ayudas para los registros de cada módulo ──
+const NOV_CAMPOS_INSUMO={nombre:'Nombre', precio_formato:'Precio del formato', formato:'Formato', formato_kg:'Kg del formato', costo:'Costo por kg', proveedor:'Proveedor', unidad:'Unidad'};
+const NOV_CAMPOS_PROV={proveedor:'Proveedor', rubro:'Rubro', razon_social:'Razón social', vendedor:'Vendedor', mail:'Mail', telefono:'Teléfono', cuit:'CUIT'};
+const NOV_CAMPOS_PRESU={cliente:'Cliente', tipoEvento:'Tipo de evento', fechaEvento:'Fecha del evento', cantidadPersonas:'Personas', lugar:'Lugar',
+  horarioInicio:'Hora de inicio', horarioFin:'Hora de fin', referentes:'Solicitante', salonCamareros:'Camareros', salonPrecio:'Precio servicio de salón',
+  estaciones:'Estaciones del menú', precios:'Precios', incluye:'Incluye', noIncluye:'No incluye', clausulas:'Términos', menuIntro:'Intro del menú'};
+const NOV_CAMPOS_COTIZ={titulo:'Evento', cliente:'Cliente', fecha:'Fecha', personas:'Personas', precioPersona:'Precio por persona'};
+const NOV_CAMPOS_CLIENTE={nombre_cliente:'Nombre', razon_social:'Razón social', cuit:'CUIT', contacto1_nombre:'Contacto', contacto1_telefono:'Teléfono', contacto1_email:'Mail', direccion_evento:'Dirección', localidad:'Localidad', obs_generales:'Observaciones'};
+let _novLblEvento=null;
+function novCamposEvento(){
+  if(_novLblEvento) return _novLblEvento;
+  const m={};
+  try{ COMANDA_TEMPLATE.forEach(sh=>sh.campos.forEach(c=>{
+    if(c.key) m[c.key]=c.label||c.seccion||c.key;
+    if(c.keys) c.keys.forEach(k=>{ m[k.k]=k.label||k.k; });
+    if(c.campos) c.campos.forEach(f=>{ if(f.key) m[f.key]=f.label||f.key; });
+  })); }catch(e){}
+  return _novLblEvento=m;
+}
+// Receta: foto antes de guardar y comparación después.
+function novRecetaSnap(tipo, nombre){
+  if(!nombre) return null;
+  const filas=tipo==='sub'?DB.subproductos.filter(x=>x.subproducto===nombre):DB.recetas_platos.filter(x=>x.plato===nombre);
+  const cfg=(tipo==='sub'?DB.subs_config:DB.platos_config)||{};
+  if(!filas.length && !cfg[nombre]) return null;
+  return {nombre, filas:filas.map(f=>({c:f.componente, kg:parseFloat(f.kgs)||0, m:parseFloat(f.merma)||0})), rinde:parseFloat((cfg[nombre]||{}).rendimiento_unidades)||0};
+}
+function novRecetaGuardada(tipo, antes, nombre){
+  const despues=novRecetaSnap(tipo, nombre);
+  const que=tipo==='sub'?'el subproducto':'el plato';
+  const ref={tipo:tipo==='sub'?'sub':'plato', nombre};
+  const corto=String(nombre).replace(/^(SUB|PLATO) - /,'');
+  if(!antes){ novRegistrar({mod:'produccion', acc:'crear', que, titulo:corto, ref}); return; }
+  const det=[];
+  if(antes.nombre!==nombre) det.push({c:'Nombre', a:antes.nombre.replace(/^(SUB|PLATO) - /,''), d:corto});
+  const mapA=new Map(antes.filas.map(f=>[f.c,f])), mapD=new Map(((despues&&despues.filas)||[]).map(f=>[f.c,f]));
+  const nom=c=>(typeof prodNombreComp==='function'?prodNombreComp(c):String(c));
+  mapD.forEach((f,c)=>{
+    const a=mapA.get(c);
+    if(!a) det.push({c:'+ '+nom(c), a:'—', d:novTxt(f.kg)+' kg'});
+    else{
+      if(a.kg!==f.kg) det.push({c:nom(c)+' (kg)', a:novTxt(a.kg), d:novTxt(f.kg)});
+      if(a.m!==f.m) det.push({c:nom(c)+' (merma %)', a:novTxt(a.m), d:novTxt(f.m)});
+    }
+  });
+  mapA.forEach((a,c)=>{ if(!mapD.has(c)) det.push({c:'− '+nom(c), a:novTxt(a.kg)+' kg', d:'(sacado)'}); });
+  if(despues && antes.rinde!==despues.rinde) det.push({c:'Rinde', a:novTxt(antes.rinde), d:novTxt(despues.rinde)});
+  novRegistrar({mod:'produccion', acc:'editar', que, titulo:corto, det, ref, clave:'receta:'+nombre});
+}
+function novRecetaBorrada(tipo, nombre){
+  const corto=String(nombre).replace(/^(SUB|PLATO) - /,'');
+  const filas=tipo==='sub'?DB.subproductos.filter(x=>x.subproducto===nombre):DB.recetas_platos.filter(x=>x.plato===nombre);
+  const componentes=filas.map(r=>{ const o={...r}; delete o.subproducto; delete o.plato; delete o._id; return o; });
+  const config=((tipo==='sub'?DB.subs_config:DB.platos_config)||{})[nombre]||{};
+  novRegistrar({mod:'produccion', acc:'borrar', que:tipo==='sub'?'el subproducto':'el plato', titulo:corto,
+    ref:{tipo, nombre}, copia:{col:tipo==='sub'?'subproductos':'platos', id:nombreDocSeguro(nombre), data:JSON.parse(JSON.stringify({nombre, componentes, config}))}});
+}
+function novEventoBorrado(per, ev){
+  novRegistrar({mod:'comanda', acc:'borrar', que:'el evento', titulo:ev.nombre||'', ref:{tipo:'evento', per, id:ev.id},
+    copia:{col:'comanda_eventos', id:ev.id, data:{id:ev.id, periodo_id:per, nombre:ev.nombre||'', cliente_id:(ev.datos&&ev.datos.cliente_id)||null,
+      creado:ev.creado||'', presupuesto_id:ev.presupuesto_id||null, datos:convertirArraysAnidados(JSON.parse(JSON.stringify(ev.datos||{})))}}});
+}
+function novEventoEditado(per, ev){
+  try{
+    const b=_novBase['ev:'+ev.id]; if(!b) return;
+    const a=JSON.parse(b), lbl=novCamposEvento(), det=[];
+    if(a.nombre!==ev.nombre) det.push({c:'Nombre', a:novTxt(a.nombre), d:novTxt(ev.nombre)});
+    const da=a.datos||{}, dd=ev.datos||{};
+    new Set([...Object.keys(da), ...Object.keys(dd)]).forEach(k=>{
+      if(k==='menu_presupuesto') return;
+      const ja=JSON.stringify(da[k]===undefined?'':da[k]), jd=JSON.stringify(dd[k]===undefined?'':dd[k]);
+      if(ja===jd) return;
+      const c=lbl[k]||k.replace(/_/g,' ');
+      if(typeof dd[k]==='object' || typeof da[k]==='object') det.push({c, a:'', d:'(cambió)'});
+      else det.push({c, a:novTxt(da[k]), d:novTxt(dd[k])});
+    });
+    novRegistrar({mod:'comanda', acc:'editar', que:'el evento', titulo:ev.nombre||'', det, ref:{tipo:'evento', per, id:ev.id}, clave:'ev:'+ev.id});
+  }catch(e){}
+}
+// Copia de un documento tal como está en el servidor (para poder restaurarlo).
+async function novCopiaDoc(col, id){
+  try{ const s=await fbDb.collection(col).doc(String(id)).get(); return s.exists?s.data():null; }catch(e){ return null; }
+}
+
+// ══════════════════════════════════════════════════════════════════
 //  PRODUCCIÓN → "Eventos a producir"
 //  Eventos de Fichas Técnicas que vienen de un presupuesto Confirmado
 //  (campo presupuesto_id del evento). Tres pasos, uno por pantalla:
@@ -11909,6 +12310,10 @@ async function prodCerrarReceta(idx){
   d.cierres[r]={planificado:j.planificado, factor:j.factor, salio, unidad:prodUnidad(r), mermas, rAntes, rDespues,
     fecha:new Date().toISOString(), por:(fbAuth.currentUser&&fbAuth.currentUser.email)||''};
   await prodGuardarYa();
+  { const evN=(prodEventos().find(e=>e.id===_prodAbierto)||{}).nombre||'';
+    novRegistrar({mod:'produccion', acc:'cierre', que:'', titulo:prodCorto(r)+(evN?' · '+evN:''),
+      det:[{c:'Planificado', a:'', d:prodNum(j.planificado,2)+' '+lbl},{c:'Salieron', a:'', d:prodNum(salio,2)+' '+lbl},{c:'Rinde la receta', a:prodNum(rAntes,2), d:prodNum(rDespues,2)}],
+      ref:{tipo:'produccion', id:_prodAbierto}}); }
   try{ renderSubproductos(); renderPlatos(); }catch(e){}
   renderProdEventos();
   prodVentana(idx, 'cerrar');
@@ -12075,6 +12480,7 @@ async function presuSegCambiar(id, nuevo){
   _presuSegOcupado=true;
   try{
     if(antes==='confirmado' && p.eventoFichaId){
+      { const per=p.eventoFichaPeriodo, ev=((DB.comanda.eventos||{})[per]||[]).find(e=>e.id===p.eventoFichaId); if(ev) novEventoBorrado(per, ev); }
       await FB_COL_EVENTOS.doc(p.eventoFichaId).delete();
       cambios.eventoFichaId=null; cambios.eventoFichaPeriodo=null;
     }
@@ -12087,6 +12493,7 @@ async function presuSegCambiar(id, nuevo){
     Object.assign(p, cambios);
     marcarSincronizado();
     renderPresupuestos();
+    novRegistrar({mod:'presupuestos', acc:'estado', que:'el presupuesto', titulo:[p.cliente,p.tipoEvento].filter(Boolean).join(' · '), det:[{c:'Estado', a:PRESU_SEG[antes].lbl, d:PRESU_SEG[nuevo].lbl}], ref:{tipo:'presupuesto', id}});
     if(creado) presuSegAviso('✅ Confirmado. Se creó el evento "'+creado.nombre+'" en Fichas Técnicas, período '+MESES[creado.mes]+' '+creado.anio+(creado.sinFecha?' (sin fecha: cargala en la ficha).':'.'));
     else if(cambios.eventoFichaId===null) presuSegAviso('Pasado a "'+PRESU_SEG[nuevo].lbl+'". Se borró el evento de Fichas Técnicas.', 'rgba(90,90,90,.92)');
   }catch(e){
@@ -12678,6 +13085,9 @@ async function presuGuardarDesdeModal({cerrar}){
       return null;
     }
     const existente=DB.presupuestos.find(x=>x._id===id);
+    { const tit=[datos.cliente,datos.tipoEvento].filter(Boolean).join(' · ');
+      if(existente) novRegistrar({mod:'presupuestos', acc:'editar', que:'el presupuesto', titulo:tit, det:novDiff(existente, datos, NOV_CAMPOS_PRESU), ref:{tipo:'presupuesto', id}, clave:'presu:'+id});
+      else novRegistrar({mod:'presupuestos', acc:'crear', que:'el presupuesto', titulo:tit, ref:{tipo:'presupuesto', id}}); }
     if(existente) Object.assign(existente, datos);
     else DB.presupuestos.unshift({_id:id, ...datos});
     _presuGuardadoJSON=JSON.stringify(presuRecolectarDatosDesdeModal());
@@ -12731,11 +13141,13 @@ async function duplicarPresupuesto(id){
   }
   if(!DB.presupuestos.find(p=>p._id===nuevoId)) DB.presupuestos.unshift({_id:nuevoId, ...datos});
   renderPresupuestos();
+  novRegistrar({mod:'presupuestos', acc:'duplicar', que:'el presupuesto', titulo:[orig.cliente,orig.tipoEvento].filter(Boolean).join(' · '), ref:{tipo:'presupuesto', id:nuevoId}});
   abrirModalPresupuesto(nuevoId);
   showAlert('modal-presu-alert','success','⧉ Presupuesto duplicado: estás editando la copia.');
 }
 function delPresupuesto(id){
-  if(!confirm('¿Eliminar este presupuesto? Esta acción no se puede deshacer.')) return;
+  if(!confirm('¿Eliminar este presupuesto?')) return;
+  { const x=DB.presupuestos.find(p=>p._id===id); if(x){ const {_id,...d}=x; novRegistrar({mod:'presupuestos', acc:'borrar', que:'el presupuesto', titulo:[x.cliente,x.tipoEvento].filter(Boolean).join(' · '), ref:{tipo:'presupuesto', id}, copia:{col:'presupuestos', id, data:JSON.parse(JSON.stringify(d))}}); } }
   DB.presupuestos=DB.presupuestos.filter(p=>p._id!==id);
   renderPresupuestos();
   eliminarPresupuestoDoc(id);
