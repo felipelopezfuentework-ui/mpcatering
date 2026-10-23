@@ -1331,7 +1331,7 @@ tr.rec-clic:hover td{background:var(--accent-light)}
 <!-- Modal: detalle evento (tabs del Excel) -->
 <div class="modal-ov" id="modal-evento-detalle">
   <div class="modal" style="max-width:1400px;width:99vw;max-height:90vh;overflow-y:auto">
-    <div class="modal-hd" style="position:sticky;top:0;background:var(--surface);z-index:10;padding-bottom:10px">
+    <div class="modal-hd" style="position:sticky;top:0;background:var(--surface);z-index:10;padding-bottom:0;flex-wrap:wrap;margin-bottom:0;border-bottom:none">
       <span class="modal-title" id="modal-evento-titulo">Evento</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="exportarEventoPDF()">📄 PDF Completo</button>
@@ -1339,9 +1339,10 @@ tr.rec-clic:hover td{background:var(--accent-light)}
         <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModalEvento()">✕ Cerrar</button>
       </div>
       <div style="font-size:10px;color:var(--text3);margin-top:6px;white-space:nowrap">🔴 Fondo rojo = campo editable vacío &nbsp;&nbsp;|&nbsp;&nbsp; 🟣 Fondo violeta = campo que se edita desde otra solapa o desde el Maestro de Clientes</div>
+      <!-- Tabs del Excel: dentro del encabezado para que queden fijas al bajar -->
+      <div style="display:flex;gap:2px;flex-wrap:wrap;border-bottom:2px solid var(--border);margin-top:8px;padding-bottom:0;width:100%;flex-basis:100%" id="evento-sheet-tabs"></div>
     </div>
-    <!-- Tabs del Excel -->
-    <div style="display:flex;gap:2px;flex-wrap:wrap;border-bottom:2px solid var(--border);margin-bottom:16px;padding-bottom:0" id="evento-sheet-tabs"></div>
+    <div style="height:12px"></div>
     <!-- Contenido de cada pestaña -->
     <div id="evento-sheet-content"></div>
   </div>
@@ -8304,8 +8305,9 @@ async function comandaPitrRecuperar(i){
 function abrirPeriodo(periodoId){
   comandaPeriodoActual = periodoId;
   const p = DB.comanda.periodos.find(x=>x.id===periodoId);
+  // Más nuevos arriba: las fechas más viejas van quedando abajo (sin fecha, arriba de todo).
   const evs = [...(DB.comanda.eventos[periodoId]||[])].sort((a,b)=>
-    (a.datos?.fecha||'9999-99-99').localeCompare(b.datos?.fecha||'9999-99-99'));
+    (b.datos?.fecha||'9999-99-99').localeCompare(a.datos?.fecha||'9999-99-99'));
   const rangoFecha = getRangoFechaPeriodo(periodoId);
   const fechaMinMaxAttrs = rangoFecha ? ` min="${rangoFecha.min}" max="${rangoFecha.max}"` : '';
   const c = document.getElementById('comanda-periodos-list');
@@ -9681,6 +9683,7 @@ function htmlTablaMenuSecciones(c, datos){
   let h = `<div style="margin-bottom:16px">`;
   h += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">`;
   if(!secciones.length) h += `<button class="btn btn-outline" style="font-size:11px" onclick="pegarMenuPortapapeles('${key}',${c.cols.length})">📋 Pegar menú</button>`;
+  if(!secciones.length) h += `<button class="btn btn-outline" style="font-size:11px" onclick="copiarSeccionMenu('${key}',-1,this)" title="Copia los platos uno abajo del otro, para pegar en un chat">⧉ Copiar para chat</button>`;
   h += `<button class="btn btn-primary" style="font-size:11px" onclick="agregarSeccionMenu('${key}')">＋ Agregar sección</button>`;
   h += `</div>`;
 
@@ -9697,6 +9700,7 @@ function htmlTablaMenuSecciones(c, datos){
         oninput="renombrarSeccionMenu('${key}',${secIdx},this.value)"
         style="font-weight:700;font-size:13px;background:transparent;border:none;border-bottom:2px solid var(--mp-gold);color:var(--text);padding:4px 2px;flex:1;min-width:180px;max-width:340px;outline:none">
       <button class="btn btn-outline" style="font-size:11px;white-space:nowrap" onclick="pegarMenuPortapapelesSeccion('${key}',${secIdx},${c.cols.length})" title="Pegar contenido solo en esta sección">📋 Pegar</button>
+      <button class="btn btn-outline" style="font-size:11px;white-space:nowrap" onclick="copiarSeccionMenu('${key}',${secIdx},this)" title="Copia el título y los platos uno abajo del otro, para pegar en un chat">⧉ Copiar para chat</button>
       <button class="btn btn-danger" style="font-size:11px;white-space:nowrap" onclick="eliminarSeccionMenu('${key}',${secIdx})" title="Eliminar sección">🗑 Eliminar sección</button>
     </div>`;
     h += `<div class="tw" style="overflow-x:auto"><table style="min-width:700px;table-layout:fixed;width:100%">
@@ -9733,6 +9737,25 @@ function htmlTablaMenuSecciones(c, datos){
   return h;
 }
 
+// Copia al portapapeles el título de la sección y sus platos, uno abajo del
+// otro (secIdx -1 = menú sin secciones).
+async function copiarSeccionMenu(key, secIdx, btn){
+  const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
+  if(!ev) return;
+  const sec = secIdx>=0 ? (ev.datos[key+'_secciones']||[])[secIdx] : {nombre:'', filas:ev.datos[key]||[]};
+  if(!sec) return;
+  const platos = (sec.filas||[]).map(r=>String((Array.isArray(r)?r[0]:'')||'').trim()).filter(Boolean);
+  const titulo = String(sec.nombre||'').trim();
+  const texto = [titulo, ...platos].filter(Boolean).join('\n');
+  if(!texto){ alert('No hay platos para copiar.'); return; }
+  let ok=false;
+  try{ await navigator.clipboard.writeText(texto); ok=true; }catch(e){}
+  if(!ok){
+    try{ const ta=document.createElement('textarea'); ta.value=texto; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); ok=document.execCommand('copy'); ta.remove(); }catch(e){}
+  }
+  if(!ok){ prompt('Copiá este texto:', texto); return; }
+  if(btn){ const t=btn.textContent; btn.textContent='✓ Copiado'; setTimeout(()=>{ btn.textContent=t; },1600); }
+}
 function agregarSeccionMenu(key){
   const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
   if(!ev) return;
@@ -11525,6 +11548,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-10-23', t:'Fichas Técnicas: las solapas de la ficha quedan fijas al bajar, botón <b>⧉ Copiar para chat</b> en cada sección del menú y los eventos del período ordenados con el más nuevo arriba.'},
   {f:'2026-10-23', t:'Nuevo módulo <b>Novedades</b>: cada cambio queda registrado por módulo, con quién lo hizo y qué cambió. Lo borrado se puede restaurar desde acá.'},
   {f:'2026-10-23', t:'Fichas Técnicas: <b>♻ Recuperar eventos borrados</b> mirando cómo estaba el sistema en un momento de los últimos 7 días.'},
   {f:'2026-10-23', t:'Presupuestos: en "⋯" de un confirmado sin evento, <b>Crear evento en Fichas Técnicas</b>.'},
