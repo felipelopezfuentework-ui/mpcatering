@@ -9683,7 +9683,7 @@ function htmlTablaMenuSecciones(c, datos){
   let h = `<div style="margin-bottom:16px">`;
   h += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">`;
   if(!secciones.length) h += `<button class="btn btn-outline" style="font-size:11px" onclick="pegarMenuPortapapeles('${key}',${c.cols.length})">📋 Pegar menú</button>`;
-  if(!secciones.length) h += `<button class="btn btn-outline" style="font-size:11px" onclick="copiarSeccionMenu('${key}',-1,this)" title="Copia los platos uno abajo del otro, para pegar en un chat">⧉ Copiar para chat</button>`;
+  if(!secciones.length) h += `<button class="btn btn-outline" style="font-size:11px" onclick="copiarSeccionMenu('${key}',-1,this)" title="Copia los platos uno abajo del otro, para pegar en un chat">⧉ Copiar</button>`;
   h += `<button class="btn btn-primary" style="font-size:11px" onclick="agregarSeccionMenu('${key}')">＋ Agregar sección</button>`;
   h += `</div>`;
 
@@ -9700,7 +9700,7 @@ function htmlTablaMenuSecciones(c, datos){
         oninput="renombrarSeccionMenu('${key}',${secIdx},this.value)"
         style="font-weight:700;font-size:13px;background:transparent;border:none;border-bottom:2px solid var(--mp-gold);color:var(--text);padding:4px 2px;flex:1;min-width:180px;max-width:340px;outline:none">
       <button class="btn btn-outline" style="font-size:11px;white-space:nowrap" onclick="pegarMenuPortapapelesSeccion('${key}',${secIdx},${c.cols.length})" title="Pegar contenido solo en esta sección">📋 Pegar</button>
-      <button class="btn btn-outline" style="font-size:11px;white-space:nowrap" onclick="copiarSeccionMenu('${key}',${secIdx},this)" title="Copia el título y los platos uno abajo del otro, para pegar en un chat">⧉ Copiar para chat</button>
+      <button class="btn btn-outline" style="font-size:11px;white-space:nowrap" onclick="copiarSeccionMenu('${key}',${secIdx},this)" title="Copia el título y los platos uno abajo del otro, para pegar en un chat">⧉ Copiar</button>
       <button class="btn btn-danger" style="font-size:11px;white-space:nowrap" onclick="eliminarSeccionMenu('${key}',${secIdx})" title="Eliminar sección">🗑 Eliminar sección</button>
     </div>`;
     h += `<div class="tw" style="overflow-x:auto"><table style="min-width:700px;table-layout:fixed;width:100%">
@@ -11548,7 +11548,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
-  {f:'2026-10-23', t:'Fichas Técnicas: las solapas de la ficha quedan fijas al bajar, botón <b>⧉ Copiar para chat</b> en cada sección del menú y los eventos del período ordenados con el más nuevo arriba.'},
+  {f:'2026-10-23', t:'Fichas Técnicas: las solapas de la ficha quedan fijas al bajar, botón <b>⧉ Copiar</b> en cada sección del menú y los eventos del período ordenados con el más nuevo arriba.'},
   {f:'2026-10-23', t:'Nuevo módulo <b>Novedades</b>: cada cambio queda registrado por módulo, con quién lo hizo y qué cambió. Lo borrado se puede restaurar desde acá.'},
   {f:'2026-10-23', t:'Fichas Técnicas: <b>♻ Recuperar eventos borrados</b> mirando cómo estaba el sistema en un momento de los últimos 7 días.'},
   {f:'2026-10-23', t:'Presupuestos: en "⋯" de un confirmado sin evento, <b>Crear evento en Fichas Técnicas</b>.'},
