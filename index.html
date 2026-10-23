@@ -11930,6 +11930,27 @@ async function presuSegCrearEvento(p){
   });
   return {id, periodoId, mes, anio, nombre, sinFecha:!f};
 }
+// Presupuesto confirmado que se quedó sin evento en Fichas Técnicas (se borró):
+// desde "⋯" se vuelve a crear con los datos y el menú del presupuesto.
+function presuTieneEvento(p){
+  if(!p || !p.eventoFichaId) return false;
+  return Object.values((DB.comanda&&DB.comanda.eventos)||{}).some(evs=>(evs||[]).some(e=>e.id===p.eventoFichaId));
+}
+async function presuRecrearEvento(id){
+  const p=(DB.presupuestos||[]).find(x=>x._id===id);
+  if(!p || presuTieneEvento(p)) return;
+  if(!confirm('Se crea de nuevo el evento en Fichas Técnicas con los datos y el menú de este presupuesto.\n\nOjo: lo que se haya cargado a mano en la ficha borrada no se recupera.\n\n¿Seguir?')) return;
+  try{
+    const creado=await presuSegCrearEvento(p);
+    await FB_COL_PRESUPUESTOS.doc(String(id)).update({eventoFichaId:creado.id, eventoFichaPeriodo:creado.periodoId, updated_at:new Date().toISOString()});
+    p.eventoFichaId=creado.id; p.eventoFichaPeriodo=creado.periodoId;
+    renderPresupuestos();
+    presuSegAviso('✅ Se creó el evento "'+creado.nombre+'" en Fichas Técnicas, período '+MESES[creado.mes]+' '+creado.anio+'. También aparece en Eventos a producir.');
+  }catch(e){
+    marcarErrorSincronizacion(e);
+    alert('⚠ No se pudo crear el evento (revisá la conexión a internet).\n\n'+e.message);
+  }
+}
 let _presuSegOcupado=false;
 async function presuSegCambiar(id, nuevo){
   const p=(DB.presupuestos||[]).find(x=>x._id===id);
@@ -11990,7 +12011,7 @@ function renderPresupuestos(){
       <td style="white-space:nowrap;width:1%"><div style="display:flex;flex-wrap:nowrap;gap:6px">
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="abrirModalPresupuesto(${p._id})">✎ Editar</button>
         <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="mpMenuAbrir(this,[{icon:'👁',label:'Ver PDF',accion:()=>generarPresupuestoPDF(${p._id},'ver')},{icon:'⬇',label:'Descargar PDF',accion:()=>generarPresupuestoPDF(${p._id},'descargar')}])">📄 PDF ▾</button>
-        <button class="btn btn-outline mp-mas" title="Más opciones" onclick="mpMenuAbrir(this,[{icon:'⧉',label:'Duplicar',accion:()=>duplicarPresupuesto(${p._id})},'-',{icon:'🗑',label:'Eliminar',peligro:true,accion:()=>delPresupuesto(${p._id})}])">⋯</button>
+        <button class="btn btn-outline mp-mas" title="Más opciones" onclick="mpMenuAbrir(this,[{icon:'⧉',label:'Duplicar',accion:()=>duplicarPresupuesto(${p._id})},${presuSegEstado(p)==='confirmado'&&!presuTieneEvento(p)?`{icon:'📋',label:'Crear evento en Fichas Técnicas',accion:()=>presuRecrearEvento(${p._id})},`:''}'-',{icon:'🗑',label:'Eliminar',peligro:true,accion:()=>delPresupuesto(${p._id})}])">⋯</button>
       </div></td>
     </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">${(DB.presupuestos||[]).length?'No hay presupuestos en este estado.':'Todavía no hay presupuestos. Hacé clic en "+ Nuevo presupuesto".'}</td></tr>`;
 }
