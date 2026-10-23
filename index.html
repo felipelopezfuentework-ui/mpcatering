@@ -8164,6 +8164,8 @@ function comandaRecuperables(){
   return [...vistos.values()];
 }
 function comandaRecuperarAbrir(){
+  // Si los eventos todavía no terminaron de cargar, todos parecerían "borrados".
+  if(!_comandaEventosCargados){ alert('El sistema todavía está terminando de cargar los eventos. Esperá unos segundos y volvé a tocar el botón.'); return; }
   _comandaRecuperables=comandaRecuperables();
   if(!_comandaRecuperables.length){
     mpModalGen('♻ Recuperar eventos borrados', `<div style="font-size:13px;line-height:1.6;color:var(--text2)">En <b>esta compu</b> no hay copia de eventos borrados.<br><br>Probá abriendo el sistema en otra compu, tablet o celular que <b>no se haya usado desde que se borró el evento</b> y tocá este mismo botón ahí.</div>`, 520);
