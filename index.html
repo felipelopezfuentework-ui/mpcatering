@@ -997,7 +997,8 @@ tr.rec-clic:hover td{background:var(--accent-light)}
   <div class="card">
     <div class="card-title" style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px">
       📋 Fichas Técnicas
-      <button class="btn btn-primary" style="margin-left:auto" onclick="abrirModalPeriodo()">+ Agregar período</button>
+      <button class="btn btn-outline" style="margin-left:auto" onclick="comandaRecuperarAbrir()" title="Busca en la copia guardada en esta compu eventos que ya no están">♻ Recuperar eventos borrados</button>
+      <button class="btn btn-primary" onclick="abrirModalPeriodo()">+ Agregar período</button>
     </div>
     <div id="comanda-periodos-list"></div>
   </div>
@@ -1824,6 +1825,25 @@ tr.rec-clic:hover td{background:var(--accent-light)}
 </div>
 
 <script>
+// Respaldo local de Fichas Técnicas: al abrir la página, ANTES de que la
+// sincronización pise la copia local (foodcost_mp_v3), se guarda la parte de
+// comanda (períodos y eventos) como respaldo del día. Se conservan los últimos
+// 5 días. Sirve para recuperar eventos borrados (comandaRecuperarAbrir).
+(function(){
+  try{
+    const prev=localStorage.getItem('foodcost_mp_v3');
+    if(!prev) return;
+    const db=JSON.parse(prev);
+    if(!db || !db.comanda || !db.comanda.eventos) return;
+    const hoy=new Date().toISOString().slice(0,10);
+    let idx=[]; try{ idx=JSON.parse(localStorage.getItem('mp_resp_idx')||'[]'); }catch(e){}
+    if(idx.includes(hoy)) return;
+    localStorage.setItem('mp_resp_'+hoy, JSON.stringify({fecha:new Date().toISOString(), comanda:db.comanda}));
+    idx.push(hoy); idx.sort();
+    while(idx.length>5){ const v=idx.shift(); localStorage.removeItem('mp_resp_'+v); }
+    localStorage.setItem('mp_resp_idx', JSON.stringify(idx));
+  }catch(e){ console.warn('No se pudo guardar el respaldo local de Fichas Técnicas', e); }
+})();
 // Umbral (fracción, valor absoluto) a partir del cual una diferencia de
 // conteo de stock ("cantidadContada" - "cantidadAnterior") se resalta como
 // alerta. 0.20 = 20%. Ajustar acá para cambiarlo en toda la app.
@@ -8118,6 +8138,86 @@ function formatFechaHoraCompacta(iso){
 }
 
 // ── Abrir período (ver lista de eventos) ─────────────────────────
+// ── Recuperar eventos borrados desde el respaldo local de esta compu ──
+function comandaRespaldos(){
+  let idx=[]; try{ idx=JSON.parse(localStorage.getItem('mp_resp_idx')||'[]'); }catch(e){}
+  const out=[];
+  idx.forEach(d=>{ try{ const r=JSON.parse(localStorage.getItem('mp_resp_'+d)||'null'); if(r&&r.comanda) out.push(r); }catch(e){} });
+  // También la copia local actual (por si todavía no se pisó)
+  try{ const db=JSON.parse(localStorage.getItem('foodcost_mp_v3')||'null'); if(db&&db.comanda) out.push({fecha:'copia actual', comanda:db.comanda}); }catch(e){}
+  return out;
+}
+let _comandaRecuperables=[];
+function comandaRecuperables(){
+  const actuales=new Set();
+  Object.values((DB.comanda&&DB.comanda.eventos)||{}).forEach(evs=>(evs||[]).forEach(e=>actuales.add(e.id)));
+  const vistos=new Map();
+  comandaRespaldos().forEach(r=>{
+    Object.entries(r.comanda.eventos||{}).forEach(([per,evs])=>(evs||[]).forEach(ev=>{
+      if(!ev || !ev.id || actuales.has(ev.id)) return;
+      // De cada evento se queda la copia más completa.
+      const llenos=Object.values(ev.datos||{}).filter(v=>v!==''&&v!==false&&v!=null&&!(Array.isArray(v)&&!v.length)).length;
+      const ant=vistos.get(ev.id);
+      if(!ant || llenos>ant.llenos) vistos.set(ev.id, {ev, per, llenos, resp:r.fecha, periodos:r.comanda.periodos||[]});
+    }));
+  });
+  return [...vistos.values()];
+}
+function comandaRecuperarAbrir(){
+  _comandaRecuperables=comandaRecuperables();
+  if(!_comandaRecuperables.length){
+    mpModalGen('♻ Recuperar eventos borrados', `<div style="font-size:13px;line-height:1.6;color:var(--text2)">En <b>esta compu</b> no hay copia de eventos borrados.<br><br>Probá abriendo el sistema en otra compu, tablet o celular que <b>no se haya usado desde que se borró el evento</b> y tocá este mismo botón ahí.</div>`, 520);
+    return;
+  }
+  const filas=_comandaRecuperables.map((x,i)=>{
+    const per=x.periodos.find(p=>p.id===x.per)||(DB.comanda.periodos||[]).find(p=>p.id===x.per);
+    const f=/^(\d{4})-(\d{2})-(\d{2})$/.exec((x.ev.datos&&x.ev.datos.fecha)||'');
+    return `<div style="display:flex;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border)">
+      <div style="flex:1"><b>${escH(x.ev.nombre||'Evento')}</b>
+        <div style="font-size:11.5px;color:var(--text3)">Período ${per?MESES[per.mes]+' '+per.anio:escH(x.per)} · ${f?f[3]+'/'+f[2]+'/'+f[1]:'sin fecha'} · ${x.llenos} campos cargados · copia del ${escH(String(x.resp).slice(0,10))}</div></div>
+      <button class="btn btn-primary" style="padding:5px 12px;font-size:11.5px" onclick="comandaRecuperarEvento(${i})">♻ Recuperar</button>
+    </div>`;
+  }).join('');
+  mpModalGen('♻ Recuperar eventos borrados', `<div style="font-size:12.5px;color:var(--text2);margin-bottom:10px">Eventos que están en la copia guardada en esta compu y ya no están en el sistema. Al recuperar, vuelven tal cual estaban (con todo lo cargado a mano).</div>${filas}`, 640);
+}
+async function comandaRecuperarEvento(i){
+  const x=_comandaRecuperables[i]; if(!x) return;
+  const ev=x.ev;
+  // Si el presupuesto ya tiene otro evento (ej. recreado), se ofrece reemplazarlo.
+  let reemplazar=null;
+  if(ev.presupuesto_id){
+    for(const [per,evs] of Object.entries((DB.comanda&&DB.comanda.eventos)||{})){
+      const o=(evs||[]).find(e=>e.presupuesto_id===ev.presupuesto_id && e.id!==ev.id);
+      if(o){ reemplazar={per, ev:o}; break; }
+    }
+  }
+  const msg='Recuperar «'+(ev.nombre||'Evento')+'» con todo lo que tenía cargado.'+
+    (reemplazar?'\n\nEse presupuesto ya tiene otro evento («'+reemplazar.ev.nombre+'», el que se volvió a crear). Se borra ese y queda el recuperado.':'')+'\n\n¿Seguir?';
+  if(!confirm(msg)) return;
+  try{
+    const perId=x.per;
+    if(!(DB.comanda.periodos||[]).find(p=>p.id===perId)){
+      const pp=x.periodos.find(p=>p.id===perId);
+      const m=/^p_(\d+)_(\d+)$/.exec(perId);
+      const mes=pp?pp.mes:(m?parseInt(m[1],10):new Date().getMonth()+1), anio=pp?pp.anio:(m?parseInt(m[2],10):new Date().getFullYear());
+      await FB_COL_PERIODOS.doc(perId).set({mes, anio, updated_at:new Date().toISOString()});
+    }
+    await FB_COL_EVENTOS.doc(ev.id).set({
+      id:ev.id, periodo_id:perId, nombre:ev.nombre||'Evento', cliente_id:(ev.datos&&ev.datos.cliente_id)||null,
+      creado:ev.creado||new Date().toLocaleDateString('es-AR'), presupuesto_id:ev.presupuesto_id||null,
+      datos:convertirArraysAnidados(ev.datos||{}), updated_at:new Date().toISOString()
+    });
+    if(reemplazar) await FB_COL_EVENTOS.doc(reemplazar.ev.id).delete();
+    if(ev.presupuesto_id){
+      try{ await FB_COL_PRESUPUESTOS.doc(String(ev.presupuesto_id)).update({eventoFichaId:ev.id, eventoFichaPeriodo:perId, seguimiento:'confirmado'}); }
+      catch(e){ console.warn('No se pudo vincular el presupuesto (se corrige solo cuando entre alguien con acceso a Presupuestos):', e); }
+    }
+    mpCerrarModalGen();
+    alert('✅ Se recuperó «'+(ev.nombre||'Evento')+'». Lo encontrás en Fichas Técnicas, en su período.');
+  }catch(e){
+    alert('⚠ No se pudo recuperar (revisá la conexión a internet).\n\n'+e.message);
+  }
+}
 function abrirPeriodo(periodoId){
   comandaPeriodoActual = periodoId;
   const p = DB.comanda.periodos.find(x=>x.id===periodoId);
