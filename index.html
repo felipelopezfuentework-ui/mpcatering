@@ -202,6 +202,15 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .presu-seg-chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .presu-seg-chip.on b{color:#fff}
 .presu-seg-badge{border:1px solid transparent;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit}
+.presu-fotos-grupo{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:10px 12px;margin-bottom:10px}
+.presu-fotos-grupo>summary{cursor:pointer;display:flex;align-items:center;gap:12px;flex-wrap:wrap;list-style:revert}
+.presu-fotos-tit{font-weight:700;font-size:13px;color:var(--text)}
+.presu-fotos-mini{display:flex;gap:4px}
+.presu-fotos-mini img{width:34px;height:34px;object-fit:cover;border-radius:5px;border:1px solid var(--border)}
+.presu-fotos-cnt{font-size:11px;color:var(--text3);margin-left:auto}
+.presu-sec-hd{border:1px solid var(--mp-gold,#c8a951);border-radius:8px;padding:10px 12px;margin:14px 0 10px;background:rgba(200,169,81,.08)}
+.presu-sec-lbl{font-size:10.5px;font-weight:800;letter-spacing:.8px;color:var(--mp-gold,#a88a35)}
+.presu-sec-input{width:100%;margin-top:6px;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.5px}
 .presu-opc{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px}
 .presu-opc-ley{font-size:11px;color:var(--text3);margin-bottom:6px;line-height:1.35}
 .presu-opc label{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--text);cursor:pointer;padding:3px 0;line-height:1.3}
@@ -1783,7 +1792,7 @@ tr.rec-clic:hover td{background:var(--accent-light)}
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
       <label style="font-size:11px;color:var(--mp-gold,var(--text3));font-weight:700;letter-spacing:.5px;display:block;margin-bottom:4px">FOTOS</label>
       <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Vienen precargadas con fotos reales de MP Catering. Reemplazalas si querés otras para este evento puntual.</div>
-      <div id="presu-fotos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px"></div>
+      <div id="presu-fotos-grid"></div>
     </div>
 
     <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
@@ -1795,7 +1804,10 @@ tr.rec-clic:hover td{background:var(--accent-light)}
         <textarea id="presu-menu-intro" rows="3" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
       </div>
       <div id="presu-estaciones-list"></div>
-      <button type="button" class="btn btn-outline" style="width:100%;margin-top:8px;border-style:dashed" onclick="presuAgregarEstacion()">+ Agregar estación</button>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button type="button" class="btn btn-outline" style="flex:1;border-style:dashed" onclick="presuAgregarSeccion()">＋ Agregar sección</button>
+        <button type="button" class="btn btn-outline" style="flex:1;border-style:dashed" onclick="presuAgregarEstacion()">+ Agregar estación</button>
+      </div>
     </div>
 
     <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
@@ -11500,21 +11512,22 @@ function presuNuevoBorrador(){
 // reusan las fotos de la 4ta. Por defecto las 4 hojas arrancan con las
 // mismas 3 fotos de stock; se pueden reemplazar cada una por separado acá.
 const PRESU_FOTOS=[
-  {key:'fotoPortada',    label:'Foto de portada (grande, tapa)',                aspect:280/157.5, default:PRESU_IMG_PORTADA},
-  {key:'fotoEvento',     label:'Foto interior — página "El evento"',            aspect:92/157.5,  default:PRESU_IMG_EVENTO},
-  {key:'fotoMenuGrande',  label:'Menú, hoja 1 — foto grande',                   aspect:0.52,      default:PRESU_IMG_MENU_GRANDE},
-  {key:'fotoMenuChica1',  label:'Menú, hoja 1 — foto chica 1',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA1},
-  {key:'fotoMenuChica2',  label:'Menú, hoja 1 — foto chica 2',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA2},
-  {key:'fotoMenuGrande2', label:'Menú, hoja 2 — foto grande',                   aspect:0.52,      default:PRESU_IMG_MENU_GRANDE},
-  {key:'fotoMenuChica2a', label:'Menú, hoja 2 — foto chica 1',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA1},
-  {key:'fotoMenuChica2b', label:'Menú, hoja 2 — foto chica 2',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA2},
-  {key:'fotoMenuGrande3', label:'Menú, hoja 3 — foto grande',                   aspect:0.52,      default:PRESU_IMG_MENU_GRANDE},
-  {key:'fotoMenuChica3a', label:'Menú, hoja 3 — foto chica 1',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA1},
-  {key:'fotoMenuChica3b', label:'Menú, hoja 3 — foto chica 2',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA2},
-  {key:'fotoMenuGrande4', label:'Menú, hoja 4 — foto grande',                   aspect:0.52,      default:PRESU_IMG_MENU_GRANDE},
-  {key:'fotoMenuChica4a', label:'Menú, hoja 4 — foto chica 1',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA1},
-  {key:'fotoMenuChica4b', label:'Menú, hoja 4 — foto chica 2',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA2},
-  {key:'fotoGracias',    label:'Foto de cierre — página "Muchas gracias"',      aspect:150/114,   default:PRESU_IMG_GRACIAS},
+  {grupo:'portada', key:'fotoPortada',    label:'Foto de portada (grande, tapa)',                aspect:280/157.5, default:PRESU_IMG_PORTADA},
+  {grupo:'portada', key:'fotoEvento',     label:'Foto interior — página "El evento"',            aspect:92/157.5,  default:PRESU_IMG_EVENTO},
+  {grupo:'menu', key:'fotoMenuGrande',  label:'Menú, hoja 1 — foto grande',                   aspect:0.52,      default:PRESU_IMG_MENU_GRANDE},
+  {grupo:'menu', key:'fotoMenuChica1',  label:'Menú, hoja 1 — foto chica 1',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA1},
+  {grupo:'menu', key:'fotoMenuChica2',  label:'Menú, hoja 1 — foto chica 2',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA2},
+  {grupo:'menu', key:'fotoMenuGrande2', label:'Menú, hoja 2 — foto grande',                   aspect:0.52,      default:PRESU_IMG_MENU_GRANDE},
+  {grupo:'menu', key:'fotoMenuChica2a', label:'Menú, hoja 2 — foto chica 1',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA1},
+  {grupo:'menu', key:'fotoMenuChica2b', label:'Menú, hoja 2 — foto chica 2',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA2},
+  {grupo:'menu', key:'fotoMenuGrande3', label:'Menú, hoja 3 — foto grande',                   aspect:0.52,      default:PRESU_IMG_MENU_GRANDE},
+  {grupo:'menu', key:'fotoMenuChica3a', label:'Menú, hoja 3 — foto chica 1',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA1},
+  {grupo:'menu', key:'fotoMenuChica3b', label:'Menú, hoja 3 — foto chica 2',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA2},
+  {grupo:'menu', key:'fotoMenuGrande4', label:'Menú, hoja 4 — foto grande',                   aspect:0.52,      default:PRESU_IMG_MENU_GRANDE},
+  {grupo:'menu', key:'fotoMenuChica4a', label:'Menú, hoja 4 — foto chica 1',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA1},
+  {grupo:'menu', key:'fotoMenuChica4b', label:'Menú, hoja 4 — foto chica 2',                  aspect:0.848,     default:PRESU_IMG_MENU_CHICA2},
+  {grupo:'menu', key:'fotoBarra',       label:'Barra clásica — foto grande de la hoja donde sale la barra', aspect:0.52, default:PRESU_IMG_BARRA},
+  {grupo:'portada', key:'fotoGracias',    label:'Foto de cierre — página "Muchas gracias"',      aspect:150/114,   default:PRESU_IMG_GRACIAS},
 ];
 // Grupos de fotos por hoja de menú (índice 0..3), usados en presuDibujarPDF.
 const PRESU_MENU_GRUPOS=[
@@ -11548,6 +11561,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-10-23', t:'Presupuestos: fotos agrupadas (Portada, interior y cierre / Menú, con la foto de la barra editable) y <b>secciones</b> para agrupar estaciones, que salen en el PDF.'},
   {f:'2026-10-23', t:'Fichas Técnicas: las solapas de la ficha quedan fijas al bajar, botón <b>⧉ Copiar</b> en cada sección del menú y los eventos del período ordenados con el más nuevo arriba.'},
   {f:'2026-10-23', t:'Nuevo módulo <b>Novedades</b>: cada cambio queda registrado por módulo, con quién lo hizo y qué cambió. Lo borrado se puede restaurar desde acá.'},
   {f:'2026-10-23', t:'Fichas Técnicas: <b>♻ Recuperar eventos borrados</b> mirando cómo estaba el sistema en un momento de los últimos 7 días.'},
@@ -12585,10 +12599,28 @@ function presuLeerFotoComoDataURL(file, targetAspect, maxDim, calidad){
     reader.readAsDataURL(file);
   });
 }
+// Fotos en dos grupos plegables (Portada, interior y cierre / Menú, con la
+// barra): se ve una tira chica y al tocar se abren para cambiarlas.
+const PRESU_FOTOS_GRUPOS=[{k:'portada', t:'📷 Portada, interior y cierre'},{k:'menu', t:'🍽 Menú (hojas y barra)'}];
+let _presuFotosAbiertos={};
 function renderPresuFotos(){
   const cont=document.getElementById('presu-fotos-grid');
   if(!cont||!_presuEdit) return;
-  cont.innerHTML = PRESU_FOTOS.map(f=>{
+  cont.innerHTML=PRESU_FOTOS_GRUPOS.map(g=>{
+    const fotos=PRESU_FOTOS.filter(f=>f.grupo===g.k);
+    const cambiadas=fotos.filter(f=>_presuEdit[f.key]).length;
+    return `<details class="presu-fotos-grupo" ${_presuFotosAbiertos[g.k]?'open':''} ontoggle="_presuFotosAbiertos['${g.k}']=this.open">
+      <summary>
+        <span class="presu-fotos-tit">${g.t}</span>
+        <span class="presu-fotos-mini">${fotos.slice(0,6).map(f=>`<img src="${_presuEdit[f.key]||f.default}">`).join('')}</span>
+        <span class="presu-fotos-cnt">${fotos.length} fotos${cambiadas?' · '+cambiadas+' cambiada'+(cambiadas===1?'':'s'):''}</span>
+      </summary>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;padding-top:12px">${presuFotosHtml(fotos)}</div>
+    </details>`;
+  }).join('');
+}
+function presuFotosHtml(lista){
+  return lista.map(f=>{
     const custom=_presuEdit[f.key];
     const src=custom||f.default;
     return `<div style="text-align:center">
@@ -12621,11 +12653,34 @@ function renderPresuEstaciones(){
   const n=_presuEdit.estaciones.length;
   // Botones de posición: el orden de esta lista es el orden del PDF.
   const posBtn=(i,destino,icono,titulo)=>`<button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:11px" title="${titulo}" ${destino===i?'disabled':''} onclick="presuMoverEstacion(${i},${destino})">${icono}</button>`;
-  cont.innerHTML=_presuEdit.estaciones.map((e,i)=>`
-    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)${e.incluir===false?';opacity:.6':''}">
+  const lista=_presuEdit.estaciones;
+  let nEst=0, enSeccion=false;
+  // Dónde termina cada sección (para el botón "+ Agregar estación en esta sección").
+  const finSeccion=i=>{ let j=i+1; while(j<lista.length && lista[j].tipo!=='seccion') j++; return j; };
+  cont.innerHTML=lista.map((e,i)=>{
+    if(e.tipo==='seccion'){
+      enSeccion=true;
+      const fin=finSeccion(i), cant=fin-i-1;
+      return `<div class="presu-sec-hd">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="presu-sec-lbl">SECCIÓN</span>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            ${posBtn(i,0,'⤒','Subir arriba de todo')}${posBtn(i,Math.max(0,i-1),'↑','Subir un lugar')}${posBtn(i,Math.min(n-1,i+1),'↓','Bajar un lugar')}${posBtn(i,n-1,'⤓','Bajar al final')}
+            <button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:10.5px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuQuitarEstacion(${i})" title="Saca el título; las estaciones quedan">✕ quitar sección</button>
+          </div>
+        </div>
+        <input type="text" value="${escH(e.titulo||'')}" placeholder="Título de la sección (ej: Cocktail de bienvenida, Almuerzo…)" class="presu-sec-input" oninput="_presuEdit.estaciones[${i}].titulo=this.value">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">${cant} estación${cant===1?'':'es'} en esta sección · <a href="#" onclick="event.preventDefault();presuAgregarEstacionEn(${fin})">+ Agregar estación en esta sección</a></div>
+      </div>`;
+    }
+    nEst++;
+    return estHtml(e,i,nEst,enSeccion);
+  }).join('') || '<div style="font-size:11.5px;color:var(--text3)">Sin estaciones todavía.</div>';
+  function estHtml(e,i,num,dentro){ return `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)${e.incluir===false?';opacity:.6':''}${dentro?';margin-left:22px;border-left:3px solid var(--mp-gold,#c8a951)':''}">
       ${e.incluir!==undefined?`<label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin:0 0 10px;padding:7px 10px;border-radius:6px;background:var(--surface);border:1px dashed var(--border);font-weight:600"><input type="checkbox" ${e.incluir?'checked':''} onchange="_presuEdit.estaciones[${i}].incluir=this.checked;renderPresuEstaciones()"> Mostrar en el PDF <span style="font-weight:400;color:var(--text3)">· estación precargada: tildala para que aparezca; sin tildar no sale</span></label>`:''}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <label style="margin:0">Estación ${i+1} — título <span style="font-weight:400;font-style:italic;color:var(--mp-gold,var(--text3))">· Llenar todos los campos en singular</span></label>
+        <label style="margin:0">Estación ${num} — título <span style="font-weight:400;font-style:italic;color:var(--mp-gold,var(--text3))">· Llenar todos los campos en singular</span></label>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
           ${posBtn(i,0,'⤒','Subir arriba de todo')}${posBtn(i,Math.max(0,i-1),'↑','Subir un lugar')}${posBtn(i,Math.min(n-1,i+1),'↓','Bajar un lugar')}${posBtn(i,n-1,'⤓','Bajar al final')}
           <button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:10.5px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuQuitarEstacion(${i})">✕ quitar</button>
@@ -12637,7 +12692,7 @@ function renderPresuEstaciones(){
       <label>Precio de esta estación (ej. "Incluido" o "Adicional $X por pax")</label>
       <input type="text" value="${escH(e.precio||'')}" style="width:100%;margin-top:6px" oninput="_presuEdit.estaciones[${i}].precio=this.value">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px"><input type="checkbox" ${e.unaOpcion!==false?'checked':''} onchange="_presuEdit.estaciones[${i}].unaOpcion=this.checked"> Se elige 1 opción: mostrar en el PDF el cartel "Seleccionar 1 opción para todos los comensales"</label>
-    </div>`).join('') || '<div style="font-size:11.5px;color:var(--text3)">Sin estaciones todavía.</div>';
+    </div>`; }
 }
 // ── Corrector ortográfico (ortografía, acentos y puntuación) ─────────────
 // Dos capas, estilo Word:
@@ -12936,6 +12991,10 @@ function presuEstacionBarraClasica(){
 }
 function presuEstacionVacia(){ return {titulo:'', items:'', precio:'', unaOpcion:false}; }
 function presuAgregarEstacion(){ _presuEdit.estaciones.push(presuEstacionVacia()); renderPresuEstaciones(); }
+// Secciones: un renglón {tipo:'seccion', titulo} en la misma lista; las
+// estaciones que siguen (hasta la próxima sección) son de esa sección.
+function presuAgregarSeccion(){ _presuEdit.estaciones.push({tipo:'seccion', titulo:''}); renderPresuEstaciones(); }
+function presuAgregarEstacionEn(pos){ _presuEdit.estaciones.splice(pos,0,presuEstacionVacia()); renderPresuEstaciones(); }
 function presuQuitarEstacion(i){ _presuEdit.estaciones.splice(i,1); renderPresuEstaciones(); }
 
 // ── Presupuesto: líneas de precio repetibles ─────────────────────────────
@@ -13400,7 +13459,14 @@ function presuDibujarPDF(d, modo){
     // Cada hoja del menú trae fotos, así que agregar una estación de más
     // siempre "viene con foto" sin que haya que cargar una nueva por página.
     // El orden es el de la lista del formulario (se reordena con ⤒ ↑ ↓ ⤓).
-    const estacionesTodas=(d.estaciones||[]).filter(e=>e.incluir!==false && ((e.titulo&&e.titulo.trim())||(e.items&&e.items.trim())));
+    // Secciones ({tipo:'seccion'}): su título va arriba de la primera estación
+    // que sale en el PDF de esa sección (si no tiene ninguna, no aparece).
+    const estacionesTodas=[]; let secPend='';
+    (d.estaciones||[]).forEach(e=>{
+      if(e.tipo==='seccion'){ secPend=String(e.titulo||'').trim(); return; }
+      if(e.incluir===false || !((e.titulo&&e.titulo.trim())||(e.items&&e.items.trim()))) return;
+      estacionesTodas.push(secPend?{...e, _sec:secPend}:e); secPend='';
+    });
 
     const textColX=M, textColW=46;
     const photoTallX=textColX+textColW+6, photoTallW=58;
@@ -13438,7 +13504,7 @@ function presuDibujarPDF(d, modo){
     function menuPage(gidx, first, conBarra){
       newPage();
       const grupo=PRESU_MENU_GRUPOS[Math.min(gidx,PRESU_MENU_GRUPOS.length-1)];
-      try{ doc.addImage(conBarra?PRESU_IMG_BARRA:fotoDePresu(grupo.grande),'JPEG',photoTallX,photoTop,photoTallW,photoBottom-photoTop); }catch(e){}
+      try{ doc.addImage(conBarra?fotoDePresu('fotoBarra'):fotoDePresu(grupo.grande),'JPEG',photoTallX,photoTop,photoTallW,photoBottom-photoTop); }catch(e){}
       try{ doc.addImage(fotoDePresu(grupo.chica1),'JPEG',photoStackX,photoTop,photoStackW,stackH); }catch(e){}
       try{ doc.addImage(fotoDePresu(grupo.chica2),'JPEG',photoStackX,photoTop+stackH+3,photoStackW,stackH); }catch(e){}
 
@@ -13499,12 +13565,20 @@ function presuDibujarPDF(d, modo){
       const titleLines=wrapTracked(part.est.titulo||'', listW-precioW);
       const titleLH=LH(base.title*f)+0.4*s, precioLH=LH(7*f);
       const headH=Math.max((titleLines.length-1)*titleLH, (precioLines.length-1)*precioLH);
-      let h=headH+base.headerGap*s;
+      // Título de sección (si es la primera estación de una sección).
+      let secLines=[], secLH=0, secH=0;
+      if(part.sec){
+        doc.setFont('times','bold'); doc.setFontSize(11*f);
+        secLines=wrapTracked(String(part.sec).toUpperCase(), listW);
+        secLH=LH(11*f)+0.4*s;
+        secH=(secLines.length-1)*secLH+9.8*s;
+      }
+      let h=secH+headH+base.headerGap*s;
       if(part.cartel) h+=CARTEL_H*f+CARTEL_GAP*s;
       doc.setFont('times','normal'); doc.setFontSize(base.item*f);
       const itemLines=part.items.map(it=>doc.splitTextToSize('•  '+it, listW-2));
       itemLines.forEach(l=>{ h+=l.length*renglon(s)+base.itemGap*s; });
-      return {h, titleLines, titleLH, precioLines, headH, itemLines};
+      return {h, titleLines, titleLH, precioLines, headH, itemLines, secLines, secLH, secH};
     }
     const altoHoja=(partes,s)=>partes.reduce((acc,p,i)=>acc+medirParte(p,s).h+(i?base.stationGap*s:0),0);
     // Mayor escala (de 1 hacia abajo) a la que entran todas las partes, o null.
@@ -13522,7 +13596,7 @@ function presuDibujarPDF(d, modo){
     const hojas=[]; let cur=[], curCont=false;
     function cerrarHoja(){ if(cur.length) hojas.push({partes:cur, cont:curCont}); cur=[]; curCont=false; }
     estacionesTodas.forEach(est=>{
-      let part={est, items:itemsDe(est), cartel:llevaCartel(est)};
+      let part={est, items:itemsDe(est), cartel:llevaCartel(est), sec:est._sec||''};
       while(part){
         const prueba=cur.concat([part]);
         // 1) Entra tal cual.
@@ -13554,8 +13628,15 @@ function presuDibujarPDF(d, modo){
     cerrarHoja();
     if(!hojas.length) hojas.push({partes:[], cont:false});
 
-    function dibujarParte(part, ly, s){
+    function dibujarParte(part, ly0, s){
       const m=medirParte(part, s), f=fF(s);
+      if(m.secLines.length){
+        text(BURG); doc.setFont('times','bold'); doc.setFontSize(11*f);
+        m.secLines.forEach((t,i)=>ttext(t, listX, ly0+i*m.secLH));
+        const yl=ly0+(m.secLines.length-1)*m.secLH+2*s;
+        drawC(GOLD); doc.setLineWidth(0.6); doc.line(listX, yl, listX+14, yl);
+      }
+      const ly=ly0+m.secH;
       text(GOLD); doc.setFont('times','bold'); doc.setFontSize(base.title*f);
       m.titleLines.forEach((t,i)=>ttext(t, listX, ly+i*m.titleLH));
       if(m.precioLines.length){
@@ -13581,7 +13662,7 @@ function presuDibujarPDF(d, modo){
         btext(BURG, lines, listX, y, {}, 0.12);
         y+=lines.length*renglon(s)+base.itemGap*s;
       });
-      return ly+m.h;
+      return ly0+m.h;
     }
 
     // Cada hoja usa el trío de fotos que le toca (hoja 1, 2, 3 o 4); una
