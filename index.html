@@ -212,13 +212,10 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .presu-sec-lbl{font-size:10.5px;font-weight:800;letter-spacing:.8px;color:var(--mp-gold,#a88a35)}
 .presu-sec-input{width:100%;margin-top:6px;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.5px}
 .presu-opc{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px}
-.presu-opc-ley{font-size:11px;color:var(--text3);margin-bottom:6px;line-height:1.35}
 .presu-opc label{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--text);cursor:pointer;padding:3px 0;line-height:1.3}
 .presu-opc input{margin-top:2px;flex-shrink:0}
 .presu-opc label.off{color:var(--text3)}
 .presu-opc label.off span{text-decoration:line-through}
-.presu-opc label.off .presu-opc-tag{display:inline-block;text-decoration:none}
-.presu-opc-tag{font-style:normal;font-size:10.5px;color:var(--red);font-weight:600;white-space:nowrap}
 .presu-orto{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;font-size:11px}
 .presu-orto-item{display:flex;align-items:center;flex-wrap:wrap;gap:4px;background:rgba(192,57,43,.07);border:1px solid rgba(192,57,43,.25);border-radius:6px;padding:3px 6px;color:var(--text2)}
 .presu-orto-mal{text-decoration:underline wavy var(--red);text-underline-offset:3px;color:var(--text)}
@@ -1780,18 +1777,17 @@ tr.rec-clic:hover td{background:var(--accent-light)}
         <input type="text" id="presu-lugar" placeholder="Ej: CABA" style="width:100%">
       </div>
       <div class="form-field" style="flex:1">
-        <label>Fecha del evento (a confirmar)</label>
+        <label>Fecha del evento</label>
         <input type="date" id="presu-fecha-evento" style="width:100%">
       </div>
       <div class="form-field" style="flex:1">
-        <label>Fecha de emisión (automática, editable)</label>
+        <label>Fecha de emisión</label>
         <input type="date" id="presu-fecha-emision" style="width:100%">
       </div>
     </div>
 
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
       <label style="font-size:11px;color:var(--mp-gold,var(--text3));font-weight:700;letter-spacing:.5px;display:block;margin-bottom:4px">FOTOS</label>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Vienen precargadas con fotos reales de MP Catering. Reemplazalas si querés otras para este evento puntual.</div>
       <div id="presu-fotos-grid"></div>
     </div>
 
@@ -1800,7 +1796,7 @@ tr.rec-clic:hover td{background:var(--accent-light)}
         <label style="font-size:11px;color:var(--mp-gold,var(--text3));font-weight:700;letter-spacing:.5px">MENÚ — ESTACIONES</label>
       </div>
       <div class="form-field" style="margin-bottom:12px">
-        <label>Texto de introducción (columna izquierda de la página del menú)</label>
+        <label>Texto de introducción</label>
         <textarea id="presu-menu-intro" rows="3" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
       </div>
       <div id="presu-estaciones-list"></div>
@@ -1813,10 +1809,9 @@ tr.rec-clic:hover td{background:var(--accent-light)}
     <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
       <label style="font-size:11px;color:var(--mp-gold,var(--text3));font-weight:700;letter-spacing:.5px;display:block;margin-bottom:8px">PRESUPUESTO — PRECIOS</label>
       <div id="presu-precios-list"></div>
-      <button type="button" class="btn btn-outline" style="width:100%;margin-top:8px;border-style:dashed" onclick="presuAgregarPrecio()">+ Agregar línea de precio</button>
       <div class="form-row" style="margin-top:12px">
         <div class="form-field" style="flex:1">
-          <label>Servicio de salón — cantidad de camareros cotizados (no sale en el PDF)</label>
+          <label>Cantidad de camareros</label>
           <input type="number" id="presu-salon-camareros" min="0" placeholder="Ej: 10" style="width:100%">
         </div>
         <div class="form-field" style="flex:1">
@@ -1824,10 +1819,8 @@ tr.rec-clic:hover td{background:var(--accent-light)}
           <input type="text" id="presu-salon-precio" placeholder="Ej: $ 25.000" style="width:100%" onblur="this.value=presuFormatoPesos(this.value)">
         </div>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px">En el PDF sale como: <i>Precio por servicio de salón — $ 25.000 por cada camarero (se sugiere 1 cada 10 comensales)</i>.</div>
-      <div style="font-size:11px;color:var(--text3);margin-top:10px">Debajo de los precios, el PDF siempre dice: <i>"Este presupuesto tiene una validez de 7 días. Estos precios se ajustarán según IPC hasta el momento de pago."</i></div>
       <div class="form-field" style="margin-top:8px">
-        <label>Aclaración de precios adicional (opcional, chica, debajo)</label>
+        <label>Aclaración de precios</label>
         <textarea id="presu-aclaracion-precios" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
       </div>
       <div class="form-row" style="margin-top:8px">
@@ -1855,11 +1848,11 @@ tr.rec-clic:hover td{background:var(--accent-light)}
     <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px;margin-bottom:18px">
       <label style="font-size:11px;color:var(--mp-gold,var(--text3));font-weight:700;letter-spacing:.5px;display:block;margin-bottom:8px">CIERRE</label>
       <div class="form-field">
-        <label>Firma de cierre (aparece al final de los términos)</label>
+        <label>Firma de cierre</label>
         <textarea id="presu-cierre" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
       </div>
       <div class="form-field" style="margin-top:12px">
-        <label>Texto de agradecimiento (última hoja "Muchas gracias por elegirnos")</label>
+        <label>Texto de agradecimiento</label>
         <textarea id="presu-gracias-texto" rows="3" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
       </div>
     </div>
@@ -11490,8 +11483,8 @@ function presuNuevoBorrador(){
     // intro del menú, los términos (condiciones de pago) y el cierre; las
     // estaciones y precios arrancan vacíos. Incluye/no incluye traen las
     // opciones fijas (PRESU_OPC), todas puestas.
-    estaciones:[presuEstacionVacia(), presuEstacionBarraClasica()],
-    precios:[],
+    estaciones:[presuSeccionVacia(), presuEstacionVacia(), presuEstacionBarraClasica()],
+    precios:[presuPrecioDefecto()],
     aclaracionPrecios:'',
     salonCamareros:'', salonPrecio:'',
     incluye:presuOpcTextoDefecto('si'),
@@ -11561,6 +11554,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-10-24', t:'Presupuestos más limpio: sin leyendas ni carteles de ayuda, la línea de precio viene puesta (ya no se agregan más) y las estaciones nuevas arrancan dentro de una sección.'},
   {f:'2026-10-23', t:'Presupuestos: fotos agrupadas (Portada, interior y cierre / Menú, con la foto de la barra editable) y <b>secciones</b> para agrupar estaciones, que salen en el PDF.'},
   {f:'2026-10-23', t:'Fichas Técnicas: las solapas de la ficha quedan fijas al bajar, botón <b>⧉ Copiar</b> en cada sección del menú y los eventos del período ordenados con el más nuevo arriba.'},
   {f:'2026-10-23', t:'Nuevo módulo <b>Novedades</b>: cada cambio queda registrado por módulo, con quién lo hizo y qué cambió. Lo borrado se puede restaurar desde acá.'},
@@ -12660,7 +12654,7 @@ function renderPresuEstaciones(){
   cont.innerHTML=lista.map((e,i)=>{
     if(e.tipo==='seccion'){
       enSeccion=true;
-      const fin=finSeccion(i), cant=fin-i-1;
+      const fin=finSeccion(i);
       return `<div class="presu-sec-hd">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="presu-sec-lbl">SECCIÓN</span>
@@ -12670,7 +12664,7 @@ function renderPresuEstaciones(){
           </div>
         </div>
         <input type="text" value="${escH(e.titulo||'')}" placeholder="Título de la sección (ej: Cocktail de bienvenida, Almuerzo…)" class="presu-sec-input" oninput="_presuEdit.estaciones[${i}].titulo=this.value">
-        <div style="font-size:11px;color:var(--text3);margin-top:4px">${cant} estación${cant===1?'':'es'} en esta sección · <a href="#" onclick="event.preventDefault();presuAgregarEstacionEn(${fin})">+ Agregar estación en esta sección</a></div>
+        <div style="font-size:11px;margin-top:4px"><a href="#" onclick="event.preventDefault();presuAgregarEstacionEn(${fin})">+ Agregar estación en esta sección</a></div>
       </div>`;
     }
     nEst++;
@@ -12678,9 +12672,9 @@ function renderPresuEstaciones(){
   }).join('') || '<div style="font-size:11.5px;color:var(--text3)">Sin estaciones todavía.</div>';
   function estHtml(e,i,num,dentro){ return `
     <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)${e.incluir===false?';opacity:.6':''}${dentro?';margin-left:22px;border-left:3px solid var(--mp-gold,#c8a951)':''}">
-      ${e.incluir!==undefined?`<label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin:0 0 10px;padding:7px 10px;border-radius:6px;background:var(--surface);border:1px dashed var(--border);font-weight:600"><input type="checkbox" ${e.incluir?'checked':''} onchange="_presuEdit.estaciones[${i}].incluir=this.checked;renderPresuEstaciones()"> Mostrar en el PDF <span style="font-weight:400;color:var(--text3)">· estación precargada: tildala para que aparezca; sin tildar no sale</span></label>`:''}
+      ${e.incluir!==undefined?`<label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin:0 0 10px;padding:7px 10px;border-radius:6px;background:var(--surface);border:1px dashed var(--border);font-weight:600"><input type="checkbox" ${e.incluir?'checked':''} onchange="_presuEdit.estaciones[${i}].incluir=this.checked;renderPresuEstaciones()"> Mostrar en el PDF</label>`:''}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <label style="margin:0">Estación ${num} — título <span style="font-weight:400;font-style:italic;color:var(--mp-gold,var(--text3))">· Llenar todos los campos en singular</span></label>
+        <label style="margin:0">Estación ${num} — título</label>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
           ${posBtn(i,0,'⤒','Subir arriba de todo')}${posBtn(i,Math.max(0,i-1),'↑','Subir un lugar')}${posBtn(i,Math.min(n-1,i+1),'↓','Bajar un lugar')}${posBtn(i,n-1,'⤓','Bajar al final')}
           <button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:10.5px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuQuitarEstacion(${i})">✕ quitar</button>
@@ -12689,9 +12683,9 @@ function renderPresuEstaciones(){
       <input type="text" value="${escH(e.titulo)}" style="width:100%;margin-bottom:8px" oninput="_presuEdit.estaciones[${i}].titulo=this.value">
       <label>Ítems (uno por línea)</label>
       <textarea rows="4" style="width:100%;margin:6px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical" oninput="_presuEdit.estaciones[${i}].items=this.value">${escH(e.items)}</textarea>
-      <label>Precio de esta estación (ej. "Incluido" o "Adicional $X por pax")</label>
+      <label>Precio de esta estación</label>
       <input type="text" value="${escH(e.precio||'')}" style="width:100%;margin-top:6px" oninput="_presuEdit.estaciones[${i}].precio=this.value">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px"><input type="checkbox" ${e.unaOpcion!==false?'checked':''} onchange="_presuEdit.estaciones[${i}].unaOpcion=this.checked"> Se elige 1 opción: mostrar en el PDF el cartel "Seleccionar 1 opción para todos los comensales"</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px"><input type="checkbox" ${e.unaOpcion!==false?'checked':''} onchange="_presuEdit.estaciones[${i}].unaOpcion=this.checked"> Seleccionar 1 opción</label>
     </div>`; }
 }
 // ── Corrector ortográfico (ortografía, acentos y puntuación) ─────────────
@@ -12952,10 +12946,9 @@ function presuOpcRender(){
     const box=document.getElementById(idBox);
     if(!box) return;
     const hay=new Set(presuOpcLineas(idTxt).map(presuOpcNorm));
-    box.innerHTML='<div class="presu-opc-ley">Sin tildar = <b>sale en el PDF</b>. Si tildás un ítem, <b>no aparece</b> en el PDF.</div>'+
-      PRESU_OPC[lado].map((t,i)=>{
+    box.innerHTML=PRESU_OPC[lado].map((t,i)=>{
         const quitado=!hay.has(presuOpcNorm(t));
-        return `<label class="${quitado?'off':''}"><input type="checkbox" ${quitado?'checked':''} onchange="presuOpcToggle('${lado}',${i},this.checked)"> <span>${escH(t)}${quitado?' <em class="presu-opc-tag">no sale en el PDF</em>':''}</span></label>`;
+        return `<label class="${quitado?'off':''}"><input type="checkbox" ${quitado?'checked':''} onchange="presuOpcToggle('${lado}',${i},this.checked)"> <span>${escH(t)}</span></label>`;
       }).join('');
   });
 }
@@ -12993,7 +12986,8 @@ function presuEstacionVacia(){ return {titulo:'', items:'', precio:'', unaOpcion
 function presuAgregarEstacion(){ _presuEdit.estaciones.push(presuEstacionVacia()); renderPresuEstaciones(); }
 // Secciones: un renglón {tipo:'seccion', titulo} en la misma lista; las
 // estaciones que siguen (hasta la próxima sección) son de esa sección.
-function presuAgregarSeccion(){ _presuEdit.estaciones.push({tipo:'seccion', titulo:''}); renderPresuEstaciones(); }
+function presuSeccionVacia(){ return {tipo:'seccion', titulo:''}; }
+function presuAgregarSeccion(){ _presuEdit.estaciones.push(presuSeccionVacia(), presuEstacionVacia()); renderPresuEstaciones(); }
 function presuAgregarEstacionEn(pos){ _presuEdit.estaciones.splice(pos,0,presuEstacionVacia()); renderPresuEstaciones(); }
 function presuQuitarEstacion(i){ _presuEdit.estaciones.splice(i,1); renderPresuEstaciones(); }
 
@@ -13011,10 +13005,11 @@ function renderPresuPrecios(){
         <label>Valor</label>
         <input type="text" value="${escH(presuFormatoPesos(p.valor))}" placeholder="Ej: $ 55.000 + IVA" style="width:100%" oninput="_presuEdit.precios[${i}].valor=this.value" onblur="this.value=presuFormatoPesos(this.value);_presuEdit.precios[${i}].valor=this.value">
       </div>
-      <button type="button" class="btn btn-outline" style="padding:6px 10px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuQuitarPrecio(${i})">✕</button>
-    </div>`).join('') || '<div style="font-size:11.5px;color:var(--text3);margin-bottom:8px">Sin líneas de precio todavía.</div>';
+      ${_presuEdit.precios.length>1?`<button type="button" class="btn btn-outline" style="padding:6px 10px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuQuitarPrecio(${i})">✕</button>`:''}
+    </div>`).join('');
 }
-function presuAgregarPrecio(){ _presuEdit.precios.push({concepto:'', valor:''}); renderPresuPrecios(); }
+// Siempre hay una línea de precio (la de por defecto); ya no se agregan más.
+function presuPrecioDefecto(){ return {concepto:'Precio total por persona', valor:''}; }
 function presuQuitarPrecio(i){ _presuEdit.precios.splice(i,1); renderPresuPrecios(); }
 
 // ── Términos de contratación / condiciones de pago, repetibles ──────────
@@ -13039,8 +13034,8 @@ function presuQuitarClausula(i){ _presuEdit.clausulas.splice(i,1); renderPresuCl
 function abrirModalPresupuesto(id){
   const p = id ? DB.presupuestos.find(x=>x._id===id) : null;
   _presuEdit = p ? presuMigrar(JSON.parse(JSON.stringify(p))) : presuNuevoBorrador();
-  if(!_presuEdit.estaciones || !_presuEdit.estaciones.length) _presuEdit.estaciones=[presuEstacionVacia()];
-  if(!_presuEdit.precios) _presuEdit.precios=[];
+  if(!_presuEdit.estaciones || !_presuEdit.estaciones.length) _presuEdit.estaciones=[presuSeccionVacia(), presuEstacionVacia()];
+  if(!_presuEdit.precios || !_presuEdit.precios.length) _presuEdit.precios=[presuPrecioDefecto()];
   if(!_presuEdit.clausulas || !_presuEdit.clausulas.length) _presuEdit.clausulas=presuDefaultClausulas();
   document.getElementById('presu-edit-id').value = id||'';
   document.getElementById('modal-presu-title').textContent = p ? '✎ Editar Presupuesto' : '🧮 Nuevo Presupuesto';
