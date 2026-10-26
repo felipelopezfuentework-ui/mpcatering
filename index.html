@@ -11568,6 +11568,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-10-26', t:'Presupuestos: en el PDF el precio de cada estación ya no sale arriba en el menú; todos los precios salen en la hoja de <b>precios</b>, cada uno en su renglón.'},
   {f:'2026-10-24', t:'Eventos a producir: en <b>Producir</b> se ven todas las necesidades de una, sin abrir ventanas. «Todo junto» suma cada insumo y muestra para qué receta es cada parte; «Por receta» muestra cada receta con sus ingredientes.'},
   {f:'2026-10-24', t:'Presupuestos: fotos agrupadas por hoja del menú (cada grupo dice qué estaciones caen en esa hoja) y la <b>Barra clásica</b> con sus 3 fotos propias, en su propia sección.'},
   {f:'2026-10-24', t:'Presupuestos más limpio: sin leyendas ni carteles de ayuda, la línea de precio viene puesta (ya no se agregan más) y las estaciones nuevas arrancan dentro de una sección.'},
@@ -13620,19 +13621,12 @@ function presuDibujarPDF(d, modo){
     // Mide una "parte" (una estación o el tramo de una estación partida)
     // a la escala s; devuelve el alto y lo necesario para dibujarla.
     function medirParte(part, s){
-      // Precio (a la derecha) y título se ajustan hacia abajo si son
-      // largos, repartiéndose el ancho de la columna sin pisarse.
-      let precioLines=[], precioW=0;
+      // El precio de la estación no va acá: sale en la hoja de precios.
       const f=fF(s);
-      if(part.est.precio){
-        doc.setFont('times','italic'); doc.setFontSize(7*f);
-        precioLines=doc.splitTextToSize(String(part.est.precio), listW*0.4);
-        precioW=Math.max(...precioLines.map(t=>doc.getTextWidth(t)))+3;
-      }
       doc.setFont('times','bold'); doc.setFontSize(base.title*f);
-      const titleLines=wrapTracked(part.est.titulo||'', listW-precioW);
-      const titleLH=LH(base.title*f)+0.4*s, precioLH=LH(7*f);
-      const headH=Math.max((titleLines.length-1)*titleLH, (precioLines.length-1)*precioLH);
+      const titleLines=wrapTracked(part.est.titulo||'', listW);
+      const titleLH=LH(base.title*f)+0.4*s;
+      const headH=(titleLines.length-1)*titleLH;
       // Título de sección (si es la primera estación de una sección).
       let secLines=[], secLH=0, secH=0;
       if(part.sec){
@@ -13646,7 +13640,7 @@ function presuDibujarPDF(d, modo){
       doc.setFont('times','normal'); doc.setFontSize(base.item*f);
       const itemLines=part.items.map(it=>doc.splitTextToSize('•  '+it, listW-2));
       itemLines.forEach(l=>{ h+=l.length*renglon(s)+base.itemGap*s; });
-      return {h, titleLines, titleLH, precioLines, headH, itemLines, secLines, secLH, secH};
+      return {h, titleLines, titleLH, headH, itemLines, secLines, secLH, secH};
     }
     const altoHoja=(partes,s)=>partes.reduce((acc,p,i)=>acc+medirParte(p,s).h+(i?base.stationGap*s:0),0);
     // Mayor escala (de 1 hacia abajo) a la que entran todas las partes, o null.
@@ -13707,10 +13701,6 @@ function presuDibujarPDF(d, modo){
       const ly=ly0+m.secH;
       text(GOLD); doc.setFont('times','bold'); doc.setFontSize(base.title*f);
       m.titleLines.forEach((t,i)=>ttext(t, listX, ly+i*m.titleLH));
-      if(m.precioLines.length){
-        doc.setFont('times','italic'); doc.setFontSize(7*f); text(MUTED);
-        doc.text(m.precioLines, listX+listW, ly, {align:'right'});
-      }
       let y=ly+m.headH+2.2*s;
       drawC(GOLD); doc.setLineWidth(0.2); doc.line(listX,y,listX+listW,y);
       if(part.cartel){
@@ -13806,8 +13796,15 @@ function presuDibujarPDF(d, modo){
     // Servicio de salón: precio por camarero y cantidad de camareros
     // cotizados; la sugerencia de 1 cada 10 comensales es fija.
     const haySalon=!!(String(d.salonPrecio||'').trim() || String(d.salonCamareros||'').trim());
-    const lineas=(d.precios&&d.precios.length)?d.precios.map(pr=>({concepto:pr.concepto, valor:presuFormatoPesos(pr.valor)}))
-      : [{concepto:'Precio total por persona', valor:''}];
+    // Los precios de cada estación salen acá, cada uno en su renglón (no en
+    // el menú). Las líneas de precio vacías no salen si hay otros precios.
+    const todas=(d.precios||[]).map(pr=>({concepto:pr.concepto, valor:presuFormatoPesos(pr.valor)}));
+    (d.estaciones||[]).forEach(e=>{
+      if(e.tipo==='seccion' || e.incluir===false || !String(e.precio||'').trim()) return;
+      todas.push({concepto:String(e.titulo||'').trim()||'Estación', valor:presuFormatoPesos(e.precio)});
+    });
+    const lineas=todas.some(l=>l.valor)?todas.filter(l=>l.valor)
+      : (todas.length?todas:[{concepto:'Precio total por persona', valor:''}]);
     if(haySalon){
       const pCam=presuFormatoPesos(d.salonPrecio);
       lineas.push({
