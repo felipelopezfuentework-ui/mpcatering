@@ -1819,6 +1819,7 @@ tr.rec-clic:hover td{background:var(--accent-light)}
     <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
       <label style="font-size:11px;color:var(--mp-gold,var(--text3));font-weight:700;letter-spacing:.5px;display:block;margin-bottom:8px">PRESUPUESTO — PRECIOS</label>
       <div id="presu-precios-list"></div>
+      <button type="button" class="btn btn-outline" style="width:100%;border-style:dashed" onclick="presuAgregarPrecio()">+ Agregar línea de precio</button>
       <div class="form-row" style="margin-top:12px">
         <div class="form-field" style="flex:1">
           <label>Cantidad de camareros</label>
@@ -11568,6 +11569,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-10-27', t:'Presupuestos: vuelve el botón <b>+ Agregar línea de precio</b> para sumar todos los ítems de precio que quieras, cada uno con su concepto y valor (salen en la hoja de precios del PDF).'},
   {f:'2026-10-26', t:'Presupuestos: en el PDF el precio de cada estación ya no sale arriba en el menú; todos los precios salen en la hoja de <b>precios</b>, cada uno en su renglón.'},
   {f:'2026-10-24', t:'Eventos a producir: en <b>Producir</b> se ven todas las necesidades de una, sin abrir ventanas. «Todo junto» suma cada insumo y muestra para qué receta es cada parte; «Por receta» muestra cada receta con sus ingredientes.'},
   {f:'2026-10-24', t:'Presupuestos: fotos agrupadas por hoja del menú (cada grupo dice qué estaciones caen en esa hoja) y la <b>Barra clásica</b> con sus 3 fotos propias, en su propia sección.'},
@@ -13082,8 +13084,14 @@ function renderPresuPrecios(){
       ${_presuEdit.precios.length>1?`<button type="button" class="btn btn-outline" style="padding:6px 10px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuQuitarPrecio(${i})">✕</button>`:''}
     </div>`).join('');
 }
-// Siempre hay una línea de precio (la de por defecto); ya no se agregan más.
+// Siempre hay una línea de precio (la de por defecto); se pueden sumar más a mano.
 function presuPrecioDefecto(){ return {concepto:'Precio total por persona', valor:''}; }
+function presuAgregarPrecio(){
+  _presuEdit.precios.push({concepto:'', valor:''});
+  renderPresuPrecios();
+  const ins=document.querySelectorAll('#presu-precios-list input[type=text]');
+  if(ins.length>1) ins[ins.length-2].focus();
+}
 function presuQuitarPrecio(i){ _presuEdit.precios.splice(i,1); renderPresuPrecios(); }
 
 // ── Términos de contratación / condiciones de pago, repetibles ──────────
