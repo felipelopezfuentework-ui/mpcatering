@@ -447,18 +447,14 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .btn-logout:hover{background:rgba(200,169,81,.15);color:var(--mp-gold);}
 /* Actividad: quién tiene el sistema abierto y dónde está */
 .act-btn{display:inline-flex;align-items:center;gap:6px}
-.act-punto{width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.18);flex-shrink:0}
-.act-punto.aus{background:#f5b942;box-shadow:0 0 0 3px rgba(245,185,66,.18)}
-#act-menu{right:0;left:auto;min-width:320px;max-width:92vw;padding:12px 14px;gap:0}
-.act-tit{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.act-fila{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--border)}
-.act-fila:first-of-type{border-top:none}
-.act-fila .act-punto{margin-top:6px}
+.act-punto{width:7px;height:7px;border-radius:50%;background:#4ade80;flex-shrink:0}
+.act-punto.aus{background:#f5b942}
+#act-menu{right:0;left:auto;min-width:0;width:max-content;max-width:280px;padding:6px 10px;gap:0}
+.act-fila{display:flex;align-items:center;gap:7px;padding:4px 0;font-size:12px;white-space:nowrap}
 .act-nom{font-weight:700;color:var(--text)}
-.act-yo{font-weight:500;color:var(--text3);font-size:11px}
-.act-donde{font-size:12.5px;color:var(--text2)}
-.act-cuando{font-size:11px;color:var(--text3)}
-.act-vacio{font-size:12.5px;color:var(--text3);padding:6px 0}
+.act-yo{font-weight:500;color:var(--text3);font-size:10.5px}
+.act-donde{margin-left:auto;padding-left:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis}
+.act-vacio{font-size:12px;color:var(--text3);padding:2px 0}
 
 
 /* ─── MODAL 2 COLUMNAS + PROCEDIMIENTO ───────────────────────── */
@@ -6406,36 +6402,29 @@ function actDetener(){
 document.addEventListener('visibilitychange',()=>{ if(_actDesde) actGuardar(); });
 window.addEventListener('pagehide',()=>{ if(_actDesde && fbAuth.currentUser) FB_COL_ACT.doc(actDocId()).delete().catch(()=>{}); });
 
-function actHace(ms){
-  const m=Math.floor(ms/60000);
-  if(m<1) return 'recién';
-  if(m<60) return 'hace '+m+' min';
-  const h=Math.floor(m/60);
-  return 'hace '+h+' h'+(m%60?' '+(m%60)+' min':'');
-}
 function actConectados(){
   const lim=Date.now()-ACT_VIVO_MIN*60000;
   return ACTIVIDAD.filter(a=>a.ts>=lim).sort((a,b)=>(a.mail===novMail())-(b.mail===novMail()) || String(a.nombre).localeCompare(String(b.nombre)));
 }
 function actPintar(){
-  const lista=actConectados();
+  // Solo los demás (esta misma ventana no se lista).
+  const lista=actConectados().filter(a=>a.sesion!==_actSesion);
   const personas=new Set(lista.map(a=>a.mail)).size;
   const cant=document.getElementById('act-cant');
   if(cant) cant.textContent=personas||'';
   const menu=document.getElementById('act-menu');
   if(!menu||!menu.classList.contains('open')) return;
-  const ahora=Date.now(), yo=novMail();
+  const yo=novMail();
   const filas=lista.map(a=>{
-    const donde=a.mod?(ACT_MODS[a.mod]||a.mod)+(a.tab&&ACT_TABS[a.tab]&&ACT_TABS[a.tab]!==String(ACT_MODS[a.mod]||'').replace(/^\S+\s/,'')?' › '+ACT_TABS[a.tab]:''):'Eligiendo módulo';
-    const estado=a.visible?'Usándolo':'Abierto en otra ventana';
+    const ico=String(ACT_MODS[a.mod]||'').split(' ')[0];
+    const donde=a.mod?ico+' '+(ACT_TABS[a.tab]||String(ACT_MODS[a.mod]||a.mod).replace(/^\S+\s/,'')):'Inicio';
     const hora=new Date(a.desde||a.ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    return `<div class="act-fila"><span class="act-punto${a.visible?'':' aus'}"></span><div>
-      <div class="act-nom">${escH(a.nombre||a.mail)}${a.mail===yo&&a.sesion===_actSesion?' <span class="act-yo">(vos)</span>':a.mail===yo?' <span class="act-yo">(vos, otra ventana)</span>':''}</div>
-      <div class="act-donde">${escH(donde)}</div>
-      <div class="act-cuando">${estado} · entró ${hora} · ${escH(actHace(ahora-a.ts)==='recién'?'activo ahora':'última señal '+actHace(ahora-a.ts))}</div>
-    </div></div>`;
+    return `<div class="act-fila" title="${a.visible?'Usándolo':'Abierto en otra ventana'} · entró ${hora}">
+      <span class="act-punto${a.visible?'':' aus'}"></span>
+      <span class="act-nom">${escH(a.nombre||a.mail)}${a.mail===yo?' <span class="act-yo">(otra ventana)</span>':''}</span>
+      <span class="act-donde">${escH(donde)}</span></div>`;
   }).join('');
-  menu.innerHTML=`<div class="act-tit">Con el sistema abierto ahora</div>${filas||'<div class="act-vacio">No hay nadie conectado.</div>'}`;
+  menu.innerHTML=filas||'<div class="act-vacio">Nadie más conectado</div>';
 }
 function actToggle(e){
   if(e) e.stopPropagation();
