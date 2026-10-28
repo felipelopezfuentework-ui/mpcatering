@@ -6353,7 +6353,15 @@ const ACT_TABS={insumos:'Insumos',subproductos:'Subproductos',platos:'Platos',pr
   cotizaciones:'Eventos a cotizar',costeo:'Cotizador',comanda_periodos:'Períodos',comanda_clientes:'Clientes',
   stock:'Stock actual',stock_historial:'Historial',presupuestos:'Presupuestos',novedades:'Novedades'};
 const ACT_MODS={produccion:'🍳 Producción',cotizacion:'🧾 Cotización',comanda:'📋 Fichas Técnicas',stock:'📊 Stock',presupuestos:'🧮 Presupuestos',novedades:'🔔 Novedades'};
-const _actSesion=Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+// Id de la pestaña (sobrevive a recargar, así no quedan "fantasmas") y de la
+// compu (todas las pestañas de una compu se muestran como un solo renglón).
+function actIdGuardado(store,k){
+  const nuevo=Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  try{ const st=store(), v=st.getItem(k); if(v) return v; st.setItem(k,nuevo); }catch(e){}
+  return nuevo;
+}
+const _actSesion=actIdGuardado(()=>sessionStorage,'mp_act_pestana');
+const _actCompu=actIdGuardado(()=>localStorage,'mp_act_compu');
 let ACTIVIDAD=[], _actTab=null, _actDesde=0, _actTimer=null, _actUnsub=null, _actRefresco=null, _actPendiente=null;
 
 function actDocId(){ return (novMail()||'anonimo').replace(/[\/]/g,'_')+'__'+_actSesion; }
@@ -6361,7 +6369,7 @@ function actGuardar(){
   if(!fbAuth.currentUser||!_actDesde) return;
   FB_COL_ACT.doc(actDocId()).set({
     mail:novMail(), nombre:novNombre(novMail()), mod:perfilActivo||'', tab:perfilActivo?(_actTab||''):'',
-    ts:Date.now(), desde:_actDesde, visible:document.visibilityState!=='hidden', sesion:_actSesion
+    ts:Date.now(), desde:_actDesde, visible:document.visibilityState!=='hidden', sesion:_actSesion, compu:_actCompu
   }).catch(e=>console.warn('Actividad: no se pudo anotar', e));
 }
 // Cambio de módulo/pestaña: se anota enseguida (agrupando cambios seguidos).
@@ -6404,11 +6412,17 @@ window.addEventListener('pagehide',()=>{ if(_actDesde && fbAuth.currentUser) FB_
 
 function actConectados(){
   const lim=Date.now()-ACT_VIVO_MIN*60000;
-  return ACTIVIDAD.filter(a=>a.ts>=lim).sort((a,b)=>(a.mail===novMail())-(b.mail===novMail()) || String(a.nombre).localeCompare(String(b.nombre)));
+  // Una sola fila por persona y compu: la pestaña que está usando o, si no, la última con señal.
+  const porCompu={};
+  ACTIVIDAD.filter(a=>a.ts>=lim).forEach(a=>{
+    const k=a.mail+'|'+(a.compu||a.sesion), b=porCompu[k];
+    if(!b || (a.visible&&!b.visible) || (a.visible===b.visible&&a.ts>b.ts)) porCompu[k]=a;
+  });
+  return Object.values(porCompu).sort((a,b)=>(a.mail===novMail())-(b.mail===novMail()) || String(a.nombre).localeCompare(String(b.nombre)));
 }
 function actPintar(){
-  // Solo los demás (esta misma ventana no se lista).
-  const lista=actConectados().filter(a=>a.sesion!==_actSesion);
+  // Solo los demás (esta compu no se lista).
+  const lista=actConectados().filter(a=>a.compu!==_actCompu&&a.sesion!==_actSesion);
   const personas=new Set(lista.map(a=>a.mail)).size;
   const cant=document.getElementById('act-cant');
   if(cant) cant.textContent=personas||'';
@@ -6421,7 +6435,7 @@ function actPintar(){
     const hora=new Date(a.desde||a.ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
     return `<div class="act-fila" title="${a.visible?'Usándolo':'Abierto en otra ventana'} · entró ${hora}">
       <span class="act-punto${a.visible?'':' aus'}"></span>
-      <span class="act-nom">${escH(a.nombre||a.mail)}${a.mail===yo?' <span class="act-yo">(otra ventana)</span>':''}</span>
+      <span class="act-nom">${escH(a.nombre||a.mail)}${a.mail===yo?' <span class="act-yo">(otra compu)</span>':''}</span>
       <span class="act-donde">${escH(donde)}</span></div>`;
   }).join('');
   menu.innerHTML=filas||'<div class="act-vacio">Nadie más conectado</div>';
