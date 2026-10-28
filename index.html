@@ -6345,10 +6345,13 @@ function puedeVerPresupuestos(){
 //  ACTIVIDAD: quién tiene el sistema abierto y en qué módulo/pestaña está
 // ══════════════════════════════════════════════════════════════════
 // Cada ventana abierta anota su lugar en la colección "actividad" (un doc
-// por ventana) y lo renueva cada minuto. Más de 3 min sin renovar = se fue
-// (cerró, apagó o se cortó internet). Ven el botón solo EMAILS_PRESUPUESTOS.
+// por ventana) y lo renueva cada 20 s. Al cerrar se borra al instante; si no
+// llega a borrarse (se apagó la compu o se cortó internet), deja de mostrarse
+// al pasar ACT_VIVO_SEG sin señal (más tiempo si estaba en segundo plano,
+// porque el navegador frena los relojes de las pestañas ocultas).
+// Ven el botón solo EMAILS_PRESUPUESTOS.
 const FB_COL_ACT=fbDb.collection('actividad');
-const ACT_VIVO_MIN=3, ACT_BORRAR_MIN=30;
+const ACT_PULSO_SEG=20, ACT_VIVO_SEG=60, ACT_VIVO_OCULTA_SEG=150, ACT_BORRAR_MIN=30;
 const ACT_TABS={insumos:'Insumos',subproductos:'Subproductos',platos:'Platos',proveedores:'Proveedores',prod_eventos:'Eventos a producir',
   cotizaciones:'Eventos a cotizar',costeo:'Cotizador',comanda_periodos:'Períodos',comanda_clientes:'Clientes',
   stock:'Stock actual',stock_historial:'Historial',presupuestos:'Presupuestos',novedades:'Novedades'};
@@ -6362,11 +6365,13 @@ function actIdGuardado(store,k){
 }
 const _actSesion=actIdGuardado(()=>sessionStorage,'mp_act_pestana');
 const _actCompu=actIdGuardado(()=>localStorage,'mp_act_compu');
-let ACTIVIDAD=[], _actTab=null, _actDesde=0, _actTimer=null, _actUnsub=null, _actRefresco=null, _actPendiente=null;
+let ACTIVIDAD=[], _actTab=null, _actDesde=0, _actTimer=null, _actUnsub=null, _actRefresco=null, _actPendiente=null, _actToken='';
 
 function actDocId(){ return (novMail()||'anonimo').replace(/[\/]/g,'_')+'__'+_actSesion; }
 function actGuardar(){
   if(!fbAuth.currentUser||!_actDesde) return;
+  // Token a mano para poder borrar el doc al cerrar la pestaña (actBorrarAlCerrar).
+  fbAuth.currentUser.getIdToken().then(t=>{ _actToken=t; }).catch(()=>{});
   FB_COL_ACT.doc(actDocId()).set({
     mail:novMail(), nombre:novNombre(novMail()), mod:perfilActivo||'', tab:perfilActivo?(_actTab||''):'',
     ts:Date.now(), desde:_actDesde, visible:document.visibilityState!=='hidden', sesion:_actSesion, compu:_actCompu
@@ -6383,14 +6388,14 @@ function actIniciar(){
   if(_actDesde) return;
   _actDesde=Date.now();
   actGuardar();
-  _actTimer=setInterval(actGuardar,60000);
+  _actTimer=setInterval(actGuardar,ACT_PULSO_SEG*1000);
   if(puedeVerPresupuestos()){
     _actUnsub=FB_COL_ACT.onSnapshot(snap=>{
       ACTIVIDAD=snap.docs.map(d=>({...d.data(), _id:d.id}));
       actPintar();
     }, err=>console.warn('Actividad: error al sincronizar', err));
-    // Refresca "hace X min" y quién dejó de estar, aunque no lleguen cambios.
-    _actRefresco=setInterval(actPintar,30000);
+    // Saca a los que dejaron de dar señal, aunque no lleguen cambios.
+    _actRefresco=setInterval(actPintar,10000);
     // Limpieza de ventanas que se cerraron hace rato.
     setTimeout(async ()=>{
       try{
@@ -6407,14 +6412,25 @@ function actDetener(){
   if(_actDesde && fbAuth.currentUser) FB_COL_ACT.doc(actDocId()).delete().catch(()=>{});
   _actDesde=0; ACTIVIDAD=[];
 }
+// Al cerrar o recargar, el borrado común de Firestore no llega a salir: se
+// manda por REST con keepalive (el navegador lo envía aunque la página se cierre).
+function actBorrarAlCerrar(){
+  if(!_actDesde || !_actToken) return;
+  try{
+    fetch(FS_REST+'/actividad/'+encodeURIComponent(actDocId()),
+      {method:'DELETE', keepalive:true, headers:{Authorization:'Bearer '+_actToken}}).catch(()=>{});
+  }catch(e){}
+}
 document.addEventListener('visibilitychange',()=>{ if(_actDesde) actGuardar(); });
-window.addEventListener('pagehide',()=>{ if(_actDesde && fbAuth.currentUser) FB_COL_ACT.doc(actDocId()).delete().catch(()=>{}); });
+window.addEventListener('pagehide',actBorrarAlCerrar);
+window.addEventListener('pageshow',e=>{ if(e.persisted && _actDesde) actGuardar(); });
 
 function actConectados(){
-  const lim=Date.now()-ACT_VIVO_MIN*60000;
+  const ahora=Date.now();
+  const vivo=a=>ahora-a.ts <= (a.visible?ACT_VIVO_SEG:ACT_VIVO_OCULTA_SEG)*1000;
   // Una sola fila por persona y compu: la pestaña que está usando o, si no, la última con señal.
   const porCompu={};
-  ACTIVIDAD.filter(a=>a.ts>=lim).forEach(a=>{
+  ACTIVIDAD.filter(vivo).forEach(a=>{
     const k=a.mail+'|'+(a.compu||a.sesion), b=porCompu[k];
     if(!b || (a.visible&&!b.visible) || (a.visible===b.visible&&a.ts>b.ts)) porCompu[k]=a;
   });
