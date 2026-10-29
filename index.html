@@ -5736,8 +5736,12 @@ function moverRecetaEntreListas(origen, nombre, modo){
 
 // ══════════════════════════════════════════════════════════════════
 //  IMPORTAR RECETAS DESDE EXCEL (una hoja por receta)
-//  Estructura de cada hoja: A=Ingrediente B=Peso(kg) C=Rinde(kg,opc) D=Merma
-//  F1/G1=Nombre de plato · F2/G2=Porciones · F3/G3=Peso por porción
+//  Planilla modelo (Plantilla recetas MP.xlsx): arriba Receta / Tipo /
+//  Porciones / Unidad (etiqueta en A, valor en B); después el encabezado
+//  "Ingrediente | Cantidad (kg) | Merma %" y los ingredientes; después una
+//  fila "PROCEDIMIENTO" con un paso por fila; al final "NOTA DEL CHEF".
+//  También lee el formato viejo: A=Ingrediente B=Peso(kg) C=Rinde(kg, opc),
+//  F1/G1=Nombre · G2=Porciones. Se ignoran las hojas Instrucciones / Ejemplo.
 // ══════════════════════════════════════════════════════════════════
 let importRecetas=[];
 let importAmbiguous=[]; // [{ri,ii}] índices de ingredientes ambiguos pendientes de resolver
@@ -5749,10 +5753,18 @@ function handleImportRecetasFile(e,origen){
   r.onload=ev=>{
     try{
       const wb=XLSX.read(ev.target.result,{type:'array'});
-      const sheetNames=wb.SheetNames.filter(n=>n.trim().toLowerCase()!=='solapa ejemplo');
+      const sheetNames=wb.SheetNames.filter(n=>!/^(solapa ejemplo|ejemplo|instrucciones)\b/i.test(n.trim()));
       if(!sheetNames.length){alert('El Excel no tiene hojas de recetas (solo la hoja de ejemplo).');return;}
       importRecetas=sheetNames.map(sn=>parseRecetaSheet(wb.Sheets[sn],sn,origen)).filter(r=>r);
       if(!importRecetas.length){alert('No se pudo leer ninguna receta del Excel. Revisá el formato de las hojas.');return;}
+      // Un plato puede usar un subproducto que viene en la misma planilla.
+      const subsPlanilla=new Map(importRecetas.filter(r=>r.tipo==='sub').map(r=>[normTxt(r.nombre).replace(/^SUB - /,''), 'SUB - '+r.nombre.trim().toUpperCase().replace(/^SUB - /,'')]));
+      importRecetas.forEach(r=>{ if(r.tipo!=='plato') return; r.ingredientes.forEach(ing=>{
+        const k=subsPlanilla.get(normTxt(ing.nombreExcel).replace(/^SUB - /,''));
+        if(k && !ing.matched){ ing.comp=k; ing.matched=true; ing.needsResolution=false; ing.candidatos=[]; }
+      }); });
+      // Los subproductos se guardan antes que los platos que los usan.
+      importRecetas.sort((a,b)=>(a.tipo==='sub'?0:1)-(b.tipo==='sub'?0:1));
       iniciarFlujoImport();
     }catch(err){alert('Error al leer el archivo: '+err.message);}
   };
@@ -5781,35 +5793,69 @@ function contieneFrase(b,a){
 function parseRecetaSheet(ws,sheetName,origen){
   const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
   if(!rows.length)return null;
-  // Nombre: celda F1. Si F1 contiene una etiqueta (plantillas viejas con "Nombre de Plato" en F1
-  // y el valor real en G1), se usa G1 como fallback para no romper esos archivos.
-  const f1=String(rows[0]?.[5]||'').trim();
-  const g1=String(rows[0]?.[6]||'').trim();
-  let nombre=(!f1||/^nombre/i.test(f1))?g1:f1;
-  // Porciones: celda G2 (si tiene valor). Peso por porción en G3 se ignora: es un valor calculado.
-  const porciones=parseFloat(rows[1]?.[6])||0;
+  const txt=v=>String(v==null?'':v).trim();
+  const num=v=>{ if(typeof v==='number') return v; const t=txt(v).replace(/[^\d,.\-]/g,''); return parseFloat(t.includes(',')?t.replace(/\./g,'').replace(',','.'):t)||0; };
+  // Primera celda con texto de la fila (sirve con celdas combinadas o corridas de columna).
+  const primera=row=>{ for(const c of (row||[])){ const t=txt(c); if(t) return t; } return ''; };
+  const etiqueta=t=>normTxt(t).replace(/[:.\s]+$/,'').toLowerCase();
+  const esProc=row=>/^(procedimiento|pasos|preparacion)$/.test(etiqueta(primera(row)));
+  const esNota=row=>/^nota( del chef)?$/.test(etiqueta(primera(row)));
+  let nombre='', porciones=0, tipo=origen==='sub'?'sub':'plato', unidad='porcion';
+  let i, colPeso=1, colMerma=-1, colRinde=-1;
+  if(/^(receta|nombre)/.test(etiqueta(rows[0]?.[0]))){
+    // Planilla modelo: datos arriba (etiqueta en A, valor en B) hasta "Ingrediente".
+    let r=0;
+    for(;r<rows.length;r++){
+      const et=etiqueta(rows[r][0]), val=rows[r][1];
+      if(/^ingrediente/.test(et)) break;
+      if(/^(receta|nombre)/.test(et)) nombre=txt(val);
+      else if(/^tipo/.test(et)){ const v=etiqueta(val); if(/^sub/.test(v)) tipo='sub'; else if(/^plato/.test(v)) tipo='plato'; }
+      else if(/^(porciones|rinde|rendimiento)/.test(et)) porciones=num(val);
+      else if(/^unidad/.test(et)){ const v=etiqueta(val); unidad=/^unid/.test(v)?'unidad':/^(kg|kilo)/.test(v)?'kg':/^lit/.test(v)?'litro':'porcion'; }
+    }
+    const hdr=(rows[r]||[]).map(c=>etiqueta(c));
+    const cP=hdr.findIndex((h,k)=>k>0&&/(cantidad|peso|kg)/.test(h)); if(cP>0) colPeso=cP;
+    colMerma=hdr.findIndex(h=>/merma/.test(h));
+    i=r+1;
+  } else {
+    // Formato viejo: nombre en F1 (o G1 si F1 es una etiqueta), porciones en G2, B=peso, C=rinde en kg.
+    const f1=txt(rows[0]?.[5]), g1=txt(rows[0]?.[6]);
+    nombre=(!f1||/^nombre/i.test(f1))?g1:f1;
+    porciones=num(rows[1]?.[6]);
+    colRinde=2;
+    i=1; // rows[0] es el encabezado (Ingrediente/Peso/Rinde/Merma)
+  }
   if(!nombre)nombre=sheetName;
   const ingredientes=[];
   const procedimiento=[];
   let notaChef='';
-  let i=1; // rows[0] es el encabezado (Ingrediente/Peso/Rinde/Merma)
   for(;i<rows.length;i++){
-    const cellA=String(rows[i][0]||'').trim();
-    if(cellA.toUpperCase()==='PROCEDIMIENTO')break;
-    if(!cellA)continue;
     const row=rows[i];
+    if(esProc(row)||esNota(row))break;
+    const cellA=txt(row[0]);
+    if(!cellA)continue;
     const ing=cellA;
-    const peso=parseFloat(row[1])||0;
-    const rindeRaw=row[2];
-    const rinde=(rindeRaw===''||rindeRaw===null||rindeRaw===undefined)?null:parseFloat(rindeRaw);
+    const peso=num(row[colPeso]);
     let merma=0;
-    if(rinde!==null&&!isNaN(rinde)&&peso>0&&rinde<peso)merma=((peso-rinde)/peso)*100;
+    if(colMerma>=0){
+      let m=num(row[colMerma]);
+      if(m>0&&m<1) m*=100; // celda con formato % (0,1 = 10%)
+      merma=Math.min(Math.max(m,0),99);
+    } else if(colRinde>=0){
+      const rindeRaw=row[colRinde];
+      const rinde=(rindeRaw===''||rindeRaw===null||rindeRaw===undefined)?null:num(rindeRaw);
+      if(rinde!==null&&peso>0&&rinde<peso)merma=((peso-rinde)/peso)*100;
+    }
     const ingU=ing.toUpperCase();
     const ingN=normTxt(ing);
     const fallbackComp='INSUMO - '+ingU;
+    // Los platos también pueden llevar subproductos ya cargados en el sistema.
+    const subExacto=tipo==='plato'?(DB.maestro_subs||[]).find(x=>normTxt(x)===ingN||normTxt(x).replace(/^SUB - /,'')===ingN.replace(/^SUB - /,'')):null;
     const exacto=DB.insumos.find(x=>normTxt(x.nombre)===ingN||normTxt(x.key.replace('INSUMO - ',''))===ingN);
     let comp,matched,candidatos=[],needsResolution=false;
-    if(exacto){
+    if(subExacto){
+      comp=subExacto;matched=true;
+    }else if(exacto){
       comp=exacto.key;matched=true;
     }else{
       candidatos=DB.insumos.filter(x=>contieneFrase(normTxt(x.nombre),ingN)||contieneFrase(ingN,normTxt(x.nombre)));
@@ -5817,36 +5863,28 @@ function parseRecetaSheet(ws,sheetName,origen){
       else if(candidatos.length>1){comp=fallbackComp;matched=false;needsResolution=true;}
       else{comp=fallbackComp;matched=false;}
     }
-    ingredientes.push({nombreExcel:ing,peso,rinde,merma,comp,matched,candidatos,needsResolution,fallbackComp});
+    ingredientes.push({nombreExcel:ing,peso,rinde:null,merma,comp,matched,candidatos,needsResolution,fallbackComp});
   }
-  // A partir de "PROCEDIMIENTO": pasos numerados "1. Texto" hasta fila vacía o "Nota del chef"
-  if(i<rows.length&&String(rows[i][0]||'').trim().toUpperCase()==='PROCEDIMIENTO'){
-    i++;
-    let blankRun=0;
-    for(;i<rows.length;i++){
-      const cellA=String(rows[i][0]||'').trim();
-      if(!cellA){
-        blankRun++;
-        if(blankRun>=3)break; // fila vacía prolongada: fin de la sección
-        continue;
-      }
-      blankRun=0;
-      if(cellA.toLowerCase()==='nota del chef'){
-        i++;
-        for(;i<rows.length;i++){
-          const notaCell=String(rows[i][0]||'').trim();
-          if(notaCell){notaChef=notaCell;break;}
-        }
-        break;
-      }
-      const m=cellA.match(/^\d+\.\s*(.*)$/);
-      procedimiento.push({texto:m?m[1]:cellA,subtitulo:false});
+  // "PROCEDIMIENTO": un paso por fila (con o sin número) hasta "NOTA DEL CHEF" o el final.
+  if(i<rows.length&&esProc(rows[i])){
+    for(i++;i<rows.length;i++){
+      if(esNota(rows[i]))break;
+      const t=primera(rows[i]);
+      if(!t)continue;
+      procedimiento.push({texto:t.replace(/^(paso\s*)?\d+\s*[.)\-:]\s*/i,''),subtitulo:false});
     }
   }
+  // "NOTA DEL CHEF": todo lo que sigue (puede ocupar varias filas).
+  if(i<rows.length&&esNota(rows[i])){
+    const notas=[];
+    for(i++;i<rows.length;i++){ const t=primera(rows[i]); if(t) notas.push(t); }
+    notaChef=notas.join('\n');
+  }
   if(!ingredientes.length)return null;
-  const totalKg=ingredientes.reduce((s,x)=>s+x.peso,0);
+  // Rendimiento con los kg que quedan (kg × (1 − merma)), igual que en la receta.
+  const totalKg=ingredientes.reduce((s,x)=>s+kgQuedanIng(x.peso,x.merma),0);
   const pesoPorcionKg=porciones>0?(totalKg/porciones):0;
-  return{sheetName,nombre,tipo:origen==='sub'?'sub':'plato',porciones,pesoPorcionG:Math.round(pesoPorcionKg*1000*100)/100,totalKg,ingredientes,procedimiento,nota_chef:notaChef};
+  return{sheetName,nombre,tipo,unidad,porciones,pesoPorcionG:Math.round(pesoPorcionKg*1000*100)/100,totalKg,ingredientes,procedimiento,nota_chef:notaChef};
 }
 
 function abrirModalAmbiguedad(){
@@ -5953,11 +5991,11 @@ function renderImportPreview(){
           <label style="font-size:10px;color:var(--text3)">Tipo</label>
           <input type="text" value="${isPlato?'🍴 Plato':'🧩 Subproducto'}" style="width:150px;background:var(--surface);color:var(--text3)" readonly>
         </div>
-        ${isPlato?`
         <div class="form-field">
-          <label style="font-size:10px;color:var(--text3)">Porciones</label>
+          <label style="font-size:10px;color:var(--text3)">${escH((UNIDAD_LABELS[rec.unidad]||'porciones').replace(/^./,c=>c.toUpperCase()))}</label>
           <input type="number" id="imp-porciones-${idx}" value="${rec.porciones||''}" style="width:90px" onchange="impSetPorciones(${idx},this.value)">
         </div>
+        ${isPlato?`
         <div class="form-field">
           <label style="font-size:10px;color:var(--text3)">Peso/porción (g)</label>
           <input type="number" step="1" id="imp-peso-${idx}" value="${rec.pesoPorcionG||''}" style="width:100px" onchange="impSetPeso(${idx},this.value)">
@@ -5973,12 +6011,12 @@ function renderImportPreview(){
         <span>📝 Nota del chef: ${rec.nota_chef?'<span style="color:var(--green)">sí</span>':'<span style="opacity:.7">no</span>'}</span>
       </div>
       <div class="tw" style="overflow-x:auto"><table style="min-width:500px">
-        <thead><tr><th>Ingrediente</th><th class="num">Peso (kg)</th><th class="num">Rinde (kg)</th><th class="num">% Merma</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Ingrediente</th><th class="num">Cantidad (kg)</th><th class="num">% Merma</th><th class="num">Quedan (kg)</th><th>Estado</th></tr></thead>
         <tbody>${rec.ingredientes.map((ing,ii)=>`<tr>
           <td>${escH(ing.nombreExcel)}</td>
           <td class="num">${fmtN(ing.peso,4)}</td>
-          <td class="num">${ing.rinde!==null?fmtN(ing.rinde,4):'—'}</td>
           <td class="num">${ing.merma?fmtN(ing.merma,1)+'%':'—'}</td>
+          <td class="num">${fmtN(kgQuedanIng(ing.peso,ing.merma),4)}</td>
           <td>${ing.matched?'<span style="color:var(--green)">✅ Encontrado'+(ing.resuelto?' (elegido)':'')+'</span>':`
             <div style="display:flex;flex-direction:column;gap:4px;min-width:210px">
               <span style="color:var(--red)">❌ No encontrado (se carga como texto)</span>
@@ -6090,6 +6128,14 @@ function resolverIngredienteMapeo(ri,ii,insumoId){
   renderImportPreview();
 }
 
+// Rendimiento de una receta importada (mismos campos que guarda el modal de la receta).
+function importRendimiento(rec){
+  const porc=parseFloat(rec.porciones)||0;
+  if(!(porc>0)) return {};
+  const kg=rec.ingredientes.reduce((s,x)=>s+kgQuedanIng(x.peso,x.merma),0);
+  return {tipo_unidad:rec.unidad||'porcion', rendimiento_modo:'unidades', rendimiento_unidades:porc,
+    rendimiento_peso_kg:kg>0?kg/porc:0, merma_receta:0};
+}
 function confirmarImportExcel(){
   if(!importRecetas.length)return;
   actualizarBtnConfirmarImport();
@@ -6122,6 +6168,7 @@ function confirmarImportExcel(){
       if(!DB.maestro_subs.includes(nombre))DB.maestro_subs.push(nombre);
       if(!DB.subs_config)DB.subs_config={};
       const cfgS=DB.subs_config[nombre]||{};
+      Object.assign(cfgS, importRendimiento(rec));
       if(rec.procedimiento&&rec.procedimiento.length)cfgS.procedimiento=rec.procedimiento;
       else delete cfgS.procedimiento;
       if(rec.nota_chef)cfgS.nota_chef=rec.nota_chef;
@@ -6143,7 +6190,7 @@ function confirmarImportExcel(){
       });
       if(!DB.platos_config)DB.platos_config={};
       const peso=parseFloat(rec.pesoPorcionG)||0;
-      DB.platos_config[nombre]={...(DB.platos_config[nombre]||{}),...(peso>0?{peso_porcion:peso}:{})};
+      DB.platos_config[nombre]={...(DB.platos_config[nombre]||{}),...importRendimiento(rec),...(peso>0?{peso_porcion:peso}:{})};
       if(rec.procedimiento&&rec.procedimiento.length)DB.platos_config[nombre].procedimiento=rec.procedimiento;
       else delete DB.platos_config[nombre].procedimiento;
       if(rec.nota_chef)DB.platos_config[nombre].nota_chef=rec.nota_chef;
@@ -11735,6 +11782,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-10-29', t:'Producción: la carga de recetas desde Excel ahora toma bien el <b>procedimiento</b>, la nota del chef, las porciones (rendimiento) y la merma de cada ingrediente. Hay una planilla modelo para cargarlas.'},
   {f:'2026-10-29', t:'Fichas Técnicas: la solapa <b>Comanda</b> queda más simple: la fecha al lado del nombre del evento, invitados solo el total, y sin dirección, tipo de evento ni total de personal.'},
   {f:'2026-10-28', t:'Presupuestos: en todos los cuadros de texto (intro del menú, ítems de las estaciones, aclaración, incluye / no incluye, cláusulas, cierre y agradecimiento) se puede poner <b>negrita</b> y <u>subrayado</u> como en Word (botones B / U o Ctrl+B / Ctrl+U). Sale así en el PDF.'},
   {f:'2026-10-28', t:'Presupuestos: los presupuestos nuevos traen 2 fotos nuevas de la <b>barra</b> (las chicas de la hoja de la Barra). Los que ya estaban no cambian.'},

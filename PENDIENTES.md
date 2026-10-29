@@ -37,4 +37,5 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Necesidades con checklist para Cristian**: todo junto, cada ítem con check "lo tengo / no lo tengo"; lo que no hay queda como lista de compras. Cristian entra con la cuenta de cocina (cocina.mppcatering@gmail.com).
 
 ## Hecho
+- 29/10/2026 — **Producción › Importar recetas desde Excel**: ahora toma procedimiento, nota del chef, porciones (rendimiento) y merma; planilla modelo `Plantilla recetas MP.xlsx` para que Mariana cargue en Google Sheets.
 - 29/10/2026 — **Fichas Técnicas › Comanda**: sin dirección, sin "Total personal", sin "Tipo de evento", invitados solo el total, fecha al lado del nombre del evento.
