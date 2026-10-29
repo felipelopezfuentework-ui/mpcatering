@@ -42,3 +42,6 @@ Usuario: dueño del negocio, no técnico. Hablar en español rioplatense, resúm
 - Formulario de presupuesto sin leyendas/carteles de ayuda (a pedido). Precios: arranca con la línea `presuPrecioDefecto` ("Precio total por persona") y el botón "+ Agregar línea de precio" (`presuAgregarPrecio`) suma ítems manuales (concepto + valor); con más de una se pueden quitar. Presupuesto nuevo arranca con sección vacía (`presuSeccionVacia`) + estación, y otra sección con la Barra clásica; "Agregar sección" suma sección + estación.
 - Secciones de estaciones: renglón `{tipo:'seccion', titulo}` dentro de `estaciones` (las estaciones que siguen son de esa sección); `presuAgregarSeccion`/`presuAgregarEstacionEn`; en el PDF el título de la sección va arriba de su primera estación que sale (`_sec` → `part.sec`, medido en `medirParte`, dibujado en `dibujarParte`). `presuMenuEstaciones` y los demás ignoran los renglones de sección (no tienen ítems).
 - Pendiente de definir: módulo "Pendientes" (propuesta hecha, sin implementar); facturación ARCA (solo charla).
+
+## Pendientes
+Los cambios acordados con Mariana están en **`PENDIENTES.md`** (separados en lo que espera de Mariana y lo que hay que programar). Leerlo al empezar; al terminar un punto, pasarlo a "Hecho" con la fecha, y sumar ahí lo nuevo que surja.
