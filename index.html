@@ -7826,12 +7826,11 @@ const COMANDA_TEMPLATE = [
     campos: [
       {tipo:'titulo', label:'COMANDA'},
       {tipo:'info', label:'Completar únicamente casillas con recuadro'},
-      {tipo:'campo_readonly', label:'Nombre del evento', key:'_nombre_evento'},
-      {tipo:'campo', label:'Tipo de evento', key:'com_tipo_evento'},
-      {tipo:'campo', label:'Total personal', key:'com_personal_total'},
-      {tipo:'campos_multi', label:'', keys:[{k:'com_fecha',l:'Fecha',t:'date'},{k:'com_hora_ini',l:'Hora Comienzo'},{k:'com_hora_fin',l:'Hora Finalización'}]},
-      {tipo:'campos_multi', label:'', keys:[{k:'com_locacion',l:'Locación'},{k:'com_direccion',l:'Dirección'}]},
-      {tipo:'campos_multi', label:'Invitados', keys:[{k:'com_inv_total',l:'Total',t:'number'},{k:'com_inv_adultos',l:'Adultos',t:'number'},{k:'com_inv_jovenes',l:'Jóvenes',t:'number'},{k:'com_inv_menores',l:'Menores',t:'number'}]},
+      // A pedido (Mariana): sin dirección, tipo de evento, total de personal ni
+      // invitados por edad; la fecha va al lado del nombre del evento.
+      {tipo:'campos_multi', label:'', keys:[{k:'_nombre_evento',l:'Nombre del evento',nombre:true},{k:'com_fecha',l:'Fecha',t:'date'}]},
+      {tipo:'campos_multi', label:'', keys:[{k:'com_hora_ini',l:'Hora Comienzo'},{k:'com_hora_fin',l:'Hora Finalización'},{k:'com_locacion',l:'Locación'}]},
+      {tipo:'campos_multi', label:'', keys:[{k:'com_inv_total',l:'Invitados',t:'number'}]},
       {tipo:'campo', label:'Dietas especiales', key:'dietas_especiales', readonlyDesdeEvento:true, inputType:'textarea'},
       {tipo:'seccion', label:'DIETAS ESPECIALES'},
       {tipo:'tabla_dietas', key:'com_dietas', cols:['Especiales','Vegetariano','Vegano','Celíaco','Hipertenso','Diabético','Cant']},
@@ -8946,7 +8945,13 @@ function renderEventoSheet(ev, sheetIdx){
       if(c.label) html+=`<label style="font-size:11px;color:var(--text3);font-weight:600;width:100%;margin-bottom:-8px">${escH(c.label)}</label>`;
       c.keys.forEach(k=>{
         const v = datos[k.k]||'';
-        if(CAMPOS_DESTINO_A_ORIGEN[k.k]){
+        if(k.nombre){
+          html+=`<div class="form-field" style="flex:2;min-width:200px">
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">${escH(k.l)}</label>
+            <input type="text" value="${escH(ev.nombre||'')}" readonly
+              style="width:100%;background:rgba(92,45,110,.07);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 9px;font-size:12px;font-family:inherit;outline:none;cursor:default;font-weight:600">
+          </div>`;
+        } else if(CAMPOS_DESTINO_A_ORIGEN[k.k]){
           html+=`<div class="form-field" style="flex:1;min-width:140px">
             <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">${escH(k.l)}</label>
             <input type="${k.t||'text'}" value="${escH(v)}" readonly data-key="${k.k}"
@@ -10259,6 +10264,7 @@ function buildValueItems(ev, item){
   if(item.tipo==='campos_multi'){
     const items=[];
     item.keys.forEach(k=>{
+      if(k.nombre) return; // el nombre del evento ya va en el encabezado del PDF
       const val=getValorMultiPDF(ev, k.k);
       const display= k.t==='date' ? formatFechaPDF(val) : val;
       if(display) items.push({label:k.l, value:display});
@@ -11729,6 +11735,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-10-29', t:'Fichas Técnicas: la solapa <b>Comanda</b> queda más simple: la fecha al lado del nombre del evento, invitados solo el total, y sin dirección, tipo de evento ni total de personal.'},
   {f:'2026-10-28', t:'Presupuestos: en todos los cuadros de texto (intro del menú, ítems de las estaciones, aclaración, incluye / no incluye, cláusulas, cierre y agradecimiento) se puede poner <b>negrita</b> y <u>subrayado</u> como en Word (botones B / U o Ctrl+B / Ctrl+U). Sale así en el PDF.'},
   {f:'2026-10-28', t:'Presupuestos: los presupuestos nuevos traen 2 fotos nuevas de la <b>barra</b> (las chicas de la hoja de la Barra). Los que ya estaban no cambian.'},
   {f:'2026-10-28', t:'Nuevo botón <b>Actividad</b> en el encabezado: muestra quién tiene el sistema abierto ahora, en qué módulo y pestaña está y si lo está usando o lo tiene en otra ventana.'},

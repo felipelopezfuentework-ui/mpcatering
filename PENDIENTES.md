@@ -21,13 +21,6 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **"+ IVA" en todos los precios**: todo precio que se cargue sale con "+ IVA" (hoy solo si se escribe a mano).
 - [ ] **Campo "Camareros sugeridos"**: campo nuevo que llena Mariana (la cantidad sugerida de camareros). En el PDF reemplaza el texto fijo "(se sugiere 1 cada 10 comensales)".
 
-### Fichas Técnicas — Comanda
-- [ ] Sacar los campos de dirección.
-- [ ] Sacar "Total personal" (personal del evento).
-- [ ] Fecha del evento al lado del nombre del evento.
-- [ ] Sacar "Tipo de evento".
-- [ ] Invitados: solo el total (sacar adultos, jóvenes y menores).
-
 ### Fichas Técnicas — Check list y vajilla
 - [ ] **Vajilla por plato precargada** en el armado de vajilla, según el criterio de Mariana. *(Necesita la lista de Mariana.)*
 - [ ] **Checklist de comida automático** con lo que lleva cada plato. *(Necesita la lista de Mariana.)*
@@ -44,4 +37,4 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Necesidades con checklist para Cristian**: todo junto, cada ítem con check "lo tengo / no lo tengo"; lo que no hay queda como lista de compras. Cristian entra con la cuenta de cocina (cocina.mppcatering@gmail.com).
 
 ## Hecho
-- (vacío)
+- 29/10/2026 — **Fichas Técnicas › Comanda**: sin dirección, sin "Total personal", sin "Tipo de evento", invitados solo el total, fecha al lado del nombre del evento.
