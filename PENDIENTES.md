@@ -19,7 +19,7 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
   - Incluye: Manager general, Metre, Personal de salón, Personal de cocina, Personal de limpieza, Vajilla de mesa, Vajilla de presentación, Manteles, Individuales y caminos, Ambientación para las estaciones, Equipamiento de cocina (de ser necesario), Bebidas sin alcohol.
   - No incluye: Bebidas con alcohol, Bebidas sin alcohol, Mesas, Sillas, Mobiliario, Instalación eléctrica.
 - [ ] **"+ IVA" en todos los precios**: todo precio que se cargue sale con "+ IVA" (hoy solo si se escribe a mano).
-- [ ] **Campo "Camareros sugeridos"**: campo nuevo que llena Mariana (la cantidad sugerida de camareros). *(Confirmar cómo sale en el PDF en lugar del texto fijo "se sugiere 1 cada 10 comensales".)*
+- [ ] **Campo "Camareros sugeridos"**: campo nuevo que llena Mariana (la cantidad sugerida de camareros). En el PDF reemplaza el texto fijo "(se sugiere 1 cada 10 comensales)".
 
 ### Fichas Técnicas — Comanda
 - [ ] Sacar los campos de dirección.
@@ -41,7 +41,7 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Calendario**: nueva solapa en Fichas Técnicas con todos los eventos confirmados en vista de calendario.
 
 ### Producción — Eventos a producir
-- [ ] **Necesidades con checklist para Cristian**: todo junto, cada ítem con check "lo tengo / no lo tengo"; lo que no hay queda como lista de compras. *(Ver si Cristian entra con su propio mail y sumarlo a los autorizados.)*
+- [ ] **Necesidades con checklist para Cristian**: todo junto, cada ítem con check "lo tengo / no lo tengo"; lo que no hay queda como lista de compras. Cristian entra con la cuenta de cocina (cocina.mppcatering@gmail.com).
 
 ## Hecho
 - (vacío)
