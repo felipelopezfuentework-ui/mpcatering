@@ -11782,6 +11782,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-10-30', t:'Presupuestos: arreglado que los <b>renglones nuevos</b> (Enter) de los cuadros de texto se juntaban en uno solo en el PDF. Y el corrector de ortografía ya no revisa solo mientras se escribe: revisa únicamente al apretar <b>🔤 Revisar ortografía</b>.'},
   {f:'2026-10-29', t:'Producción: la carga de recetas desde Excel ahora toma bien el <b>procedimiento</b>, la nota del chef, las porciones (rendimiento) y la merma de cada ingrediente. Hay una planilla modelo para cargarlas.'},
   {f:'2026-10-29', t:'Fichas Técnicas: la solapa <b>Comanda</b> queda más simple: la fecha al lado del nombre del evento, invitados solo el total, y sin dirección, tipo de evento ni total de personal.'},
   {f:'2026-10-28', t:'Presupuestos: en todos los cuadros de texto (intro del menú, ítems de las estaciones, aclaración, incluye / no incluye, cláusulas, cierre y agradecimiento) se puede poner <b>negrita</b> y <u>subrayado</u> como en Word (botones B / U o Ctrl+B / Ctrl+U). Sale así en el PDF.'},
@@ -13015,8 +13016,13 @@ function rtDeHtml(ed){
   const ultimo=nodos[nodos.length-1];
   const walk=(n,b,u)=>{
     if(n.nodeType===3){
-      const t=n.nodeValue.replace(/\u00a0/g,' ').replace(/\n/g,' ');
-      if(t) out+=(b?'<b>':'')+(u?'<u>':'')+t+(u?'</u>':'')+(b?'</b>':'');
+      // El cuadro usa white-space:pre-wrap, as\u00ed que Chrome mete el Enter (y lo
+      // pegado con renglones) como "\n" dentro del texto: es un salto de rengl\u00f3n
+      // de verdad. Cada rengl\u00f3n abre y cierra sus propias marcas.
+      n.nodeValue.replace(/\u00a0/g,' ').split('\n').forEach((t,i)=>{
+        if(i) out+='\n';
+        if(t) out+=(b?'<b>':'')+(u?'<u>':'')+t+(u?'</u>':'')+(b?'</b>':'');
+      });
       return;
     }
     if(n.nodeType!==1) return;
@@ -13103,8 +13109,8 @@ function rtMejorarTodo(){
 // Dos capas, estilo Word:
 //  1) El corrector del navegador (subrayado rojo mientras se escribe,
 //     sugerencias con clic derecho), forzado a español en todos los campos.
-//  2) LanguageTool (servicio online gratuito): al dejar de escribir en un
-//     campo, o con "🔤 Revisar ortografía" para todos a la vez, muestra
+//  2) LanguageTool (servicio online gratuito): solo con el botón
+//     "🔤 Revisar ortografía" (todos los campos a la vez), muestra
 //     debajo de cada campo los errores con sus correcciones, que se aplican
 //     con un clic. Detecta también puntuación y acentos que el navegador no
 //     marca. Necesita internet: sin conexión solo queda la capa 1.
@@ -13293,9 +13299,9 @@ async function presuRevisarOrtografiaTodo(){
     presuOrtoActualizarBoton();
   }
 }
-// Revisión automática campo por campo: al dejar de escribir (2 s) o al
-// salir del campo. Mientras se escribe, las sugerencias viejas se ocultan
-// porque ya no coinciden con el texto.
+// LanguageTool solo revisa al apretar "🔤 Revisar ortografía" (a pedido: la
+// revisión automática al escribir molestaba). Mientras se escribe, las
+// sugerencias viejas de ese campo se ocultan porque ya no coinciden con el texto.
 (function(){
   const esCampo=el=>el && el.closest && el.closest('#modal-presupuesto') && (el.tagName==='TEXTAREA' || (el.tagName==='INPUT' && el.type==='text'));
   document.addEventListener('focusin', e=>{ if(esCampo(e.target)) presuActivarCorrectorNativo(e.target); });
@@ -13303,17 +13309,6 @@ async function presuRevisarOrtografiaTodo(){
     const el=e.target;
     if(!esCampo(el) || el._ortoAplicando) return;
     if(el._ortoMatches){ presuOrtoQuitar(el); presuOrtoActualizarBoton(); }
-    clearTimeout(el._ortoTimer);
-    el._ortoTimer=setTimeout(()=>presuOrtoRevisarCampo(el), 2000);
-  });
-  document.addEventListener('focusout', e=>{
-    const el=e.target;
-    if(!esCampo(el)) return;
-    // Si el foco se va a una sugerencia de este mismo corrector, no se
-    // vuelve a revisar (redibujaría las sugerencias en medio del clic).
-    if(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.presu-orto')) return;
-    clearTimeout(el._ortoTimer);
-    if(el.value!==el._ortoTexto) presuOrtoRevisarCampo(el);
   });
 })();
 
