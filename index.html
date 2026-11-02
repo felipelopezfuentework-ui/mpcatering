@@ -11782,6 +11782,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-02', t:'Presupuestos: en el PDF la <b>Barra clásica</b> sale siempre <b>sola en su hoja</b>, sin otras estaciones al lado (vale para los presupuestos ya hechos y para los nuevos).'},
   {f:'2026-10-30', t:'Presupuestos: arreglado que los <b>renglones nuevos</b> (Enter) de los cuadros de texto se juntaban en uno solo en el PDF. Y el corrector de ortografía ya no revisa solo mientras se escribe: revisa únicamente al apretar <b>🔤 Revisar ortografía</b>.'},
   {f:'2026-10-29', t:'Producción: la carga de recetas desde Excel ahora toma bien el <b>procedimiento</b>, la nota del chef, las porciones (rendimiento) y la merma de cada ingrediente. Hay una planilla modelo para cargarlas.'},
   {f:'2026-10-29', t:'Fichas Técnicas: la solapa <b>Comanda</b> queda más simple: la fecha al lado del nombre del evento, invitados solo el total, y sin dirección, tipo de evento ni total de personal.'},
@@ -14065,7 +14066,12 @@ function presuDibujarPDF(d, modo){
 
     const hojas=[]; let cur=[], curCont=false;
     function cerrarHoja(){ if(cur.length) hojas.push({partes:cur, cont:curCont}); cur=[]; curCont=false; }
+    // La Barra clásica va siempre sola en su hoja (a pedido): se cierra la
+    // hoja anterior antes y la suya después, así no comparte con otra estación.
+    const estEsBarra=e=>!!(e&&(e.barra||/^barra cl[aá]sica$/i.test(String(e.titulo||"").trim())));
     estacionesTodas.forEach(est=>{
+      const sola=estEsBarra(est);
+      if(sola) cerrarHoja();
       let part={est, items:itemsDe(est), cartel:llevaCartel(est), sec:est._sec||''};
       while(part){
         const prueba=cur.concat([part]);
@@ -14094,6 +14100,7 @@ function presuDibujarPDF(d, modo){
         curCont=true;
         part={est, items:resto, cartel:false};
       }
+      if(sola) cerrarHoja();
     });
     cerrarHoja();
     if(!hojas.length) hojas.push({partes:[], cont:false});
@@ -14133,21 +14140,24 @@ function presuDibujarPDF(d, modo){
 
     // Cada hoja usa el trío de fotos que le toca (hoja 1, 2, 3 o 4); una
     // hoja que continúa una estación partida repite las fotos de la anterior.
-    const esBarra=p=>p.est&&(p.est.barra||/^barra cl[aá]sica$/i.test(String(p.est.titulo||"").trim()));
+    // La hoja de la barra usa sus propias fotos y no gasta un trío de hoja.
+    const esBarra=p=>estEsBarra(p.est);
+    const hojaBarra=hoja=>hoja.partes.some(esBarra);
     if(modo==='hojas'){
       // Para el formulario: estaciones de cada trío de fotos (0..3) y si hay barra.
-      const res=PRESU_MENU_GRUPOS.map(()=>[]); let g=0, barra=false;
-      hojas.forEach((hoja,idx)=>{
-        if(idx>0 && !hoja.cont) g++;
-        if(hoja.partes.some(esBarra)){ barra=true; return; }
+      const res=PRESU_MENU_GRUPOS.map(()=>[]); let g=-1, barra=false;
+      hojas.forEach(hoja=>{
+        if(hojaBarra(hoja)){ barra=true; return; }
+        if(g<0 || !hoja.cont) g++;
         hoja.partes.forEach(p=>{ const t=String(p.est.titulo||'').trim()||'(sin título)'; const l=res[Math.min(g,3)]; if(!l.includes(t)) l.push(t); });
       });
       return {grupos:res, barra};
     }
-    let gidx=0;
+    let gidx=-1;
     hojas.forEach((hoja,idx)=>{
-      if(idx>0 && !hoja.cont) gidx++;
-      menuPage(gidx, idx===0, hoja.partes.some(esBarra));
+      const conBarra=hojaBarra(hoja);
+      if(!conBarra && (gidx<0 || !hoja.cont)) gidx++;
+      menuPage(Math.max(gidx,0), idx===0, conBarra);
       const s=escalaPara(hoja.partes)||MIN_ESCALA;
       let ly=listTop;
       hoja.partes.forEach((part,i)=>{
@@ -14157,7 +14167,7 @@ function presuDibujarPDF(d, modo){
     });
     // Si todavía queda intro sin dibujar, se agregan hojas con las mismas
     // fotos de la última hoja del menú.
-    while(introPend.length) menuPage(gidx,false);
+    while(introPend.length) menuPage(Math.max(gidx,0),false);
   }
 
   // ── Página 4: presupuesto (precios) ──
