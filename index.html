@@ -232,20 +232,21 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .presu-sec-input{width:100%;margin-top:6px;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.5px}
 .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
 .cal-dow{font-size:11px;font-weight:700;color:var(--text3);text-align:center;padding:2px 0;text-transform:uppercase;letter-spacing:.4px}
-.cal-dia{min-height:92px;border:1px solid var(--border);border-radius:8px;padding:4px 5px;background:var(--surface2);display:flex;flex-direction:column;gap:3px;min-width:0}
+.cal-dia{min-height:110px;border:1px solid var(--border);border-radius:8px;padding:4px 5px;background:var(--surface2);display:flex;flex-direction:column;gap:3px;min-width:0}
 .cal-dia.fuera{opacity:.35}
 .cal-dia.hoy{border-color:var(--mp-violet);box-shadow:inset 0 0 0 1px var(--mp-violet)}
-.cal-num{font-size:11px;font-weight:700;color:var(--text3)}
+.cal-num{font-size:12px;font-weight:700;color:var(--text3)}
 .cal-dia.hoy .cal-num{color:var(--mp-violet)}
-.cal-ev{display:block;width:100%;text-align:left;border:none;border-radius:5px;padding:3px 5px;font-size:11px;line-height:1.25;font-family:inherit;cursor:pointer;background:rgba(92,45,110,.14);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-ev{display:block;width:100%;text-align:left;border:none;border-radius:6px;padding:5px 7px;font-size:13.5px;font-weight:600;line-height:1.3;font-family:inherit;cursor:pointer;background:rgba(92,45,110,.14);color:var(--text);overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word}
+.cal-ev b{display:block;font-size:11.5px}
 .cal-ev:hover{background:rgba(92,45,110,.28)}
 .cal-ev b{font-weight:700;color:var(--mp-violet)}
 .cal-lista{margin-top:18px}
 .cal-lista h4{font-size:12px;color:var(--text3);margin:0 0 6px;text-transform:uppercase;letter-spacing:.5px}
-.cal-fila{display:flex;gap:10px;align-items:baseline;padding:7px 4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12.5px}
+.cal-fila{display:flex;gap:10px;align-items:baseline;padding:9px 4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:14.5px}
 .cal-fila:hover{background:var(--surface2)}
 .cal-fila .f{min-width:84px;color:var(--text3);font-variant-numeric:tabular-nums}
-@media (max-width:700px){.cal-dia{min-height:58px}.cal-ev{font-size:0;padding:0;height:6px;border-radius:3px;background:var(--mp-violet)}.cal-ev b{display:none}}
+@media (max-width:700px){.cal-dia{min-height:58px}.cal-ev{font-size:0;padding:0;height:6px;border-radius:3px;background:var(--mp-violet)}.cal-ev b{display:none}.cal-fila{font-size:15px}}
 .presu-opc{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px}
 .presu-opc label{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--text);cursor:pointer;padding:3px 0;line-height:1.3}
 .presu-opc input{margin-top:2px;flex-shrink:0}
@@ -919,8 +920,8 @@ tr.rec-clic:hover td{background:var(--accent-light)}
 </div>
 <!-- Tabs Comanda -->
 <div class="tabs" id="tabs-comanda" style="display:none">
-  <div class="tab active" onclick="switchTab('comanda_periodos')">📋 Períodos</div>
-  <div class="tab" onclick="switchTab('comanda_calendario')">📅 Calendario</div>
+  <div class="tab active" onclick="switchTab('comanda_calendario')">📅 Calendario</div>
+  <div class="tab" onclick="switchTab('comanda_periodos')">📋 Períodos</div>
   <div class="tab" onclick="switchTab('comanda_clientes')">🧑‍💼 Clientes</div>
 </div>
 <!-- Tabs Stock -->
@@ -2777,7 +2778,7 @@ const escH=(s)=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 // ══════════════════════════════════════════════════════════════════
 const TABS_PROD=['insumos','subproductos','platos','proveedores','prod_eventos'];
 const TABS_COT=['cotizaciones','costeo'];
-const TABS_COM=['comanda_periodos','comanda_calendario','comanda_clientes'];
+const TABS_COM=['comanda_calendario','comanda_periodos','comanda_clientes'];
 const TABS_STOCK=['stock','stock_historial'];
 const TABS_PRESU=['presupuestos'];
 const TABS_NOV=['novedades'];
@@ -7369,6 +7370,7 @@ function cerrarModalEvento(){
   const pId=comandaPeriodoActual, eId=comandaEventoActual;
   cerrarModal('modal-evento-detalle');
   guardarEventoActual(pId, eId);
+  if(document.getElementById('tab-comanda_calendario')?.classList.contains('active')) renderComandaCalendario();
 }
 
 // Close on overlay click
@@ -7532,8 +7534,8 @@ function _cambiarModuloReal(perfil){
   } else if(perfil==='cotizacion'){
     switchTab('cotizaciones');
   } else if(perfil==='comanda'){
-    switchTab('comanda_periodos');
-    renderComandaPeriodos();
+    // A pedido: Fichas Técnicas abre en el Calendario.
+    switchTab('comanda_calendario');
   } else if(perfil==='stock'){
     switchTab('stock');
   } else if(perfil==='presupuestos'){
@@ -11974,6 +11976,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-04', t:'Fichas Técnicas: ahora abre directo en el <b>📅 Calendario</b>, con los nombres de los eventos más grandes.'},
   {f:'2026-11-04', t:'Producción › Eventos a producir: en <b>Todo junto</b> cada insumo tiene <b>✓ Tengo / ✕ Falta</b>; lo que falta arma una <b>lista de compras</b> abajo, con botón para copiarla.'},
   {f:'2026-11-04', t:'Fichas Técnicas: nueva pestaña <b>📅 Calendario</b> con todos los eventos por fecha (un clic abre la ficha).'},
   {f:'2026-11-04', t:'Fichas Técnicas: la solapa <b>Vajilla salón</b> se divide en Cristalería, Cubertería y Vajilla, con el mismo diseño que Armado vajilla, y botones para cargar la vajilla de <b>desayuno buffet</b> o <b>formal</b>. Se sacó la solapa "Vajilla y equipamiento cocina".'},
@@ -12169,8 +12172,8 @@ function novIr(id){
   try{
     if(r.tipo==='presupuesto'){ cambiarModulo('presupuestos'); setTimeout(()=>abrirModalPresupuesto(r.id),50); }
     else if(r.tipo==='cotizacion'){ cambiarModulo('cotizacion'); setTimeout(()=>cotizAbrir(r.id),50); }
-    else if(r.tipo==='evento'){ cambiarModulo('comanda'); setTimeout(()=>{ abrirPeriodo(r.per); if(r.id) abrirEvento(r.per, r.id); },50); }
-    else if(r.tipo==='periodo'){ cambiarModulo('comanda'); setTimeout(()=>abrirPeriodo(r.per),50); }
+    else if(r.tipo==='evento'){ cambiarModulo('comanda'); switchTab('comanda_periodos'); setTimeout(()=>{ abrirPeriodo(r.per); if(r.id) abrirEvento(r.per, r.id); },50); }
+    else if(r.tipo==='periodo'){ cambiarModulo('comanda'); switchTab('comanda_periodos'); setTimeout(()=>abrirPeriodo(r.per),50); }
     else if(r.tipo==='sub'){ cambiarModulo('produccion'); switchTab('subproductos'); setTimeout(()=>abrirModalSub(r.nombre),50); }
     else if(r.tipo==='plato'){ cambiarModulo('produccion'); switchTab('platos'); setTimeout(()=>abrirModalPlato(r.nombre),50); }
     else if(r.tipo==='insumo'){ cambiarModulo('produccion'); switchTab('insumos'); setTimeout(()=>{ const s=document.getElementById('ins-search'); if(s){ s.value=r.nombre||''; renderInsumos(); } },50); }
