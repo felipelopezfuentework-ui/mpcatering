@@ -7133,16 +7133,16 @@ function detenerListenerStock(){
 const PDF_CP1252_EXTRA='€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
 function textoPdfSeguro(s){
   if(typeof s!=='string') return s;
-  if(!/[^ -ÿ]/.test(s)) return s;
+  if(!/[^\x00-\xff]/.test(s)) return s;
   s=s.normalize('NFC');
-  return s.replace(/[^ -ÿ]/g, ch=>{
+  return s.replace(/[^\x00-\xff]/g, ch=>{
     if(PDF_CP1252_EXTRA.includes(ch)) return ch;
-    const base=ch.normalize('NFD').replace(/[̀-ͯ]/g,'');
-    if(base && !/[^ -ÿ]/.test(base)) return base;
-    if(/[‐-‒−]/.test(ch)) return '-';
-    if(/[′‵]/.test(ch)) return "'";
-    if(/[″‶]/.test(ch)) return '"';
-    if(/[ -   　]/.test(ch)) return ' ';
+    const base=ch.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if(base && !/[^\x00-\xff]/.test(base)) return base;
+    if(/[\u2010-\u2012\u2212]/.test(ch)) return '-';
+    if(/[\u2032\u2035]/.test(ch)) return "'";
+    if(/[\u2033\u2036]/.test(ch)) return '"';
+    if(/[\u2000-\u200a\u202f\u205f\u3000]/.test(ch)) return ' ';
     return '';
   });
 }
@@ -7165,7 +7165,7 @@ function mpTextosNFC(v){
   let cambio=false;
   const rec=x=>{
     if(typeof x==='string'){
-      if(x.startsWith('data:') || !/[̀-ͯ]/.test(x)) return x;
+      if(x.startsWith('data:') || !/[\u0300-\u036f]/.test(x)) return x;
       const n=x.normalize('NFC'); if(n!==x) cambio=true; return n;
     }
     if(Array.isArray(x)) return x.map(rec);
