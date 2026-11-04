@@ -11976,6 +11976,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-04', t:'Presupuestos › Confirmado: la ficha del evento que se crea ya trae el <b>cliente</b> vinculado (si no estaba en el Maestro de Clientes, se crea) y en la Comanda el menú viene <b>separado por estación</b> con su título (Copetín, Entradas, Postre…). Vale para los que se confirmen de ahora en más.'},
   {f:'2026-11-04', t:'Fichas Técnicas: ahora abre directo en el <b>📅 Calendario</b>, con los nombres de los eventos más grandes.'},
   {f:'2026-11-04', t:'Producción › Eventos a producir: en <b>Todo junto</b> cada insumo tiene <b>✓ Tengo / ✕ Falta</b>; lo que falta arma una <b>lista de compras</b> abajo, con botón para copiarla.'},
   {f:'2026-11-04', t:'Fichas Técnicas: nueva pestaña <b>📅 Calendario</b> con todos los eventos por fecha (un clic abre la ficha).'},
@@ -12942,7 +12943,25 @@ function presuMenuEstaciones(p){
     .map(e=>({titulo:String(e.titulo||'').trim(), items:rtSinFormato(e.items).split('\n').map(l=>l.trim()).filter(Boolean).join('\n')}))
     .filter(e=>e.items);
 }
-function presuSegDatosEvento(p){
+// Cliente del presupuesto en el Maestro de Clientes: se busca por nombre (o
+// razón social); si no está, se crea con el nombre y el Solicitante como
+// contacto. Devuelve el cliente para vincularlo a la ficha (o null).
+async function presuSegCliente(p){
+  const nombre=String(p.cliente||'').trim();
+  if(!nombre) return null;
+  const norm=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLowerCase();
+  const n=norm(nombre);
+  const hay=(DB.maestro_clientes||[]).find(c=>norm(c.nombre_cliente)===n || norm(c.razon_social)===n);
+  if(hay) return hay;
+  const cli={cliente_id:generarClienteId(), nombre_cliente:nombre, contacto1_nombre:String(p.referentes||'').trim()};
+  try{
+    const {cliente_id, ...datos}=cli;
+    await FB_COL_CLIENTES.doc(cliente_id).set({...datos, updated_at:new Date().toISOString()});
+    novRegistrar({mod:'comanda', acc:'crear', que:'el cliente', titulo:nombre, ref:{tipo:'cliente'}});
+    return cli;
+  }catch(e){ console.error('No se pudo crear el cliente del presupuesto', e); return null; }
+}
+function presuSegDatosEvento(p, cli){
   const datos=comandaDatosVacios();
   datos.fecha=/^\d{4}-\d{2}-\d{2}$/.test(p.fechaEvento||'') ? p.fechaEvento : '';
   if(p.horarioInicio) datos.horario_inicio=p.horarioInicio;
@@ -12951,6 +12970,12 @@ function presuSegDatosEvento(p){
   if(p.lugar){ datos.locacion=p.lugar; datos.ubicacion=p.lugar; }
   if(p.cantidadPersonas) datos.cant_adultos=p.cantidadPersonas;
   if(p.cliente) datos.contacto=p.cliente;
+  // Mismos campos que aplicarClienteAEvento (elegir el cliente a mano).
+  if(cli){
+    Object.assign(datos, {cliente_id:cli.cliente_id, contacto:cli.nombre_cliente||cli.razon_social||p.cliente||'',
+      contacto_referente_slot:'1', contacto_evento:cli.contacto1_nombre||'', telefono:cli.contacto1_telefono||'',
+      email_cliente:cli.contacto1_email||'', direccion_evento:cli.direccion_evento||'', localidad:cli.localidad||'', obs_acceso:cli.obs_acceso||''});
+  }
   Object.entries(CAMPOS_COMPARTIDOS).forEach(([origen,destinos])=>{
     if(datos[origen]) destinos.forEach(d=>{ datos[d]=datos[origen]; });
   });
@@ -12964,6 +12989,11 @@ function presuSegDatosEvento(p){
   const menu=ests.filter(e=>!esBarra(e)).flatMap(lineas);
   const bebidas=ests.filter(esBarra).flatMap(lineas);
   if(menu.length) datos.com_menu=menu.map(l=>[l,'','','','','','']);
+  // En la Comanda, cada estación es una sección del menú con su título.
+  const secs=ests.filter(e=>e.tipo!=='seccion' && !esBarra(e))
+    .map(e=>({nombre:rtSinFormato(e.titulo).trim(), filas:lineas(e).map(l=>[l,'','','','','',''])}))
+    .filter(x=>x.filas.length);
+  if(secs.length) datos.com_menu_secciones=secs;
   if(bebidas.length) datos.bar_bebidas=bebidas.map(l=>[l,'','','','','']);
   datos.menu_presupuesto=presuMenuEstaciones(p);
   return datos;
@@ -12978,9 +13008,10 @@ async function presuSegCrearEvento(p){
   }
   const id='ev_'+FB_COL_EVENTOS.doc().id;
   const nombre=(p.tipoEvento||'').trim()||(p.cliente||'').trim()||'Evento';
+  const cli=await presuSegCliente(p);
   await FB_COL_EVENTOS.doc(id).set({
-    id, periodo_id:periodoId, nombre, cliente_id:null, creado:new Date().toLocaleDateString('es-AR'),
-    datos:convertirArraysAnidados(presuSegDatosEvento(p)), updated_at:new Date().toISOString(),
+    id, periodo_id:periodoId, nombre, cliente_id:cli?cli.cliente_id:null, creado:new Date().toLocaleDateString('es-AR'),
+    datos:convertirArraysAnidados(presuSegDatosEvento(p, cli)), updated_at:new Date().toISOString(),
     presupuesto_id:p._id
   });
   return {id, periodoId, mes, anio, nombre, sinFecha:!f};
