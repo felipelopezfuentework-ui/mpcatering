@@ -14,29 +14,17 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 
 ### Presupuestos
 - [ ] **Secciones pre-seteadas con buscador**: se eligen de una lista y se suman al presupuesto con su contenido. La Barra clásica pasa a ser una de ellas, y Bebidas también. *(Necesita la lista de Mariana.)*
-- [ ] **Sección Bebidas**: misma lógica que la Barra pero **sale siempre por defecto**. Estación con: Gaseosas (línea Coca-Cola), Agua con y sin gas, Pomelada, Limonada, y opción de agregar jugos licuados.
-- [ ] **Incluye / No incluye al revés**: marcado = sale en el PDF; sin marcar = no sale. **Los presupuestos existentes pasan a la lógica nueva.** Opciones:
-  - Incluye: Manager general, Metre, Personal de salón, Personal de cocina, Personal de limpieza, Vajilla de mesa, Vajilla de presentación, Manteles, Individuales y caminos, Ambientación para las estaciones, Equipamiento de cocina (de ser necesario), Bebidas sin alcohol.
-  - No incluye: Bebidas con alcohol, Bebidas sin alcohol, Mesas, Sillas, Mobiliario, Instalación eléctrica.
-- [ ] **"+ IVA" en todos los precios**: todo precio que se cargue sale con "+ IVA" (hoy solo si se escribe a mano).
-- [ ] **Campo "Camareros sugeridos"**: campo nuevo que llena Mariana (la cantidad sugerida de camareros). En el PDF reemplaza el texto fijo "(se sugiere 1 cada 10 comensales)".
 
 ### Fichas Técnicas — Check list y vajilla
+- [ ] **Fotos de referencia de los desayunos** en Vajilla salón (al elegir buffet o formal). *(Fotos pendientes de Mariana.)*
+- [ ] **Guardar los desayunos modelo**: abrir el evento de Stellantis › Vajilla salón › "⋯ → Guardar esta vajilla como Desayuno buffet / formal" (hay que hacerlo una vez desde el sistema).
 - [ ] **Vajilla por plato precargada** en el armado de vajilla, según el criterio de Mariana. *(Necesita la lista de Mariana.)*
 - [ ] **Checklist de comida automático** con lo que lleva cada plato. *(Necesita la lista de Mariana.)*
-- [ ] **Solapa "Vajilla salón"**:
-  - Título "Vajilla salón" (hoy dice "Vajilla y equip. salón").
-  - Mismo diseño que la solapa "Armado vajilla".
-  - Dividida en Cristalería, Cubertería y Vajilla.
-  - Vajilla de **desayuno buffet** y **desayuno formal** pre-seteadas (sacarlas del evento de Stellantis; solo cambia la cantidad).
-  - Al elegir cada desayuno, mostrar su foto de referencia. *(Fotos pendientes de Mariana.)*
-- [ ] **Sacar la solapa "Vajilla y equipamiento cocina"** (y que el Armado vajilla deje de sugerir desde ahí; pasa a usar la vajilla por plato).
-- [ ] **Calendario**: nueva solapa en Fichas Técnicas con todos los eventos confirmados en vista de calendario.
-
-### Producción — Eventos a producir
-- [ ] **Necesidades con checklist para Cristian**: todo junto, cada ítem con check "lo tengo / no lo tengo"; lo que no hay queda como lista de compras. Cristian entra con la cuenta de cocina (cocina.mppcatering@gmail.com).
 
 ## Hecho
+- 04/11/2026 — **Producción › Eventos a producir**: en "Todo junto" cada insumo con ✓ Tengo / ✕ Falta; lo que falta arma la lista de compras (se puede copiar).
+- 04/11/2026 — **Fichas Técnicas**: pestaña Calendario con todos los eventos; Vajilla salón con el diseño de Armado vajilla, dividida en Cristalería / Cubertería / Vajilla y botones de desayuno buffet / formal; se sacó la solapa "Vajilla y equipamiento cocina".
+- 04/11/2026 — **Presupuestos**: Incluye / No incluye al revés (tildado = sale) con la lista nueva, también en los presupuestos ya hechos; "+ IVA" en todos los precios del PDF; campo "Camareros sugeridos"; estación Bebidas en los presupuestos nuevos (con casilla de jugos licuados).
 - 02/11/2026 — **Presupuestos › PDF**: la Barra clásica sale siempre sola en su hoja del menú (presupuestos viejos y nuevos).
 - 29/10/2026 — **Producción › Importar recetas desde Excel**: ahora toma procedimiento, nota del chef, porciones (rendimiento) y merma; planilla modelo `Plantilla recetas MP.xlsx` para que Mariana cargue en Google Sheets.
 - 29/10/2026 — **Fichas Técnicas › Comanda**: sin dirección, sin "Total personal", sin "Tipo de evento", invitados solo el total, fecha al lado del nombre del evento.

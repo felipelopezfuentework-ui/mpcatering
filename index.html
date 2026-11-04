@@ -185,6 +185,15 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .prod-ing td{font-size:13.5px;padding:8px 10px}
 .prod-nec-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .prod-nec-res{font-size:12px;color:var(--text3)}
+.prod-tengo{display:flex;gap:4px;justify-content:center}
+.prod-tengo button{border:1px solid var(--border);background:var(--surface);color:var(--text3);border-radius:6px;padding:5px 9px;font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap}
+.prod-tengo button.si{background:rgba(46,160,90,.16);border-color:rgba(46,160,90,.6);color:#2e8b57;font-weight:700}
+.prod-tengo button.no{background:rgba(192,57,43,.13);border-color:rgba(192,57,43,.55);color:var(--red);font-weight:700}
+.prod-nec tr.falta td{background:rgba(192,57,43,.05)}
+.prod-nec tr.tengo .prod-nec-nom{color:var(--text3)}
+.prod-compras{margin-top:14px;border:1px solid rgba(192,57,43,.35);border-radius:10px;padding:10px 14px;background:rgba(192,57,43,.04)}
+.prod-compras-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-weight:700;font-size:13px;margin-bottom:6px}
+.prod-compras ul{margin:0;padding-left:20px;font-size:13px;line-height:1.7}
 .prod-nec td{font-size:13.5px;padding:9px 10px;vertical-align:middle}
 .prod-nec-nom{font-weight:600;color:var(--text)}
 .prod-usos{display:flex;flex-wrap:wrap;gap:5px}
@@ -221,11 +230,26 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .presu-sec-hd{border:1px solid var(--mp-gold,#c8a951);border-radius:8px;padding:10px 12px;margin:14px 0 10px;background:rgba(200,169,81,.08)}
 .presu-sec-lbl{font-size:10.5px;font-weight:800;letter-spacing:.8px;color:var(--mp-gold,#a88a35)}
 .presu-sec-input{width:100%;margin-top:6px;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:.5px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal-dow{font-size:11px;font-weight:700;color:var(--text3);text-align:center;padding:2px 0;text-transform:uppercase;letter-spacing:.4px}
+.cal-dia{min-height:92px;border:1px solid var(--border);border-radius:8px;padding:4px 5px;background:var(--surface2);display:flex;flex-direction:column;gap:3px;min-width:0}
+.cal-dia.fuera{opacity:.35}
+.cal-dia.hoy{border-color:var(--mp-violet);box-shadow:inset 0 0 0 1px var(--mp-violet)}
+.cal-num{font-size:11px;font-weight:700;color:var(--text3)}
+.cal-dia.hoy .cal-num{color:var(--mp-violet)}
+.cal-ev{display:block;width:100%;text-align:left;border:none;border-radius:5px;padding:3px 5px;font-size:11px;line-height:1.25;font-family:inherit;cursor:pointer;background:rgba(92,45,110,.14);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-ev:hover{background:rgba(92,45,110,.28)}
+.cal-ev b{font-weight:700;color:var(--mp-violet)}
+.cal-lista{margin-top:18px}
+.cal-lista h4{font-size:12px;color:var(--text3);margin:0 0 6px;text-transform:uppercase;letter-spacing:.5px}
+.cal-fila{display:flex;gap:10px;align-items:baseline;padding:7px 4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12.5px}
+.cal-fila:hover{background:var(--surface2)}
+.cal-fila .f{min-width:84px;color:var(--text3);font-variant-numeric:tabular-nums}
+@media (max-width:700px){.cal-dia{min-height:58px}.cal-ev{font-size:0;padding:0;height:6px;border-radius:3px;background:var(--mp-violet)}.cal-ev b{display:none}}
 .presu-opc{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px}
 .presu-opc label{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--text);cursor:pointer;padding:3px 0;line-height:1.3}
 .presu-opc input{margin-top:2px;flex-shrink:0}
 .presu-opc label.off{color:var(--text3)}
-.presu-opc label.off span{text-decoration:line-through}
 .presu-orto{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;font-size:11px}
 .presu-orto-item{display:flex;align-items:center;flex-wrap:wrap;gap:4px;background:rgba(192,57,43,.07);border:1px solid rgba(192,57,43,.25);border-radius:6px;padding:3px 6px;color:var(--text2)}
 .presu-orto-mal{text-decoration:underline wavy var(--red);text-underline-offset:3px;color:var(--text)}
@@ -896,6 +920,7 @@ tr.rec-clic:hover td{background:var(--accent-light)}
 <!-- Tabs Comanda -->
 <div class="tabs" id="tabs-comanda" style="display:none">
   <div class="tab active" onclick="switchTab('comanda_periodos')">📋 Períodos</div>
+  <div class="tab" onclick="switchTab('comanda_calendario')">📅 Calendario</div>
   <div class="tab" onclick="switchTab('comanda_clientes')">🧑‍💼 Clientes</div>
 </div>
 <!-- Tabs Stock -->
@@ -1077,6 +1102,22 @@ tr.rec-clic:hover td{background:var(--accent-light)}
       <button class="btn btn-primary" onclick="abrirModalPeriodo()">+ Agregar período</button>
     </div>
     <div id="comanda-periodos-list"></div>
+  </div>
+</div>
+
+<!-- ═══ CALENDARIO DE EVENTOS ════════════════════════════════════ -->
+<div class="content" id="tab-comanda_calendario">
+  <div class="card">
+    <div class="card-title" style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      📅 Calendario de eventos
+      <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        <button class="btn btn-outline" onclick="calMover(-1)" title="Mes anterior">‹</button>
+        <span id="cal-titulo" style="min-width:150px;text-align:center;font-weight:700"></span>
+        <button class="btn btn-outline" onclick="calMover(1)" title="Mes siguiente">›</button>
+        <button class="btn btn-outline" onclick="calMover(0)">Hoy</button>
+      </div>
+    </div>
+    <div id="cal-cuerpo"></div>
   </div>
 </div>
 
@@ -1846,8 +1887,8 @@ tr.rec-clic:hover td{background:var(--accent-light)}
       <button type="button" class="btn btn-outline" style="width:100%;border-style:dashed" onclick="presuAgregarPrecio()">+ Agregar línea de precio</button>
       <div class="form-row" style="margin-top:12px">
         <div class="form-field" style="flex:1">
-          <label>Cantidad de camareros</label>
-          <input type="number" id="presu-salon-camareros" min="0" placeholder="Ej: 10" style="width:100%">
+          <label>Camareros sugeridos</label>
+          <input type="number" id="presu-salon-camareros" min="0" placeholder="Ej: 4" style="width:100%">
         </div>
         <div class="form-field" style="flex:1">
           <label>Precio por cada camarero</label>
@@ -2736,7 +2777,7 @@ const escH=(s)=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 // ══════════════════════════════════════════════════════════════════
 const TABS_PROD=['insumos','subproductos','platos','proveedores','prod_eventos'];
 const TABS_COT=['cotizaciones','costeo'];
-const TABS_COM=['comanda_periodos','comanda_clientes'];
+const TABS_COM=['comanda_periodos','comanda_calendario','comanda_clientes'];
 const TABS_STOCK=['stock','stock_historial'];
 const TABS_PRESU=['presupuestos'];
 const TABS_NOV=['novedades'];
@@ -2761,7 +2802,7 @@ function switchTab(name){
   if(contentEl)contentEl.classList.add('active');
   ({insumos:renderInsumos,subproductos:renderSubproductos,platos:renderPlatos,
     cotizaciones:renderCotizLista,costeo:renderCotizEditor,proveedores:renderProveedores,
-    comanda_periodos:renderComandaPeriodos,comanda_clientes:renderClientes,
+    comanda_periodos:renderComandaPeriodos,comanda_calendario:renderComandaCalendario,comanda_clientes:renderClientes,
     stock:renderStockActual,stock_historial:renderStockHistorial,
     presupuestos:renderPresupuestos,prod_eventos:renderProdEventos,novedades:abrirNovedades})[name]?.();
   actAvisar(name);
@@ -6413,7 +6454,7 @@ function puedeVerPresupuestos(){
 const FB_COL_ACT=fbDb.collection('actividad');
 const ACT_PULSO_SEG=20, ACT_VIVO_SEG=60, ACT_VIVO_OCULTA_SEG=150, ACT_BORRAR_MIN=30;
 const ACT_TABS={insumos:'Insumos',subproductos:'Subproductos',platos:'Platos',proveedores:'Proveedores',prod_eventos:'Eventos a producir',
-  cotizaciones:'Eventos a cotizar',costeo:'Cotizador',comanda_periodos:'Períodos',comanda_clientes:'Clientes',
+  cotizaciones:'Eventos a cotizar',costeo:'Cotizador',comanda_periodos:'Períodos',comanda_calendario:'Calendario',comanda_clientes:'Clientes',
   stock:'Stock actual',stock_historial:'Historial',presupuestos:'Presupuestos',novedades:'Novedades'};
 const ACT_MODS={produccion:'🍳 Producción',cotizacion:'🧾 Cotización',comanda:'📋 Fichas Técnicas',stock:'📊 Stock',presupuestos:'🧮 Presupuestos',novedades:'🔔 Novedades'};
 // Id de la pestaña (sobrevive a recargar, así no quedan "fantasmas") y de la
@@ -6694,7 +6735,7 @@ function refrescarVistaActual(){
       else{
         ({insumos:renderInsumos,subproductos:renderSubproductos,platos:renderPlatos,
           cotizaciones:renderCotizLista,costeo:cotizActualizarNumeros,proveedores:renderProveedores,
-          comanda_clientes:renderClientes,stock:renderStockActual,
+          comanda_clientes:renderClientes,comanda_calendario:renderComandaCalendario,stock:renderStockActual,
           stock_historial:renderStockHistorial,
           presupuestos:renderPresupuestos,prod_eventos:renderProdEventos,novedades:renderNovedades})[name]?.();
       }
@@ -7918,32 +7959,21 @@ const COMANDA_TEMPLATE = [
     ]
   },
   {
-    nombre: 'VAJILLA Y EQUIPAMIENTO COCINA',
-    campos: [
-      {tipo:'titulo', label:'VAJILLA Y EQUIPAMIENTO COCINA'},
-      {tipo:'campos_multi', label:'', keys:[{k:'vco_fecha',l:'Fecha',t:'date'},{k:'vco_tipo',l:'Tipo de evento'},{k:'vco_invitados',l:'Invitados',t:'number'}]},
-      {tipo:'seccion', label:'RESPONSABLES DE ÁREAS'},
-      {tipo:'campos_multi', label:'', keys:[{k:'vco_planif',l:'Planificación'},{k:'vco_armado',l:'Armado en local'},{k:'vco_ctrl_ing',l:'Control ingreso locación'},{k:'vco_ctrl_eg',l:'Control egreso locación'},{k:'vco_reingreso',l:'Reingreso al local'}]},
-      {tipo:'tabla_checks', key:'vco_cocina', seccion:'COCINA', cols:['Ítem','Cantidad','Armado local','Ctrl. Ingreso','Ctrl. Egreso','Reingreso','Observaciones'], addRow:true},
-      {tipo:'tabla_checks', key:'vco_papeleria', seccion:'PAPELERÍA', cols:['Ítem','Cantidad','Armado local','Ctrl. Ingreso','Ctrl. Egreso','Reingreso','Observaciones'], addRow:true}
-    ]
-  },
-  {
     nombre: 'ARMADO VAJILLA',
     campos: [
       {tipo:'titulo', label:'ARMADO VAJILLA'},
-      {tipo:'info', label:'La columna Menú se completa sola desde el menú del evento (Ficha Técnica). La Vajilla sugiere los ítems ya cargados en Vajilla y Equipamiento Cocina.'},
+      {tipo:'info', label:'La columna Menú se completa sola desde el menú del evento (Ficha Técnica). La Vajilla sugiere lo cargado en Vajilla salón y lo usado en otros eventos.'},
       {tipo:'tabla_armado_vajilla', key:'armado_vajilla', cols:['Menú','Cantidad','Vajilla','Cantidad']}
     ]
   },
   {
     nombre: 'VAJILLA SALÓN',
     campos: [
-      {tipo:'titulo', label:'VAJILLA Y EQUIP. SALÓN'},
+      {tipo:'titulo', label:'VAJILLA SALÓN'},
       {tipo:'campos_multi', label:'', keys:[{k:'vsa_fecha',l:'Fecha',t:'date'},{k:'vsa_tipo',l:'Tipo de evento'},{k:'vsa_invitados',l:'Invitados',t:'number'}]},
       {tipo:'seccion', label:'RESPONSABLES DE ÁREAS'},
       {tipo:'campos_multi', label:'', keys:[{k:'vsa_planif',l:'Planificación'},{k:'vsa_armado',l:'Armado en local'},{k:'vsa_ctrl_ing',l:'Control ingreso locación'},{k:'vsa_ctrl_eg',l:'Control egreso locación'},{k:'vsa_reingreso',l:'Reingreso al local'}]},
-      {tipo:'tabla_checks', key:'vsa_vajilla', seccion:'VAJILLA', cols:['Ítem','Cantidad','Armado local','Ctrl. Ingreso','Ctrl. Egreso','Reingreso','Observaciones'], addRow:true}
+      {tipo:'checklist_vajilla', key:'vsa_secciones', salon:true, defaultSecciones:[{nombre:'CRISTALERÍA',items:[]},{nombre:'CUBERTERÍA',items:[]},{nombre:'VAJILLA',items:[]}]}
     ]
   },
   {
@@ -8642,6 +8672,59 @@ function eliminarEvento(periodoId,eventoId){
 }
 
 // ── Abrir evento (editor con tabs del Excel) ──────────────────────
+// ── Calendario: todos los eventos de Fichas Técnicas (los confirmados) por fecha ──
+let _calMes=null; // {a, m} (m de 0 a 11)
+function calFechaEvento(d){ return [d.fecha, d.com_fecha, d.fm_fecha].find(x=>/^\d{4}-\d{2}-\d{2}$/.test(x||''))||''; }
+function calEventos(){
+  const out=[];
+  Object.entries((DB.comanda&&DB.comanda.eventos)||{}).forEach(([pid,evs])=>(evs||[]).forEach(ev=>{
+    const d=ev.datos||{};
+    out.push({pid, id:ev.id, nombre:ev.nombre||'Evento', f:calFechaEvento(d), hora:d.horario_inicio||d.com_hora_ini||'',
+      lugar:d.locacion||d.com_locacion||'', inv:d.com_inv_total||d.cant_adultos||''});
+  }));
+  return out.sort((a,b)=>(a.f+a.hora).localeCompare(b.f+b.hora));
+}
+function calMover(n){
+  const hoy=new Date();
+  if(!n||!_calMes) _calMes={a:hoy.getFullYear(), m:hoy.getMonth()};
+  if(n){ const x=new Date(_calMes.a, _calMes.m+n, 1); _calMes={a:x.getFullYear(), m:x.getMonth()}; }
+  renderComandaCalendario();
+}
+function calFilaHtml(e){
+  const f=e.f?e.f.slice(8,10)+'/'+e.f.slice(5,7):'—';
+  const extra=[e.hora&&e.hora+' hs', e.lugar, e.inv&&e.inv+' invitados'].filter(Boolean).join(' · ');
+  return `<div class="cal-fila" onclick="abrirEvento('${escH(e.pid)}','${escH(e.id)}')"><span class="f">${f}</span><span><b>${escH(e.nombre)}</b>${extra?` <span style="color:var(--text3)">· ${escH(extra)}</span>`:''}</span></div>`;
+}
+function renderComandaCalendario(){
+  const cuerpo=document.getElementById('cal-cuerpo'); if(!cuerpo) return;
+  if(!_calMes){ const h=new Date(); _calMes={a:h.getFullYear(), m:h.getMonth()}; }
+  const {a,m}=_calMes;
+  document.getElementById('cal-titulo').textContent=MESES[m+1]+' '+a;
+  const evs=calEventos();
+  const porDia={};
+  evs.forEach(e=>{ if(e.f) (porDia[e.f]=porDia[e.f]||[]).push(e); });
+  const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const hoy=iso(new Date());
+  const primero=new Date(a,m,1);
+  const inicio=new Date(a,m,1-((primero.getDay()+6)%7)); // arranca el lunes
+  const semanas=Math.ceil((((primero.getDay()+6)%7)+new Date(a,m+1,0).getDate())/7);
+  let html='<div class="cal-grid">'+['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  for(let i=0;i<semanas*7;i++){
+    const d=new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate()+i);
+    const k=iso(d);
+    html+=`<div class="cal-dia${d.getMonth()!==m?' fuera':''}${k===hoy?' hoy':''}"><span class="cal-num">${d.getDate()}</span>`+
+      (porDia[k]||[]).map(e=>`<button type="button" class="cal-ev" title="${escH([e.nombre,e.hora&&e.hora+' hs',e.lugar,e.inv&&e.inv+' invitados'].filter(Boolean).join(' · '))}" onclick="abrirEvento('${escH(e.pid)}','${escH(e.id)}')">${e.hora?`<b>${escH(e.hora)}</b> `:''}${escH(e.nombre)}</button>`).join('')+
+      '</div>';
+  }
+  html+='</div>';
+  const pref=a+'-'+String(m+1).padStart(2,'0');
+  const delMes=evs.filter(e=>e.f.startsWith(pref));
+  html+=`<div class="cal-lista"><h4>Eventos de ${MESES[m+1].toLowerCase()} (${delMes.length})</h4>${delMes.map(calFilaHtml).join('')||'<div style="font-size:12px;color:var(--text3)">No hay eventos este mes.</div>'}</div>`;
+  const sinFecha=evs.filter(e=>!e.f);
+  if(sinFecha.length) html+=`<div class="cal-lista"><h4>Sin fecha (${sinFecha.length})</h4>${sinFecha.map(calFilaHtml).join('')}</div>`;
+  cuerpo.innerHTML=html;
+}
+
 function abrirEvento(periodoId, eventoId){
   comandaPeriodoActual = periodoId;
   comandaEventoActual  = eventoId;
@@ -9196,10 +9279,12 @@ function renderEventoSheet(ev, sheetIdx){
           nombre: sec.nombre,
           items: (sec.items||[]).map(nombre=>({nombre, cantidad:'', armado:false, ingreso:false, egreso:false, reingreso:false, obs:''}))
         }));
+        if(c.salon) vajSalonMigrar(datos, datos[key]);
       }
       const secciones = datos[key];
       const wrapId = 'wrap_'+key;
       html+=`<div style="margin-bottom:16px">`;
+      if(c.salon) html+=vajSalonBarraHtml(datos);
       html+=`<div style="margin-bottom:10px">
         <label style="font-size:11px;color:var(--text3);font-weight:600;margin-right:8px">Ver sección:</label>
         <select onchange="filtrarChecklistSeccion(this,'${wrapId}')" style="font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
@@ -9273,13 +9358,15 @@ function renderEventoSheet(ev, sheetIdx){
           filas:(sec.filas||[]).map((f,filaIdx)=>({nombre:Array.isArray(f)?String(f[0]||'').trim():'', filaIdx})).filter(x=>x.nombre)
         }))
         .filter(s=>s.filas.length);
-      // Catálogo de vajilla para el autocompletado: ítems ya cargados en Vajilla y
-      // Equipamiento Cocina (mismo evento), columna "Ítem" de sus dos tablas de checks.
-      const catalogoVajilla=[...new Set(
-        [...(Array.isArray(datos.vco_cocina)?datos.vco_cocina:[]), ...(Array.isArray(datos.vco_papeleria)?datos.vco_papeleria:[])]
-          .map(row=>Array.isArray(row)?String(row[0]||'').trim():'')
-          .filter(Boolean)
-      )];
+      // Catálogo de vajilla para el autocompletado: lo cargado en Vajilla salón
+      // de este evento y la vajilla ya usada en el armado de cualquier evento.
+      const catalogoVajilla=[...new Set([
+        ...(Array.isArray(datos.vsa_secciones)?datos.vsa_secciones:[]).flatMap(s=>(s.items||[]).map(it=>String(it.nombre||'').trim())),
+        ...Object.values(DB.comanda&&DB.comanda.eventos||{}).flat().flatMap(e=>{
+          const a=e&&e.datos&&e.datos[key];
+          return a&&typeof a==='object'&&!Array.isArray(a)?Object.values(a).map(r=>String(r&&r.vajilla||'').trim()):[];
+        })
+      ].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
       const datalistId='armado-vajilla-list-'+key;
       const wrapId='wrap_'+key;
       html+=`<div style="margin-bottom:16px">`;
@@ -10133,6 +10220,82 @@ function updateChecklistVajillaCampo(key, secIdx, itemIdx, campo, valor){
   item[campo] = valor;
 }
 
+// ── Vajilla salón ──
+// Antes era una sola tabla (vsa_vajilla: filas [Ítem, Cantidad, 4 checks,
+// Observaciones]); al abrir un evento viejo se reparte en las tres secciones.
+function vajSalonSeccionDe(nombre){
+  const n=String(nombre||'').toLowerCase();
+  if(/cuchill|tenedor|cuchar|pinza|esp[aá]tula|revolvedor/.test(n)) return 'CUBERTERÍA';
+  if(/copa|vaso|cop[ií]n|shot|jarra|botell|vidrio|frapera/.test(n)) return 'CRISTALERÍA';
+  return 'VAJILLA';
+}
+function vajSalonMigrar(datos, secciones){
+  (Array.isArray(datos.vsa_vajilla)?datos.vsa_vajilla:[]).forEach(row=>{
+    const v=Array.isArray(row)?row:Object.values(row||{});
+    const nombre=String(v[0]||'').trim();
+    if(!nombre) return;
+    const sec=secciones.find(s=>s.nombre===vajSalonSeccionDe(nombre));
+    sec.items.push({nombre, cantidad:String(v[1]||''), armado:!!v[2], ingreso:!!v[3], egreso:!!v[4], reingreso:!!v[5], obs:String(v[6]||'')});
+  });
+}
+// Desayuno buffet / formal: modelos guardados en mp_data/vajilla_salon_presets
+// (se arman una vez desde un evento, ej. Stellantis, con "⋯ → Guardar como").
+// Al cargar uno se suman sus ítems con la cantidad vacía.
+const VAJ_PRESETS_DOC=fbDb.collection('mp_data').doc('vajilla_salon_presets');
+const VAJ_DESAYUNOS={buffet:'Desayuno buffet', formal:'Desayuno formal'};
+let VAJ_PRESETS=null;
+function vajPresetsCargar(){
+  if(VAJ_PRESETS) return;
+  VAJ_PRESETS={};
+  VAJ_PRESETS_DOC.get().then(d=>{ VAJ_PRESETS=d.exists?d.data():{}; }).catch(e=>console.warn('vajilla presets',e));
+}
+function vajSalonBarraHtml(datos){
+  vajPresetsCargar();
+  const elegido=datos.vsa_desayuno||'';
+  return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:8px 10px;border:1px dashed var(--border);border-radius:8px">
+    <span style="font-size:12px;font-weight:600;color:var(--text2,var(--text))">Cargar vajilla de:</span>
+    ${Object.entries(VAJ_DESAYUNOS).map(([t,l])=>`<button type="button" class="btn ${elegido===t?'btn-primary':'btn-outline'}" style="font-size:11.5px;padding:4px 10px" onclick="vajSalonCargarDesayuno('${t}')">☕ ${l}</button>`).join('')}
+    <button type="button" class="btn btn-outline" style="font-size:11.5px;padding:4px 9px;margin-left:auto" title="Más opciones" onclick="mpMenuAbrir(this,[${Object.entries(VAJ_DESAYUNOS).map(([t,l])=>`{icon:'💾',label:'Guardar esta vajilla como ${l}',accion:()=>vajSalonGuardarDesayuno('${t}')}`).join(',')}])">⋯</button>
+  </div>`;
+}
+function vajSalonEvento(){ return DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual); }
+async function vajSalonCargarDesayuno(tipo){
+  const ev=vajSalonEvento(); if(!ev) return;
+  if(!VAJ_PRESETS || !VAJ_PRESETS[tipo]){
+    try{ const d=await VAJ_PRESETS_DOC.get(); VAJ_PRESETS=d.exists?d.data():{}; }catch(e){}
+  }
+  const preset=VAJ_PRESETS && VAJ_PRESETS[tipo];
+  if(!preset || !Array.isArray(preset.secciones)){
+    alert(`Todavía no está armada la vajilla de "${VAJ_DESAYUNOS[tipo]}".\n\nAbrí el evento modelo (ej. Stellantis), andá a Vajilla salón y usá "⋯ → Guardar esta vajilla como ${VAJ_DESAYUNOS[tipo]}".`);
+    return;
+  }
+  const secciones=ev.datos.vsa_secciones;
+  preset.secciones.forEach(ps=>{
+    let sec=secciones.find(s=>s.nombre===ps.nombre);
+    if(!sec){ sec={nombre:ps.nombre, items:[]}; secciones.push(sec); }
+    (ps.items||[]).forEach(nombre=>{
+      if(sec.items.some(it=>String(it.nombre||'').trim().toLowerCase()===String(nombre).trim().toLowerCase())) return;
+      sec.items.push({nombre, cantidad:'', armado:false, ingreso:false, egreso:false, reingreso:false, obs:''});
+    });
+  });
+  ev.datos.vsa_desayuno=tipo;
+  renderEventoSheet(ev, comandaSheetActual);
+  guardarEventoActual();
+}
+async function vajSalonGuardarDesayuno(tipo){
+  const ev=vajSalonEvento(); if(!ev) return;
+  const secciones=(ev.datos.vsa_secciones||[]).map(s=>({nombre:s.nombre, items:(s.items||[]).map(it=>String(it.nombre||'').trim()).filter(Boolean)}));
+  const n=secciones.reduce((t,s)=>t+s.items.length,0);
+  if(!n){ alert('Esta vajilla está vacía: cargá los ítems primero.'); return; }
+  if(!confirm(`¿Guardar los ${n} ítems de este evento como la vajilla de "${VAJ_DESAYUNOS[tipo]}"?\n\nSe guardan solo los nombres (las cantidades se completan en cada evento). Reemplaza el modelo anterior.`)) return;
+  const dato={secciones, evento:ev.nombre||'', quien:(fbAuth.currentUser&&fbAuth.currentUser.email)||'', actualizado:new Date().toISOString()};
+  try{
+    await VAJ_PRESETS_DOC.set({[tipo]:dato},{merge:true});
+    VAJ_PRESETS={...(VAJ_PRESETS||{}), [tipo]:dato};
+    alert(`✓ Guardado como "${VAJ_DESAYUNOS[tipo]}".`);
+  }catch(e){ alert('No se pudo guardar: '+e.message); }
+}
+
 function addChecklistVajillaItem(key, secIdx){
   const ev = DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual);
   if(!ev) return;
@@ -10369,6 +10532,16 @@ function buildValueItems(ev, item){
       return rows.length ? [{label:item.label||'', value:rows, type:item.tipo, cols:item.cols || []}] : [];
     }
     // Sin secciones cargadas todavía: cae al modo plano de siempre (com_menu).
+  }
+  if(item.tipo==='checklist_vajilla' && item.salon){
+    const rows=[];
+    (Array.isArray(ev.datos?.[item.key])?ev.datos[item.key]:[]).forEach(sec=>{
+      const its=(sec.items||[]).filter(it=>limpiarValorPDF(it.nombre));
+      if(!its.length) return;
+      rows.push({__seccion:sec.nombre});
+      its.forEach(it=>rows.push([it.nombre, it.cantidad||'', !!it.armado, !!it.ingreso, !!it.egreso, !!it.reingreso, it.obs||'']));
+    });
+    return rows.length ? [{label:'', value:rows, type:'tabla_checks', cols:['Ítem','Cantidad','Armado local','Ctrl. Ingreso','Ctrl. Egreso','Reingreso','Observaciones']}] : [];
   }
   if(item.tipo==='tabla_armado_vajilla'){
     // Mismo armado que la pantalla (renderEventoSheet): platos del menú de la
@@ -11665,9 +11838,22 @@ function presuMigrar(d){
       const hay=new Set(lineas.map(presuOpcNorm));
       return [...fijos.filter(t=>!hay.has(presuOpcNorm(t))), ...lineas].join('\n');
     };
-    x.incluye=sumar(x.incluye, PRESU_OPC.si);
-    x.noIncluye=sumar(x.noIncluye, PRESU_OPC.no);
+    x.incluye=sumar(x.incluye, PRESU_OPC_V1.si);
+    x.noIncluye=sumar(x.noIncluye, PRESU_OPC_V1.no);
     x.opcFijos=1;
+  }
+  // Opciones nuevas (tildado = sale): lo viejo que tiene equivalente pasa a
+  // la opción nueva tildada; el resto queda como ítem extra (sigue saliendo).
+  if(!x.opcV2){
+    [['incluye','si'],['noIncluye','no']].forEach(([k,lado])=>{
+      const out=[];
+      String(x[k]||'').split('\n').map(l=>l.trim()).filter(Boolean).forEach(l=>{
+        (PRESU_OPC_MIGRA[lado][presuOpcNorm(l)]||[l]).forEach(t=>{ if(!out.some(o=>presuOpcNorm(o)===presuOpcNorm(t))) out.push(t); });
+      });
+      const fijos=PRESU_OPC[lado].filter(t=>out.some(o=>presuOpcNorm(o)===presuOpcNorm(t)));
+      x[k]=[...fijos, ...out.filter(l=>!presuOpcEsFijo(lado,l))].join('\n');
+    });
+    x.opcV2=1;
   }
   return x;
 }
@@ -11688,6 +11874,12 @@ function presuFormatoPesos(v){
   const dec=Math.round(n*100)%100!==0;
   return '$ '+n.toLocaleString('es-AR',{minimumFractionDigits:dec?2:0, maximumFractionDigits:2})+m[2];
 }
+// Todo precio del PDF sale con "+ IVA" (si ya lo dice o no es un número, queda igual).
+function presuConIva(v){
+  const t=String(v||'').trim();
+  if(!/^\$\s*\d/.test(t) || /iva/i.test(t)) return t;
+  return t+' + IVA';
+}
 function presuNuevoBorrador(){
   const hoy=new Date().toISOString().slice(0,10);
   return {
@@ -11702,14 +11894,14 @@ function presuNuevoBorrador(){
     // A pedido: un presupuesto nuevo solo trae precargados las fotos, la
     // intro del menú, los términos (condiciones de pago) y el cierre; las
     // estaciones y precios arrancan vacíos. Incluye/no incluye traen las
-    // opciones fijas (PRESU_OPC), todas puestas.
-    estaciones:[presuSeccionVacia(), presuEstacionVacia(), presuSeccionVacia(), presuEstacionBarraClasica()],
+    // opciones fijas (PRESU_OPC), ninguna tildada.
+    estaciones:[presuSeccionVacia(), presuEstacionVacia(), presuSeccionVacia(), presuEstacionBebidas(), presuEstacionBarraClasica()],
     precios:[presuPrecioDefecto()],
     aclaracionPrecios:'',
     salonCamareros:'', salonPrecio:'',
-    incluye:presuOpcTextoDefecto('si'),
-    noIncluye:presuOpcTextoDefecto('no'),
-    opcFijos:1,
+    incluye:'',
+    noIncluye:'',
+    opcFijos:1, opcV2:1,
     fotosBarraV:2,
     clausulas:presuDefaultClausulas(),
     cierre:'Sin otro particular, los saluda atentamente,\nMariana Pages Palenque',
@@ -11782,6 +11974,10 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-04', t:'Producción › Eventos a producir: en <b>Todo junto</b> cada insumo tiene <b>✓ Tengo / ✕ Falta</b>; lo que falta arma una <b>lista de compras</b> abajo, con botón para copiarla.'},
+  {f:'2026-11-04', t:'Fichas Técnicas: nueva pestaña <b>📅 Calendario</b> con todos los eventos por fecha (un clic abre la ficha).'},
+  {f:'2026-11-04', t:'Fichas Técnicas: la solapa <b>Vajilla salón</b> se divide en Cristalería, Cubertería y Vajilla, con el mismo diseño que Armado vajilla, y botones para cargar la vajilla de <b>desayuno buffet</b> o <b>formal</b>. Se sacó la solapa "Vajilla y equipamiento cocina".'},
+  {f:'2026-11-04', t:'Presupuestos: <b>Incluye / No incluye</b> ahora va al revés: lo que se tilda sale en el PDF (con la lista nueva de ítems). Todos los precios salen con <b>+ IVA</b>. Nuevo campo <b>Camareros sugeridos</b> que sale en el PDF. Los presupuestos nuevos traen la estación <b>Bebidas</b> (se puede sumar jugos licuados).'},
   {f:'2026-11-02', t:'Presupuestos: en el PDF la <b>Barra clásica</b> sale siempre <b>sola en su hoja</b>, sin otras estaciones al lado (vale para los presupuestos ya hechos y para los nuevos).'},
   {f:'2026-10-30', t:'Presupuestos: arreglado que los <b>renglones nuevos</b> (Enter) de los cuadros de texto se juntaban en uno solo en el PDF. Y el corrector de ortografía ya no revisa solo mientras se escribe: revisa únicamente al apretar <b>🔤 Revisar ortografía</b>.'},
   {f:'2026-10-29', t:'Producción: la carga de recetas desde Excel ahora toma bien el <b>procedimiento</b>, la nota del chef, las porciones (rendimiento) y la merma de cada ingrediente. Hay una planilla modelo para cargarlas.'},
@@ -12501,7 +12697,7 @@ function prodNecesidades(d){
     const kg=(parseFloat(x.kgs)||0)*j.factor;
     if(!(kg>0)) return;
     const k=x.componente;
-    if(!ins[k]) ins[k]={nombre:prodNombreComp(k), kg:0, usos:[]};
+    if(!ins[k]) ins[k]={key:k, nombre:prodNombreComp(k), kg:0, usos:[]};
     ins[k].kg+=kg;
     ins[k].usos.push({receta:j.receta, para:j.para, kg});
   }));
@@ -12514,11 +12710,21 @@ function prodHtmlPaso2(d){
   const paraTxt=j=>j.para.length?' <span class="prod-para">→ para '+j.para.map(p=>escH(prodCorto(p))).join(', ')+'</span>':'';
   let cuerpo;
   if(_prodVista2==='insumo'){
-    cuerpo=ins.length?`<table class="prod-tabla prod-nec"><thead><tr><th>Insumo</th><th class="num">Total</th><th>Para qué es</th></tr></thead><tbody>${ins.map(i=>`<tr>
+    // Checklist de Cristian: "lo tengo / falta" por insumo (d.tengo[insumo] = 'si'|'no');
+    // lo que falta arma la lista de compras de abajo.
+    const t=d.tengo||{};
+    const btn=(i,v,txt)=>`<button type="button" class="${t[i.key]===v?v:''}" onclick="prodMarcarTengo(${JSON.stringify(i.key).replace(/"/g,'&quot;')},'${v}')">${txt}</button>`;
+    cuerpo=ins.length?`<table class="prod-tabla prod-nec"><thead><tr><th>Insumo</th><th class="num">Total</th><th style="text-align:center">¿Lo tengo?</th><th>Para qué es</th></tr></thead><tbody>${ins.map(i=>`<tr class="${t[i.key]==='si'?'tengo':t[i.key]==='no'?'falta':''}">
       <td class="prod-nec-nom">${escH(i.nombre)}</td>
       <td class="num prod-kg">${prodNum(i.kg)} kg</td>
+      <td><div class="prod-tengo">${btn(i,'si','✓ Tengo')}${btn(i,'no','✕ Falta')}</div></td>
       <td><div class="prod-usos">${i.usos.map(u=>`<span class="prod-uso">${ico(u.receta)} ${escH(prodCorto(u.receta))}${u.para.length?' <i>(para '+u.para.map(p=>escH(prodCorto(p))).join(', ')+')</i>':''} <b>${prodNum(u.kg)} kg</b></span>`).join('')}</div></td>
     </tr>`).join('')}</tbody></table>`:'<div class="empty">Las recetas no tienen ingredientes cargados.</div>';
+    const faltan=ins.filter(i=>t[i.key]==='no');
+    if(faltan.length) cuerpo+=`<div class="prod-compras">
+      <div class="prod-compras-hd"><span>🛒 Lista de compras (${faltan.length})</span><button type="button" class="btn btn-outline" style="font-size:11.5px;padding:4px 10px" onclick="prodCopiarCompras()">📋 Copiar</button></div>
+      <ul>${faltan.map(i=>`<li>${escH(i.nombre)} — <b>${prodNum(i.kg)} kg</b></li>`).join('')}</ul>
+    </div>`;
   } else {
     cuerpo=js.map(j=>{
       const filas=prodFilas(j.receta).map(x=>{
@@ -12534,10 +12740,24 @@ function prodHtmlPaso2(d){
   return `
     <div class="prod-nec-bar">
       <div class="presu-seg-chips">${chip('insumo','🧾 Todo junto')}${chip('receta','🍴 Por receta')}</div>
-      <span class="prod-nec-res">${js.length} receta${js.length===1?'':'s'} · ${ins.length} insumo${ins.length===1?'':'s'}</span>
+      <span class="prod-nec-res">${js.length} receta${js.length===1?'':'s'} · ${ins.length} insumo${ins.length===1?'':'s'}${_prodVista2==='insumo'&&ins.length?(()=>{ const t=d.tengo||{}, rev=ins.filter(i=>t[i.key]).length, f=ins.filter(i=>t[i.key]==='no').length; return ` · revisados ${rev} de ${ins.length}${f?` · <b style="color:var(--red)">faltan ${f}</b>`:''}`; })():''}</span>
     </div>
     ${cuerpo}
     <div class="prod-pie"><span></span><button class="btn btn-primary" onclick="prodIrPaso(3)">Siguiente: Cerrar →</button></div>`;
+}
+function prodMarcarTengo(key, v){
+  if(!_prodEdit) return;
+  const t=_prodEdit.tengo=_prodEdit.tengo||{};
+  if(t[key]===v) delete t[key]; else t[key]=v;  // tocar el mismo botón lo desmarca
+  prodGuardarLuego();
+  renderProdEventos();
+}
+function prodCopiarCompras(){
+  if(!_prodEdit) return;
+  const t=_prodEdit.tengo||{};
+  const faltan=prodNecesidades(_prodEdit).ins.filter(i=>t[i.key]==='no');
+  const txt='Lista de compras:\n'+faltan.map(i=>'- '+i.nombre+': '+prodNum(i.kg)+' kg').join('\n');
+  (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>alert('✓ Lista copiada. Pegala donde quieras (WhatsApp, mail…).')).catch(()=>prompt('Copiá la lista:', txt));
 }
 function prodHtmlPaso3(d){
   const js=prodTrabajos(d), pend=js.filter(j=>!j.cierre).length;
@@ -12714,7 +12934,7 @@ function comandaDatosVacios(){
 // Menú para producir: solo las estaciones del presupuesto que salen en el PDF
 // (sin la Barra clásica). [{titulo, items:'plato\nplato'}]
 function presuMenuEstaciones(p){
-  const esBarra=e=>e.barra || /^barra cl[aá]sica$/i.test(String(e.titulo||'').trim());
+  const esBarra=e=>e.barra || e.bebidas || /^barra cl[aá]sica$/i.test(String(e.titulo||'').trim());
   return ((p&&p.estaciones)||[]).filter(e=>e.incluir!==false && !esBarra(e))
     .map(e=>({titulo:String(e.titulo||'').trim(), items:rtSinFormato(e.items).split('\n').map(l=>l.trim()).filter(Boolean).join('\n')}))
     .filter(e=>e.items);
@@ -12734,8 +12954,8 @@ function presuSegDatosEvento(p){
   if(p.cantidadPersonas){
     ['com_inv_total','vco_invitados','vsa_invitados','eva_invitados','fm_invitados','bar_personas'].forEach(k=>datos[k]=p.cantidadPersonas);
   }
-  // Menú: los ítems de las estaciones que salen en el PDF; la Barra clásica va a la solapa BARRA.
-  const esBarra=e=>e.barra || /^barra cl[aá]sica$/i.test(String(e.titulo||'').trim());
+  // Menú: los ítems de las estaciones que salen en el PDF; la Barra clásica y Bebidas van a la solapa BARRA.
+  const esBarra=e=>e.barra || e.bebidas || /^barra cl[aá]sica$/i.test(String(e.titulo||'').trim());
   const lineas=e=>rtSinFormato(e.items).split('\n').map(l=>l.trim()).filter(Boolean);
   const ests=(p.estaciones||[]).filter(e=>e.incluir!==false);
   const menu=ests.filter(e=>!esBarra(e)).flatMap(lineas);
@@ -12980,6 +13200,7 @@ function renderPresuEstaciones(){
       <label>Precio de esta estación</label>
       <input type="text" value="${escH(e.precio||'')}" style="width:100%;margin-top:6px" oninput="_presuEdit.estaciones[${i}].precio=this.value">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px"><input type="checkbox" ${e.unaOpcion!==false?'checked':''} onchange="_presuEdit.estaciones[${i}].unaOpcion=this.checked"> Seleccionar 1 opción</label>
+      ${e.bebidas?`<label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px"><input type="checkbox" ${presuBebidasTieneJugos(e)?'checked':''} onchange="presuBebidasJugos(${i},this.checked)"> Agregar jugos licuados</label>`:''}
     </div>`; }
 }
 // ── Texto con formato (negrita / subrayado) en los campos del presupuesto ──
@@ -13322,27 +13543,48 @@ function presuMoverEstacion(desde, hasta){
   presuOrtoActualizarBoton();
 }
 // Opciones fijas de "incluye" / "no incluye". Por defecto todas salen en el
-// PDF (casilla destildada). Tildar una la saca de la lista; destildarla la
-// vuelve a poner. El texto completo (lo que se guarda y sale en el PDF) va en
+// PDF solo si se tilda (a pedido, al revés que antes: por defecto ninguna). El texto completo (lo que se guarda y sale en el PDF) va en
 // un textarea oculto (#presu-incluye / #presu-no-incluye); a la vista queda
 // solo un cuadro chico para agregar ítems extra, que van debajo de los fijos.
 const PRESU_OPC={
   si:[
+    'Manager general',
+    'Metre',
+    'Personal de salón',
     'Personal de cocina',
+    'Personal de limpieza',
     'Vajilla de mesa',
     'Vajilla de presentación',
+    'Manteles',
     'Individuales y caminos',
-    'Ambientación para la mesa de almuerzo',
-    'Equipamiento de cocina de ser necesario'
+    'Ambientación para las estaciones',
+    'Equipamiento de cocina (de ser necesario)',
+    'Bebidas sin alcohol'
   ],
   no:[
-    'No incluye bebidas con o sin alcohol, mesas y sillas ni mobiliario; se presupuestan aparte de ser necesario.',
-    'No incluye instalación eléctrica ni cableado tanto para cocina como para salón.'
+    'Bebidas con alcohol',
+    'Bebidas sin alcohol',
+    'Mesas',
+    'Sillas',
+    'Mobiliario',
+    'Instalación eléctrica'
   ]
+};
+// Opciones de antes (tildar = sacar). presuMigrar las pasa a las nuevas.
+const PRESU_OPC_V1={
+  si:['Personal de cocina','Vajilla de mesa','Vajilla de presentación','Individuales y caminos','Ambientación para la mesa de almuerzo','Equipamiento de cocina de ser necesario'],
+  no:['No incluye bebidas con o sin alcohol, mesas y sillas ni mobiliario; se presupuestan aparte de ser necesario.','No incluye instalación eléctrica ni cableado tanto para cocina como para salón.']
+};
+// Texto viejo → opciones nuevas que lo reemplazan (lo que no está acá queda como ítem extra).
+const PRESU_OPC_MIGRA={
+  si:{'equipamiento de cocina de ser necesario':['Equipamiento de cocina (de ser necesario)']},
+  no:{
+    'no incluye bebidas con o sin alcohol, mesas y sillas ni mobiliario; se presupuestan aparte de ser necesario.':['Bebidas con alcohol','Bebidas sin alcohol','Mesas','Sillas','Mobiliario'],
+    'no incluye instalación eléctrica ni cableado tanto para cocina como para salón.':['Instalación eléctrica']
+  }
 };
 // [texto completo (oculto), casillas, ítems extra]
 const PRESU_OPC_IDS={si:['presu-incluye','presu-incluye-opc','presu-incluye-extra'], no:['presu-no-incluye','presu-no-incluye-opc','presu-no-incluye-extra']};
-function presuOpcTextoDefecto(lado){ return PRESU_OPC[lado].join('\n'); }
 function presuOpcNorm(t){ return rtSinFormato(t).trim().replace(/\s+/g,' ').toLowerCase(); }
 function presuOpcLineas(id){ return document.getElementById(id).value.split('\n').map(l=>l.trim()).filter(Boolean); }
 function presuOpcEsFijo(lado, l){ return PRESU_OPC[lado].some(t=>presuOpcNorm(t)===presuOpcNorm(l)); }
@@ -13361,8 +13603,8 @@ function presuOpcRender(){
     if(!box) return;
     const hay=new Set(presuOpcLineas(idTxt).map(presuOpcNorm));
     box.innerHTML=PRESU_OPC[lado].map((t,i)=>{
-        const quitado=!hay.has(presuOpcNorm(t));
-        return `<label class="${quitado?'off':''}"><input type="checkbox" ${quitado?'checked':''} onchange="presuOpcToggle('${lado}',${i},this.checked)"> <span>${escH(t)}</span></label>`;
+        const sale=hay.has(presuOpcNorm(t));
+        return `<label class="${sale?'':'off'}"><input type="checkbox" ${sale?'checked':''} onchange="presuOpcToggle('${lado}',${i},!this.checked)"> <span>${escH(t)}</span></label>`;
       }).join('');
   });
 }
@@ -13396,6 +13638,21 @@ const PRESU_BARRA_CLASICA_ITEMS=[
 function presuEstacionBarraClasica(){
   return {titulo:'Barra clásica', items:PRESU_BARRA_CLASICA_ITEMS.join('\n'), precio:'', unaOpcion:false, incluir:false, barra:true};
 }
+// Bebidas: como la Barra (va a la solapa BARRA de la ficha, no a Producción)
+// pero sale en el PDF por defecto. Los jugos licuados se suman con su casilla.
+const PRESU_BEBIDAS_ITEMS=['Gaseosas línea Coca-Cola','Agua con y sin gas','Pomelada','Limonada'];
+const PRESU_BEBIDAS_JUGOS='Jugos licuados';
+function presuEstacionBebidas(){
+  return {titulo:'Bebidas', items:PRESU_BEBIDAS_ITEMS.join('\n'), precio:'', unaOpcion:false, incluir:true, bebidas:true};
+}
+function presuBebidasTieneJugos(e){ return rtSinFormato(e.items).split('\n').some(l=>l.trim().toLowerCase()===PRESU_BEBIDAS_JUGOS.toLowerCase()); }
+function presuBebidasJugos(i, poner){
+  const e=_presuEdit.estaciones[i];
+  const lineas=String(e.items||'').split('\n').filter(l=>rtSinFormato(l).trim().toLowerCase()!==PRESU_BEBIDAS_JUGOS.toLowerCase());
+  if(poner) lineas.push(PRESU_BEBIDAS_JUGOS);
+  e.items=lineas.join('\n');
+  renderPresuEstaciones();
+}
 function presuEstacionVacia(){ return {titulo:'', items:'', precio:'', unaOpcion:false}; }
 function presuAgregarEstacion(){ _presuEdit.estaciones.push(presuEstacionVacia()); renderPresuEstaciones(); }
 // Secciones: un renglón {tipo:'seccion', titulo} en la misma lista; las
@@ -13419,7 +13676,7 @@ function renderPresuPrecios(){
       </div>
       <div class="form-field" style="flex:1">
         <label>Valor</label>
-        <input type="text" value="${escH(presuFormatoPesos(p.valor))}" placeholder="Ej: $ 55.000 + IVA" style="width:100%" oninput="_presuEdit.precios[${i}].valor=this.value" onblur="this.value=presuFormatoPesos(this.value);_presuEdit.precios[${i}].valor=this.value">
+        <input type="text" value="${escH(presuFormatoPesos(p.valor))}" placeholder="Ej: $ 55.000" style="width:100%" oninput="_presuEdit.precios[${i}].valor=this.value" onblur="this.value=presuFormatoPesos(this.value);_presuEdit.precios[${i}].valor=this.value">
       </div>
       ${_presuEdit.precios.length>1?`<button type="button" class="btn btn-outline" style="padding:6px 10px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuQuitarPrecio(${i})">✕</button>`:''}
     </div>`).join('');
@@ -14211,25 +14468,25 @@ function presuDibujarPDF(d, modo){
     let y=top;
 
     const panelX=cx, panelW=W-M-cx, rowH=13;
-    // Servicio de salón: precio por camarero y cantidad de camareros
-    // cotizados; la sugerencia de 1 cada 10 comensales es fija.
+    // Servicio de salón: precio por camarero y los camareros sugeridos que
+    // carga Mariana (si no los carga, sale la sugerencia de 1 cada 10).
     const haySalon=!!(String(d.salonPrecio||'').trim() || String(d.salonCamareros||'').trim());
     // Los precios de cada estación salen acá, cada uno en su renglón (no en
     // el menú). Las líneas de precio vacías no salen si hay otros precios.
-    const todas=(d.precios||[]).map(pr=>({concepto:pr.concepto, valor:presuFormatoPesos(pr.valor)}));
+    const todas=(d.precios||[]).map(pr=>({concepto:pr.concepto, valor:presuConIva(presuFormatoPesos(pr.valor))}));
     (d.estaciones||[]).forEach(e=>{
       if(e.tipo==='seccion' || e.incluir===false || !String(e.precio||'').trim()) return;
-      todas.push({concepto:String(e.titulo||'').trim()||'Estación', valor:presuFormatoPesos(e.precio)});
+      todas.push({concepto:String(e.titulo||'').trim()||'Estación', valor:presuConIva(presuFormatoPesos(e.precio))});
     });
     const lineas=todas.some(l=>l.valor)?todas.filter(l=>l.valor)
       : (todas.length?todas:[{concepto:'Precio total por persona', valor:''}]);
     if(haySalon){
-      const pCam=presuFormatoPesos(d.salonPrecio);
+      const pCam=presuConIva(presuFormatoPesos(d.salonPrecio));
+      const nCam=parseInt(d.salonCamareros,10)||0;
       lineas.push({
         concepto:'Precio por servicio de salón',
         valor:(pCam||'—')+' por cada camarero',
-        // A pedido, la cantidad de camareros cotizados no se muestra.
-        sub:'(se sugiere 1 cada 10 comensales)',
+        sub:nCam>1?`(se sugieren ${nCam} camareros)`:nCam===1?'(se sugiere 1 camarero)':'(se sugiere 1 cada 10 comensales)',
       });
     }
     // Cada fila crece hacia abajo si el concepto o el valor ocupan más de un
