@@ -7124,6 +7124,74 @@ function detenerListenerStock(){
   if(_unsubStock){ _unsubStock(); _unsubStock=null; }
 }
 
+// ── Textos con letras "descompuestas" ───────────────────────────────────
+// Al copiar texto de un celular, una Mac o Word, la ñ y los acentos a veces
+// llegan como dos caracteres (n + tilde suelta U+0303). jsPDF no los conoce y
+// al encontrar uno pasa TODO el renglón a otra codificación: el PDF sale con
+// las letras separadas ("S a l t e D a s"). Arreglo: se recompone (NFC) y lo
+// que siga fuera de la tabla de las fuentes del PDF se reemplaza o se quita.
+const PDF_CP1252_EXTRA='€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
+function textoPdfSeguro(s){
+  if(typeof s!=='string') return s;
+  if(!/[^ -ÿ]/.test(s)) return s;
+  s=s.normalize('NFC');
+  return s.replace(/[^ -ÿ]/g, ch=>{
+    if(PDF_CP1252_EXTRA.includes(ch)) return ch;
+    const base=ch.normalize('NFD').replace(/[̀-ͯ]/g,'');
+    if(base && !/[^ -ÿ]/.test(base)) return base;
+    if(/[‐-‒−]/.test(ch)) return '-';
+    if(/[′‵]/.test(ch)) return "'";
+    if(/[″‶]/.test(ch)) return '"';
+    if(/[ -   　]/.test(ch)) return ' ';
+    return '';
+  });
+}
+(function(){
+  const api=window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API;
+  if(!api || api._mpTextoSeguro) return;
+  api._mpTextoSeguro=true;
+  const limpiar=t=>Array.isArray(t)?t.map(textoPdfSeguro):textoPdfSeguro(t);
+  // doc.text se define en cada documento (no está en API): se limpia con el
+  // gancho preProcessText que jsPDF llama antes de dibujar.
+  if(Array.isArray(api.events)) api.events.push(['preProcessText', function(pl){ if(pl) pl.text=limpiar(pl.text); }]);
+  ['getTextWidth','splitTextToSize','getStringUnitWidth'].forEach(fn=>{
+    const orig=api[fn]; if(typeof orig!=='function') return;
+    api[fn]=function(t,...r){ return orig.call(this, limpiar(t), ...r); };
+  });
+})();
+// Recompone (NFC) todos los textos de un objeto (salvo fotos data:). Devuelve
+// el objeto nuevo y si cambió algo.
+function mpTextosNFC(v){
+  let cambio=false;
+  const rec=x=>{
+    if(typeof x==='string'){
+      if(x.startsWith('data:') || !/[̀-ͯ]/.test(x)) return x;
+      const n=x.normalize('NFC'); if(n!==x) cambio=true; return n;
+    }
+    if(Array.isArray(x)) return x.map(rec);
+    if(x && typeof x==='object' && Object.getPrototypeOf(x)===Object.prototype){ const o={}; for(const k in x) o[k]=rec(x[k]); return o; }
+    return x;
+  };
+  const out=rec(v);
+  return {out, cambio};
+}
+// Presupuestos ya guardados con letras descompuestas: se corrigen en la base
+// (una sola vez por documento; después de corregido ya no cambia nada).
+const _presuNfcHechos=new Set();
+function presuRepararTextos(){
+  if(typeof puedeVerPresupuestos==='function' && !puedeVerPresupuestos()) return;
+  (DB.presupuestos||[]).forEach(p=>{
+    if(_presuNfcHechos.has(p._id)) return;
+    const {_id, ...resto}=p;
+    const {out, cambio}=mpTextosNFC(resto);
+    if(!cambio) return;
+    _presuNfcHechos.add(p._id);
+    const upd={};
+    Object.keys(out).forEach(k=>{ if(JSON.stringify(out[k])!==JSON.stringify(resto[k])) upd[k]=out[k]; });
+    FB_COL_PRESUPUESTOS.doc(String(_id)).update(upd).catch(e=>{ _presuNfcHechos.delete(_id); console.error('No se pudieron corregir los textos del presupuesto', _id, e); });
+  });
+}
+
 // ── Módulo Presupuestos ─────────────────────────────────────────────────
 let _unsubPresupuestos=null;
 let _presuCargados=false;
@@ -7131,6 +7199,7 @@ function iniciarListenersPresupuestos(){
   _unsubPresupuestos=FB_COL_PRESUPUESTOS.onSnapshot((snap)=>{
     DB.presupuestos=snap.docs.map(d=>({...d.data(), _id:Number(d.id)})).sort((a,b)=>b._id-a._id);
     _presuCargados=true;
+    presuRepararTextos();
     prodCompletarMenus();
     refrescarVistaSiCorresponde();
   }, (err)=>console.error('Error al sincronizar presupuestos:', err));
@@ -7146,7 +7215,8 @@ function detenerListenersPresupuestos(){
 // llame pueda avisar y no cerrar el modal si falló.
 async function guardarPresupuesto(id, datos){
   try{
-    const {_id, ...resto}=datos;
+    const {_id, ...resto0}=datos;
+    const resto=mpTextosNFC(resto0).out;
     await FB_COL_PRESUPUESTOS.doc(String(id)).set({...resto, updated_at:new Date().toISOString()});
     try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
     marcarSincronizado();
@@ -12517,6 +12587,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-04', t:'PDFs: se arregló que algunos renglones salieran con las <b>letras separadas</b> (ej. "S a l t e D a s"). Pasaba con la ñ y los acentos de textos copiados del celular, Mac o Word. Ahora todos los PDFs los corrigen solos, y los presupuestos ya guardados así se corrigieron.'},
   {f:'2026-11-04', t:'Nuevo módulo <b>💡 Pedidos al sistema</b>: con el botón <b>Pedir un cambio</b> (abajo a la izquierda, en cualquier pantalla) cada uno pide un ajuste, cambio o mejora. El sistema anota solo dónde estabas y saca una foto de la pantalla; vos contás qué pasa hoy y qué querés que pase. Cada pedido tiene su estado e historial (cuándo se pidió, preguntas y respuestas, cuándo se resolvió).'},
   {f:'2026-11-04', t:'Fichas Técnicas › PDF: la hoja sale <b>vertical</b>; arriba va el nombre del evento bien grande con la fecha y los <b>invitados destacados</b> (y no se repiten más abajo); los datos van de a varios por renglón; Hora comienzo y fin en un solo <b>Horario</b>; la Comanda muestra el <b>Tipo de evento + formato</b>; en el Timing la columna Hora es angosta.'},
   {f:'2026-11-04', t:'Presupuestos › Confirmado: la ficha del evento que se crea ya trae el <b>cliente</b> vinculado (si no estaba en el Maestro de Clientes, se crea) y en la Comanda el menú viene <b>separado por estación</b> con su título (Copetín, Entradas, Postre…). Vale para los que se confirmen de ahora en más.'},
