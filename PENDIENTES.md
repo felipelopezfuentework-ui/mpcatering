@@ -22,6 +22,8 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Checklist de comida automático** con lo que lleva cada plato. *(Necesita la lista de Mariana.)*
 
 ## Hecho
+- 04/11/2026 — **Presupuestos › Confirmado**: la ficha que se crea trae el cliente vinculado (si no está en el maestro, se crea) y la Comanda trae el menú separado por estación con su título. Solo para los que se confirmen de ahora en más.
+- 04/11/2026 — **Fichas Técnicas**: abre en el Calendario y los nombres de los eventos se ven más grandes.
 - 04/11/2026 — **Producción › Eventos a producir**: en "Todo junto" cada insumo con ✓ Tengo / ✕ Falta; lo que falta arma la lista de compras (se puede copiar).
 - 04/11/2026 — **Fichas Técnicas**: pestaña Calendario con todos los eventos; Vajilla salón con el diseño de Armado vajilla, dividida en Cristalería / Cubertería / Vajilla y botones de desayuno buffet / formal; se sacó la solapa "Vajilla y equipamiento cocina".
 - 04/11/2026 — **Presupuestos**: Incluye / No incluye al revés (tildado = sale) con la lista nueva, también en los presupuestos ya hechos; "+ IVA" en todos los precios del PDF; campo "Camareros sugeridos"; estación Bebidas en los presupuestos nuevos (con casilla de jugos licuados).
