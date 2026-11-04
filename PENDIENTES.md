@@ -22,6 +22,7 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Checklist de comida automático** con lo que lleva cada plato. *(Necesita la lista de Mariana.)*
 
 ## Hecho
+- 04/11/2026 — **Nuevo módulo Pedidos al sistema**: botón "💡 Pedir un cambio" en todas las pantallas; anota solo dónde estaba cada uno y saca foto de la pantalla; formulario guiado (qué es, qué pasa hoy, qué quiere, urgencia); estados que maneja Felipe, preguntas y respuestas, historial con fecha de pedido y de resolución.
 - 04/11/2026 — **Fichas Técnicas › PDF** (marcas de Mariana sobre la hoja impresa): hoja vertical en todos los PDF de la ficha; encabezado con el nombre del evento grande, fecha e invitados destacados, sin repetirlos abajo; datos de a varios por renglón; Horario en una línea; la Comanda vuelve a mostrar Tipo de evento + formato (Total personal sigue afuera); columna Hora del Timing angosta.
 - 04/11/2026 — **Presupuestos › Confirmado**: la ficha que se crea trae el cliente vinculado (si no está en el maestro, se crea) y la Comanda trae el menú separado por estación con su título. Solo para los que se confirmen de ahora en más.
 - 04/11/2026 — **Fichas Técnicas**: abre en el Calendario y los nombres de los eventos se ven más grandes.
