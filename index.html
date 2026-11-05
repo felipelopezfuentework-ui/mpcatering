@@ -10407,6 +10407,17 @@ function vajSalonVerFoto(tipo){
   mpModalGen('📷 Referencia: '+VAJ_DESAYUNOS[tipo], `<img src="${src}" alt="${VAJ_DESAYUNOS[tipo]}" style="display:block;max-width:100%;max-height:78vh;margin:0 auto;border-radius:8px">`, 1000);
 }
 let VAJ_PRESETS=null;
+// Modelos fijos (pasados por Mariana): mandan sobre lo guardado en la base.
+// Los repetidos van a propósito (cada uno es para un plato distinto).
+const VAJ_PRESETS_FIJOS={
+  buffet:{secciones:[{nombre:'Vajilla', items:[
+    'Plancha de bambú','Laja rectangular','Falso mármol negro + pinza','Falso mármol negro + pinza',
+    'Plancha de bambú + pinza','Laja rectangular','Hoja de melamina','Plato negro grande + pinza',
+    'Jarrito de vidrio con asa','Frasco con palito de madera','Triolet triangular','Melamina negra rectangular chica',
+    'Triolet triangular','Melamina negra rectangular chica','Melamina negra rectangular chica',
+    'Triolet de chapa negro circular','Plato hondo negro + cucharón negro'
+  ]}]}
+};
 function vajPresetsCargar(){
   if(VAJ_PRESETS) return;
   VAJ_PRESETS={};
@@ -10418,7 +10429,7 @@ function vajSalonBarraHtml(datos){
   return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:8px 10px;border:1px dashed var(--border);border-radius:8px">
     <span style="font-size:12px;font-weight:600;color:var(--text2,var(--text))">Cargar vajilla de:</span>
     ${Object.entries(VAJ_DESAYUNOS).map(([t,l])=>`<button type="button" class="btn ${elegido===t?'btn-primary':'btn-outline'}" style="font-size:11.5px;padding:4px 10px" onclick="vajSalonCargarDesayuno('${t}')">☕ ${l}</button>`).join('')}
-    <button type="button" class="btn btn-outline" style="font-size:11.5px;padding:4px 9px;margin-left:auto" title="Más opciones" onclick="mpMenuAbrir(this,[${Object.entries(VAJ_DESAYUNOS).map(([t,l])=>`{icon:'📷',label:'Ver foto de referencia: ${l}',accion:()=>vajSalonVerFoto('${t}')}`).join(',')},'-',${Object.entries(VAJ_DESAYUNOS).map(([t,l])=>`{icon:'💾',label:'Guardar esta vajilla como ${l}',accion:()=>vajSalonGuardarDesayuno('${t}')}`).join(',')}])">⋯</button>
+    <button type="button" class="btn btn-outline" style="font-size:11.5px;padding:4px 9px;margin-left:auto" title="Más opciones" onclick="mpMenuAbrir(this,[${Object.entries(VAJ_DESAYUNOS).map(([t,l])=>`{icon:'📷',label:'Ver foto de referencia: ${l}',accion:()=>vajSalonVerFoto('${t}')}`).join(',')},'-',${Object.entries(VAJ_DESAYUNOS).filter(([t])=>!VAJ_PRESETS_FIJOS[t]).map(([t,l])=>`{icon:'💾',label:'Guardar esta vajilla como ${l}',accion:()=>vajSalonGuardarDesayuno('${t}')}`).join(',')}])">⋯</button>
     ${VAJ_DESAYUNO_FOTOS[elegido]?`<div style="flex-basis:100%;display:flex;align-items:center;gap:10px;margin-top:4px">
       <img src="${VAJ_DESAYUNO_FOTOS[elegido]}" alt="Referencia" title="Ver grande" onclick="vajSalonVerFoto('${elegido}')" style="height:90px;width:auto;border-radius:6px;border:1px solid var(--border);cursor:zoom-in;object-fit:cover">
       <span style="font-size:11.5px;color:var(--text2,var(--text))">📷 Así se arma el ${VAJ_DESAYUNOS[elegido].toLowerCase()}.<br><a href="javascript:void(0)" onclick="vajSalonVerFoto('${elegido}')">Ver grande</a></span>
@@ -10428,10 +10439,10 @@ function vajSalonBarraHtml(datos){
 function vajSalonEvento(){ return DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual); }
 async function vajSalonCargarDesayuno(tipo){
   const ev=vajSalonEvento(); if(!ev) return;
-  if(!VAJ_PRESETS || !VAJ_PRESETS[tipo]){
+  if(!VAJ_PRESETS_FIJOS[tipo] && (!VAJ_PRESETS || !VAJ_PRESETS[tipo])){
     try{ const d=await VAJ_PRESETS_DOC.get(); VAJ_PRESETS=d.exists?d.data():{}; }catch(e){}
   }
-  const preset=VAJ_PRESETS && VAJ_PRESETS[tipo];
+  const preset=VAJ_PRESETS_FIJOS[tipo] || (VAJ_PRESETS && VAJ_PRESETS[tipo]);
   if(!preset || !Array.isArray(preset.secciones)){
     alert(`Todavía no está armada la vajilla de "${VAJ_DESAYUNOS[tipo]}".\n\nAbrí el evento modelo (ej. Stellantis), andá a Vajilla salón y usá "⋯ → Guardar esta vajilla como ${VAJ_DESAYUNOS[tipo]}".`);
     return;
@@ -10440,8 +10451,12 @@ async function vajSalonCargarDesayuno(tipo){
   preset.secciones.forEach(ps=>{
     let sec=secciones.find(s=>s.nombre===ps.nombre);
     if(!sec){ sec={nombre:ps.nombre, items:[]}; secciones.push(sec); }
+    // Suma lo que falte: si el modelo lleva 2 iguales y el evento ya tiene 1, agrega 1 (apretar dos veces no duplica)
+    const clave=n=>String(n||'').trim().toLowerCase();
+    const yaHay={}; sec.items.forEach(it=>{ const k=clave(it.nombre); if(k) yaHay[k]=(yaHay[k]||0)+1; });
     (ps.items||[]).forEach(nombre=>{
-      if(sec.items.some(it=>String(it.nombre||'').trim().toLowerCase()===String(nombre).trim().toLowerCase())) return;
+      const k=clave(nombre); if(!k) return;
+      if(yaHay[k]>0){ yaHay[k]--; return; }
       sec.items.push({nombre, cantidad:'', armado:false, ingreso:false, egreso:false, reingreso:false, obs:''});
     });
   });
@@ -12597,6 +12612,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-05', t:'Fichas Técnicas › Vajilla salón: el botón <b>☕ Desayuno buffet</b> carga siempre la vajilla del buffet que pasó Mariana (17 piezas, con las cantidades para completar).'},
   {f:'2026-11-05', t:'Fichas Técnicas › Vajilla salón: al elegir <b>Desayuno buffet</b> o <b>Desayuno formal</b> aparece la <b>foto de referencia</b> de cómo se arma (clic para verla grande). También se puede ver desde el botón <b>⋯</b>.'},
   {f:'2026-11-04', t:'PDFs: se arregló que algunos renglones salieran con las <b>letras separadas</b> (ej. "S a l t e D a s"). Pasaba con la ñ y los acentos de textos copiados del celular, Mac o Word. Ahora todos los PDFs los corrigen solos, y los presupuestos ya guardados así se corrigieron.'},
   {f:'2026-11-04', t:'Nuevo módulo <b>💡 Pedidos al sistema</b>: con el botón <b>Pedir un cambio</b> (abajo a la izquierda, en cualquier pantalla) cada uno pide un ajuste, cambio o mejora. El sistema anota solo dónde estabas y saca una foto de la pantalla; vos contás qué pasa hoy y qué querés que pase. Cada pedido tiene su estado e historial (cuándo se pidió, preguntas y respuestas, cuándo se resolvió).'},

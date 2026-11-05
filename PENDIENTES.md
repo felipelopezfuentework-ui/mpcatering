@@ -14,10 +14,11 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Secciones pre-seteadas con buscador**: se eligen de una lista y se suman al presupuesto con su contenido. La Barra clásica pasa a ser una de ellas, y Bebidas también. *(Necesita la lista de Mariana.)*
 
 ### Fichas Técnicas — Check list y vajilla
-- [ ] **Guardar los desayunos modelo**: abrir el evento de Stellantis › Vajilla salón › "⋯ → Guardar esta vajilla como Desayuno buffet / formal" (hay que hacerlo una vez desde el sistema).
+- [ ] **Vajilla del desayuno formal**: pasar la lista (como se hizo con la del buffet) o guardarla desde un evento con "⋯ → Guardar esta vajilla como Desayuno formal".
 - [ ] **Vajilla por plato precargada** en el armado de vajilla, según el criterio de Mariana. *(Necesita la lista de Mariana.)*
 
 ## Hecho
+- 05/11/2026 — **Vajilla salón › Desayuno buffet**: la vajilla quedó fija en el sistema (lista de Mariana); ya no hace falta guardarla desde Stellantis.
 - 05/11/2026 — **Fichas Técnicas › Vajilla salón**: foto de referencia del desayuno buffet y del formal (aparece al elegirlo; clic para verla grande; también en "⋯").
 - 05/11/2026 — **Checklist de comida automático**: descartado (a pedido).
 - 04/11/2026 — **Nuevo módulo Pedidos al sistema**: botón "💡 Pedir un cambio" en todas las pantallas; anota solo dónde estaba cada uno y saca foto de la pantalla; formulario guiado (qué es, qué pasa hoy, qué quiere, urgencia); estados que maneja Felipe, preguntas y respuestas, historial con fecha de pedido y de resolución.
