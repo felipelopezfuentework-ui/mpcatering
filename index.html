@@ -10400,6 +10400,12 @@ function vajSalonMigrar(datos, secciones){
 // Al cargar uno se suman sus ítems con la cantidad vacía.
 const VAJ_PRESETS_DOC=fbDb.collection('mp_data').doc('vajilla_salon_presets');
 const VAJ_DESAYUNOS={buffet:'Desayuno buffet', formal:'Desayuno formal'};
+// Foto de referencia de cada desayuno (archivos en img/, los pasó Mariana)
+const VAJ_DESAYUNO_FOTOS={buffet:'img/desayuno-buffet.jpg', formal:'img/desayuno-formal.jpg'};
+function vajSalonVerFoto(tipo){
+  const src=VAJ_DESAYUNO_FOTOS[tipo]; if(!src) return;
+  mpModalGen('📷 Referencia: '+VAJ_DESAYUNOS[tipo], `<img src="${src}" alt="${VAJ_DESAYUNOS[tipo]}" style="display:block;max-width:100%;max-height:78vh;margin:0 auto;border-radius:8px">`, 1000);
+}
 let VAJ_PRESETS=null;
 function vajPresetsCargar(){
   if(VAJ_PRESETS) return;
@@ -10412,7 +10418,11 @@ function vajSalonBarraHtml(datos){
   return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:8px 10px;border:1px dashed var(--border);border-radius:8px">
     <span style="font-size:12px;font-weight:600;color:var(--text2,var(--text))">Cargar vajilla de:</span>
     ${Object.entries(VAJ_DESAYUNOS).map(([t,l])=>`<button type="button" class="btn ${elegido===t?'btn-primary':'btn-outline'}" style="font-size:11.5px;padding:4px 10px" onclick="vajSalonCargarDesayuno('${t}')">☕ ${l}</button>`).join('')}
-    <button type="button" class="btn btn-outline" style="font-size:11.5px;padding:4px 9px;margin-left:auto" title="Más opciones" onclick="mpMenuAbrir(this,[${Object.entries(VAJ_DESAYUNOS).map(([t,l])=>`{icon:'💾',label:'Guardar esta vajilla como ${l}',accion:()=>vajSalonGuardarDesayuno('${t}')}`).join(',')}])">⋯</button>
+    <button type="button" class="btn btn-outline" style="font-size:11.5px;padding:4px 9px;margin-left:auto" title="Más opciones" onclick="mpMenuAbrir(this,[${Object.entries(VAJ_DESAYUNOS).map(([t,l])=>`{icon:'📷',label:'Ver foto de referencia: ${l}',accion:()=>vajSalonVerFoto('${t}')}`).join(',')},'-',${Object.entries(VAJ_DESAYUNOS).map(([t,l])=>`{icon:'💾',label:'Guardar esta vajilla como ${l}',accion:()=>vajSalonGuardarDesayuno('${t}')}`).join(',')}])">⋯</button>
+    ${VAJ_DESAYUNO_FOTOS[elegido]?`<div style="flex-basis:100%;display:flex;align-items:center;gap:10px;margin-top:4px">
+      <img src="${VAJ_DESAYUNO_FOTOS[elegido]}" alt="Referencia" title="Ver grande" onclick="vajSalonVerFoto('${elegido}')" style="height:90px;width:auto;border-radius:6px;border:1px solid var(--border);cursor:zoom-in;object-fit:cover">
+      <span style="font-size:11.5px;color:var(--text2,var(--text))">📷 Así se arma el ${VAJ_DESAYUNOS[elegido].toLowerCase()}.<br><a href="javascript:void(0)" onclick="vajSalonVerFoto('${elegido}')">Ver grande</a></span>
+    </div>`:''}
   </div>`;
 }
 function vajSalonEvento(){ return DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual); }
@@ -12587,6 +12597,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-05', t:'Fichas Técnicas › Vajilla salón: al elegir <b>Desayuno buffet</b> o <b>Desayuno formal</b> aparece la <b>foto de referencia</b> de cómo se arma (clic para verla grande). También se puede ver desde el botón <b>⋯</b>.'},
   {f:'2026-11-04', t:'PDFs: se arregló que algunos renglones salieran con las <b>letras separadas</b> (ej. "S a l t e D a s"). Pasaba con la ñ y los acentos de textos copiados del celular, Mac o Word. Ahora todos los PDFs los corrigen solos, y los presupuestos ya guardados así se corrigieron.'},
   {f:'2026-11-04', t:'Nuevo módulo <b>💡 Pedidos al sistema</b>: con el botón <b>Pedir un cambio</b> (abajo a la izquierda, en cualquier pantalla) cada uno pide un ajuste, cambio o mejora. El sistema anota solo dónde estabas y saca una foto de la pantalla; vos contás qué pasa hoy y qué querés que pase. Cada pedido tiene su estado e historial (cuándo se pidió, preguntas y respuestas, cuándo se resolvió).'},
   {f:'2026-11-04', t:'Fichas Técnicas › PDF: la hoja sale <b>vertical</b>; arriba va el nombre del evento bien grande con la fecha y los <b>invitados destacados</b> (y no se repiten más abajo); los datos van de a varios por renglón; Hora comienzo y fin en un solo <b>Horario</b>; la Comanda muestra el <b>Tipo de evento + formato</b>; en el Timing la columna Hora es angosta.'},

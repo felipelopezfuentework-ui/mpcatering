@@ -7,8 +7,6 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 
 - [ ] **Secciones pre-seteadas del presupuesto**: nombre de cada una (ej. Recepción, Barra, Bebidas) y qué estaciones/ítems lleva.
 - [ ] **Vajilla por plato**: qué vajilla lleva cada plato (para que la ficha la traiga cargada sola).
-- [ ] **Checklist de comida**: qué lleva cada plato (lo define y lo pasa ella).
-- [ ] **Fotos de referencia del desayuno**: 1ª = desayuno buffet, 2ª = desayuno formal (se suman después).
 
 ## Para hacer en el sistema (Felipe)
 
@@ -16,12 +14,12 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Secciones pre-seteadas con buscador**: se eligen de una lista y se suman al presupuesto con su contenido. La Barra clásica pasa a ser una de ellas, y Bebidas también. *(Necesita la lista de Mariana.)*
 
 ### Fichas Técnicas — Check list y vajilla
-- [ ] **Fotos de referencia de los desayunos** en Vajilla salón (al elegir buffet o formal). *(Fotos pendientes de Mariana.)*
 - [ ] **Guardar los desayunos modelo**: abrir el evento de Stellantis › Vajilla salón › "⋯ → Guardar esta vajilla como Desayuno buffet / formal" (hay que hacerlo una vez desde el sistema).
 - [ ] **Vajilla por plato precargada** en el armado de vajilla, según el criterio de Mariana. *(Necesita la lista de Mariana.)*
-- [ ] **Checklist de comida automático** con lo que lleva cada plato. *(Necesita la lista de Mariana.)*
 
 ## Hecho
+- 05/11/2026 — **Fichas Técnicas › Vajilla salón**: foto de referencia del desayuno buffet y del formal (aparece al elegirlo; clic para verla grande; también en "⋯").
+- 05/11/2026 — **Checklist de comida automático**: descartado (a pedido).
 - 04/11/2026 — **Nuevo módulo Pedidos al sistema**: botón "💡 Pedir un cambio" en todas las pantallas; anota solo dónde estaba cada uno y saca foto de la pantalla; formulario guiado (qué es, qué pasa hoy, qué quiere, urgencia); estados que maneja Felipe, preguntas y respuestas, historial con fecha de pedido y de resolución.
 - 04/11/2026 — **Fichas Técnicas › PDF** (marcas de Mariana sobre la hoja impresa): hoja vertical en todos los PDF de la ficha; encabezado con el nombre del evento grande, fecha e invitados destacados, sin repetirlos abajo; datos de a varios por renglón; Horario en una línea; la Comanda vuelve a mostrar Tipo de evento + formato (Total personal sigue afuera); columna Hora del Timing angosta.
 - 04/11/2026 — **Presupuestos › Confirmado**: la ficha que se crea trae el cliente vinculado (si no está en el maestro, se crea) y la Comanda trae el menú separado por estación con su título. Solo para los que se confirmen de ahora en más.
