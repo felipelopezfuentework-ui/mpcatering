@@ -533,6 +533,10 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .rt-bar button{border:none;background:transparent;min-width:24px;height:20px;border-radius:4px;cursor:pointer;font-family:Georgia,serif;font-size:13px;color:var(--text);padding:0 5px;line-height:20px}
 .rt-bar button:hover{background:var(--surface2)}
 .rt-bar button.on{background:var(--accent-light);color:var(--accent)}
+.rt-ed.rt-lista>div{position:relative;padding-left:16px;min-height:1.45em}
+.rt-ed.rt-lista>div::before{content:'•';position:absolute;left:3px;top:0;color:var(--accent)}
+.rt-ed.rt-lista>div.rt-nv{padding-left:0}
+.rt-ed.rt-lista>div.rt-nv::before{content:none}
 /* Actividad: quién tiene el sistema abierto y dónde está */
 .act-btn{display:inline-flex;align-items:center;gap:6px}
 .act-punto{width:7px;height:7px;border-radius:50%;background:#4ade80;flex-shrink:0}
@@ -12614,6 +12618,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-11', t:'Presupuestos: los <b>ítems de cada estación</b> se escriben con <b>viñetas</b>, como en Word. Para un subtítulo (ej. "FINGER SALADO") parate en ese renglón y tocá <b>• Viñeta</b> (aparece arriba del cuadro): queda sin viñeta, y el PDF sale igual que lo que ves.'},
   {f:'2026-11-11', t:'Pedidos al sistema: nuevo filtro por <b>urgencia</b> (🔴 Me frena el trabajo / 🟡 Molesta / 🟢 Cuando se pueda), al lado de módulos y personas.'},
   {f:'2026-11-05', t:'Fichas Técnicas › Vajilla salón: el botón <b>☕ Desayuno buffet</b> carga siempre la vajilla del buffet que pasó Mariana (17 piezas, con las cantidades para completar).'},
   {f:'2026-11-05', t:'Fichas Técnicas › Vajilla salón: al elegir <b>Desayuno buffet</b> o <b>Desayuno formal</b> aparece la <b>foto de referencia</b> de cómo se arma (clic para verla grande). También se puede ver desde el botón <b>⋯</b>.'},
@@ -13877,7 +13882,7 @@ function renderPresuEstaciones(){
       </div>
       <input type="text" value="${escH(e.titulo)}" style="width:100%;margin-bottom:8px" oninput="_presuEdit.estaciones[${i}].titulo=this.value">
       <label>Ítems (uno por línea)</label>
-      <textarea rows="4" style="width:100%;margin:6px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical" oninput="_presuEdit.estaciones[${i}].items=this.value">${escH(e.items)}</textarea>
+      <textarea class="rt-lista" rows="4" style="width:100%;margin:6px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical" oninput="_presuEdit.estaciones[${i}].items=this.value">${escH(e.items)}</textarea>
       <label>Precio de esta estación</label>
       <input type="text" value="${escH(e.precio||'')}" style="width:100%;margin-top:6px" oninput="_presuEdit.estaciones[${i}].precio=this.value">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px"><input type="checkbox" ${e.unaOpcion!==false?'checked':''} onchange="_presuEdit.estaciones[${i}].unaOpcion=this.checked"> Seleccionar 1 opción</label>
@@ -13893,12 +13898,15 @@ function renderPresuEstaciones(){
 // (oninput, guardado, corrector) no cambia. El PDF lo dibuja con rtSplit/rtText
 // (en presuDibujarPDF). Lo que pasa a Fichas Técnicas / Producción / Cotización
 // va sin marcas (rtSinFormato en presuMenuEstaciones y presuSegDatosEvento).
-const RT_TAG=/<\/?[bu]>/gi;
+// Ítems de estaciones (cuadro con viñetas): un renglón que empieza con <nv>
+// va sin viñeta (ej. un subtítulo "FINGER SALADO"); el resto lleva viñeta.
+const RT_TAG=/<\/?[bu]>|<nv>/gi;
 function rtSinFormato(s){ return String(s||'').replace(RT_TAG,''); }
 // Texto con marcas → un array de tramos {t,b,u} por renglón.
 function rtParrafos(s){
   return String(s||'').split('\n').map(linea=>{
     const runs=[]; let b=false, u=false;
+    runs.nv=/^\s*<nv>/i.test(linea); linea=linea.replace(/<nv>/gi,'');
     linea.split(/(<\/?[bu]>)/i).forEach(p=>{
       const m=/^<(\/?)([bu])>$/i.exec(p);
       if(m){ if(m[2].toLowerCase()==='b') b=!m[1]; else u=!m[1]; return; }
@@ -13907,7 +13915,12 @@ function rtParrafos(s){
     return runs;
   });
 }
-function rtAHtml(s){
+function rtAHtml(s, lista){
+  if(lista){ // un <div> por renglón (el CSS le pone la viñeta)
+    return rtParrafos(s).map(runs=>`<div${runs.nv?' class="rt-nv"':''}>`+(runs.map(r=>{
+      let h=escH(r.t); if(r.u) h='<u>'+h+'</u>'; if(r.b) h='<b>'+h+'</b>'; return h;
+    }).join('')||'<br>')+'</div>').join('');
+  }
   // El <br> final es el "renglón de apoyo" que necesita el cuadro editable (rtDeHtml lo ignora).
   return rtParrafos(s).map(runs=>runs.map(r=>{
     let h=escH(r.t); if(r.u) h='<u>'+h+'</u>'; if(r.b) h='<b>'+h+'</b>'; return h;
@@ -13936,6 +13949,7 @@ function rtDeHtml(ed){
     const nu=u || tag==='U' || /underline/.test((st.textDecoration||'')+' '+(st.textDecorationLine||''));
     const bloque=/^(DIV|P|LI)$/.test(tag);
     if(bloque && out && !out.endsWith('\n')) out+='\n';
+    if(bloque && n.parentNode===ed && n.classList.contains('rt-nv')) out+='<nv>';
     const hijos=Array.from(n.childNodes);
     hijos.forEach((c,i)=>{ if(!(bloque && c.tagName==='BR' && i===hijos.length-1 && hijos.length>1)) walk(c,nb,nu); });
     if(bloque && !out.endsWith('\n')) out+='\n';
@@ -13949,25 +13963,48 @@ function rtMejorar(ta){
   if(ta._rtEd) return;
   const wrap=document.createElement('div'); wrap.className='rt-wrap';
   const ed=document.createElement('div');
-  ed.className='rt-ed'; ed.contentEditable='true'; ed.spellcheck=true; ed.lang='es';
+  const lista=ta.classList.contains('rt-lista');
+  ed.className='rt-ed'+(lista?' rt-lista':''); ed.contentEditable='true'; ed.spellcheck=true; ed.lang='es';
   ed.setAttribute('style', ta.getAttribute('style')||'');
   ed.style.display='block';
   ed.style.minHeight=((Number(ta.getAttribute('rows'))||2)*17.4+18)+'px';
   if(ta.placeholder) ed.dataset.ph=ta.placeholder;
   const bar=document.createElement('div'); bar.className='rt-bar';
-  bar.innerHTML='<button type="button" data-c="bold" title="Negrita (Ctrl+B)"><b>B</b></button><button type="button" data-c="underline" title="Subrayado (Ctrl+U)"><u>U</u></button>';
+  bar.innerHTML='<button type="button" data-c="bold" title="Negrita (Ctrl+B)"><b>B</b></button><button type="button" data-c="underline" title="Subrayado (Ctrl+U)"><u>U</u></button>'+
+    (lista?'<button type="button" data-c="vineta" title="Poner o sacar la viñeta de este renglón (o de los renglones marcados)" style="font-family:inherit">• Viñeta</button>':'');
   ta.parentNode.insertBefore(wrap, ta);
   wrap.appendChild(bar); wrap.appendChild(ed);
   ta.style.display='none';
   ta._rtEd=ed;
-  const pintar=v=>{ ed.innerHTML=rtAHtml(v); ed.classList.toggle('rt-vacio', !v); };
+  const pintar=v=>{ ed.innerHTML=rtAHtml(v, lista); ed.classList.toggle('rt-vacio', !v && !lista); };
+  // Modo lista: renglón (div) donde está el cursor, y los marcados.
+  const renglonDe=n=>{ while(n && n.parentNode!==ed) n=n.parentNode; return n&&n.nodeType===1&&n.tagName==='DIV'?n:null; };
+  const renglonesSel=()=>{
+    const sel=getSelection(); if(!sel.rangeCount) return [];
+    const r=sel.getRangeAt(0);
+    const a=renglonDe(r.startContainer===ed?ed.childNodes[r.startOffset]||ed.lastChild:r.startContainer);
+    const z=renglonDe(r.endContainer===ed?ed.childNodes[Math.max(0,r.endOffset-1)]||ed.lastChild:r.endContainer);
+    if(!a) return z?[z]:[];
+    const out=[]; let n=a; while(n){ if(n.nodeType===1) out.push(n); if(n===z||!z) break; n=n.nextSibling; } return out;
+  };
+  const caretAlFinal=()=>{ const r=document.createRange(); r.selectNodeContents(ed.lastChild||ed); r.collapse(false); const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r); };
   Object.defineProperty(ta,'value',{configurable:true,
     get(){ return _rtValor.get.call(ta); },
     set(v){ _rtValor.set.call(ta, v); if(!ta._rtEscribiendo) pintar(String(v==null?'':v)); }});
   pintar(ta.value);
   let alEntrar='';
-  const estado=()=>bar.querySelectorAll('button').forEach(b=>{ let on=false; try{ on=document.queryCommandState(b.dataset.c); }catch(e){} b.classList.toggle('on', on); });
+  const estado=()=>bar.querySelectorAll('button').forEach(b=>{ let on=false;
+    if(b.dataset.c==='vineta'){ const rs=renglonesSel(); on=!!rs.length && rs.every(d=>!d.classList.contains('rt-nv')); }
+    else { try{ on=document.queryCommandState(b.dataset.c); }catch(e){} }
+    b.classList.toggle('on', on); });
   ed.addEventListener('input',()=>{
+    // Modo lista: si quedó texto suelto fuera de un renglón (ej. al borrar todo
+    // y volver a escribir), se rearma con un renglón por línea.
+    if(lista && Array.from(ed.childNodes).some(c=>!(c.nodeType===1&&c.tagName==='DIV'))){
+      pintar(rtDeHtml(ed)); caretAlFinal();
+    }
+    // Si se borró todo, el renglón que queda vuelve a llevar viñeta.
+    if(lista && ed.children.length===1 && !ed.textContent && !ed._rtToggle) ed.firstChild.classList.remove('rt-nv');
     const v=rtDeHtml(ed);
     ed.classList.toggle('rt-vacio', !v);
     if(v===ta.value) return;
@@ -13979,7 +14016,18 @@ function rtMejorar(ta){
   ed.addEventListener('blur',()=>{ if(ta.value!==alEntrar) ta.dispatchEvent(new Event('change',{bubbles:true})); });
   ed.addEventListener('keyup',estado); ed.addEventListener('mouseup',estado);
   ed.addEventListener('keydown',e=>{
-    if(e.key==='Enter'){ e.preventDefault(); document.execCommand('insertLineBreak'); return; }
+    if(e.key==='Enter'){
+      e.preventDefault();
+      if(lista){ // renglón nuevo, siempre con viñeta
+        if(!ed.firstChild){ ed.innerHTML='<div><br></div>'; caretAlFinal(); }
+        document.execCommand('insertParagraph');
+        // El renglón vacío que queda (abajo, o arriba si se apretó al principio) va con viñeta.
+        const d=renglonesSel()[0];
+        if(d){ const vacio=!d.textContent?d:(d.previousSibling&&!d.previousSibling.textContent?d.previousSibling:null); if(vacio&&vacio.classList) vacio.classList.remove('rt-nv'); }
+        ed.dispatchEvent(new Event('input')); estado();
+      } else document.execCommand('insertLineBreak');
+      return;
+    }
     // Solo negrita y subrayado (Ctrl+I haría cursiva, que el PDF no usa).
     if((e.ctrlKey||e.metaKey) && /^[iI]$/.test(e.key)) e.preventDefault();
   });
@@ -13987,13 +14035,28 @@ function rtMejorar(ta){
   ed.addEventListener('paste',e=>{
     e.preventDefault();
     const t=(e.clipboardData||window.clipboardData).getData('text/plain')||'';
+    if(lista){ // cada línea pegada es un renglón con viñeta
+      if(!ed.firstChild){ ed.innerHTML='<div><br></div>'; caretAlFinal(); }
+      t.replace(/\r\n?/g,'\n').replace(/\n+$/,'').split('\n').forEach((l,i)=>{
+        if(i){ document.execCommand('insertParagraph'); const d=renglonesSel()[0]; if(d) d.classList.remove('rt-nv'); }
+        if(l) document.execCommand('insertText', false, l.replace(/^\s*[•·\-\*]\s+/,''));
+      });
+      return;
+    }
     document.execCommand('insertText', false, t.replace(/\r\n?/g,'\n'));
   });
   ed.addEventListener('drop',e=>e.preventDefault());
   bar.addEventListener('mousedown',e=>e.preventDefault());
   bar.addEventListener('click',e=>{
     const b=e.target.closest('button'); if(!b) return;
-    ed.focus(); document.execCommand(b.dataset.c); estado();
+    ed.focus();
+    if(b.dataset.c==='vineta'){
+      const rs=renglonesSel(); if(!rs.length) return;
+      const sacar=rs.every(d=>!d.classList.contains('rt-nv'));
+      rs.forEach(d=>d.classList.toggle('rt-nv', sacar));
+      ed._rtToggle=true; ed.dispatchEvent(new Event('input')); ed._rtToggle=false;
+    } else document.execCommand(b.dataset.c);
+    estado();
   });
 }
 function rtMejorarTodo(){
@@ -14959,7 +15022,7 @@ function presuDibujarPDF(d, modo){
     const listTop=photoTop+2, dispH=photoBottom-listTop;
     const CARTEL='Seleccionar 1 opción para todos los comensales';
     const CARTEL_H=5, CARTEL_GAP=1.6;
-    const itemsDe=est=>(est.items||'').split('\n').map(s=>s.trim()).filter(Boolean);
+    const itemsDe=est=>(est.items||'').split('\n').map(s=>s.trim()).filter(s=>rtSinFormato(s).trim());
     // El cartel va en las estaciones con platos que tengan tildado "Se elige
     // 1 opción" (tildado por defecto; las guardadas sin la casilla cuentan
     // como tildadas).
@@ -14985,7 +15048,8 @@ function presuDibujarPDF(d, modo){
       let h=secH+headH+base.headerGap*s;
       if(part.cartel) h+=CARTEL_H*f+CARTEL_GAP*s;
       doc.setFont('times','normal'); doc.setFontSize(base.item*f);
-      const itemLines=part.items.map(it=>rtSplit('•  '+it, listW-2));
+      // Renglones con <nv> van sin viñeta (subtítulos dentro de la estación).
+      const itemLines=part.items.map(it=>/^<nv>/i.test(it)?rtSplit(it, listW-2):rtSplit('•  '+it, listW-2));
       itemLines.forEach(l=>{ h+=l.length*renglon(s)+base.itemGap*s; });
       return {h, titleLines, titleLH, headH, itemLines, secLines, secLH, secH};
     }
