@@ -10,6 +10,9 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 
 ## Para hacer en el sistema (Felipe)
 
+### Chat interno
+- [ ] **Avisos al celular con el sistema cerrado**: necesita pasar Firebase al plan Blaze (pago por uso; a este tamaño, casi gratis) para mandar notificaciones push, y que cada uno agregue el sistema a la pantalla de inicio. Decidir con Mariana.
+
 ### Presupuestos
 - [ ] **Secciones pre-seteadas con buscador**: se eligen de una lista y se suman al presupuesto con su contenido. La Barra clásica pasa a ser una de ellas, y Bebidas también. *(Necesita la lista de Mariana.)*
 
@@ -18,6 +21,7 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Vajilla por plato precargada** en el armado de vajilla, según el criterio de Mariana. *(Necesita la lista de Mariana.)*
 
 ## Hecho
+- 11/11/2026 — **Nuevo módulo Chat interno** (tipo WhatsApp, para celular): General + un chat por evento de Fichas, fotos y documentos, responder, @ nombrar, fijar, visto por, atajos a las solapas de la ficha, cambios de la ficha automáticos en el chat del evento, archivados. Sin audios (a pedido).
 - 11/11/2026 — **Presupuestos › Incluye / No incluye**: opciones Traslados y Seguros; Metre → Maître.
 - 11/11/2026 — **Pedidos al sistema**: un solo cuadro libre para el pedido (en vez de "qué pasa hoy" + "qué querés que pase").
 - 11/11/2026 — **Fichas Técnicas › Vajilla salón**: sección BARRA (también en los eventos ya hechos).
