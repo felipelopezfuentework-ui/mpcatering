@@ -12127,6 +12127,8 @@ function presuMigrar(d){
     });
     x.opcV2=1;
   }
+  // "Metre" pasó a escribirse "Maître" (a pedido): se corrige en los ya guardados.
+  if(/^\s*metre\s*$/im.test(String(x.incluye||''))) x.incluye=String(x.incluye).split('\n').map(l=>presuOpcNorm(l)==='metre'?'Maître':l).join('\n');
   return x;
 }
 // 13: precios siempre en formato pesos ("55000" -> "$ 55.000"). Si el valor
@@ -12427,13 +12429,11 @@ async function pedAbrirForm(){
       <select id="ped-f-mod" onchange="_pedNuevo.mod=this.value">${ctx.mod==='general'||PED_MODS[ctx.mod]?'':`<option value="${escH(ctx.mod)}" selected>${escH(ctx.mod)}</option>`}${opcMods}</select></div>
     <div class="ped-paso"><div class="ped-lbl"><span class="ped-n">1</span> ¿Qué es?</div>
       <div class="ped-opc" data-campo="tipo">${Object.entries(PED_TIPOS).map(([k,t])=>`<button type="button" class="ped-op" data-v="${k}" onclick="pedFormElegir('tipo','${k}')">${t.icon} ${t.lbl}</button>`).join('')}</div></div>
-    <div class="ped-paso"><div class="ped-lbl"><span class="ped-n">2</span> ¿Qué pasa hoy?</div>
-      <textarea id="ped-f-hoy" rows="3" placeholder="${escH(PED_TIPOS.cambio.hoy)}"></textarea></div>
-    <div class="ped-paso"><div class="ped-lbl"><span class="ped-n">3</span> ¿Qué querés que pase?</div>
-      <textarea id="ped-f-quiere" rows="3" placeholder="${escH(PED_TIPOS.cambio.quiere)}"></textarea></div>
-    <div class="ped-paso"><div class="ped-lbl"><span class="ped-n">4</span> ¿Qué tan urgente es?</div>
+    <div class="ped-paso"><div class="ped-lbl"><span class="ped-n">2</span> Contanos el pedido</div>
+      <textarea id="ped-f-quiere" rows="6" placeholder="${escH(pedEjemplo('cambio'))}"></textarea></div>
+    <div class="ped-paso"><div class="ped-lbl"><span class="ped-n">3</span> ¿Qué tan urgente es?</div>
       <div class="ped-opc" data-campo="urg">${Object.entries(PED_URG).map(([k,u])=>`<button type="button" class="ped-op ${k==='molesta'?'on':''}" data-v="${k}" onclick="pedFormElegir('urg','${k}')">${u.lbl}</button>`).join('')}</div></div>
-    <div class="ped-paso"><div class="ped-lbl"><span class="ped-n">5</span> Fotos</div>
+    <div class="ped-paso"><div class="ped-lbl"><span class="ped-n">4</span> Fotos</div>
       <div class="ped-fotos" id="ped-f-fotos"></div></div>
     <div class="ped-tip">Un pedido por cada cosa: si son varias, mandá un pedido para cada una.</div>
     <div id="ped-f-err" class="ped-err"></div>
@@ -12445,14 +12445,18 @@ async function pedAbrirForm(){
   mpModalGen('💡 Pedir un cambio en el sistema', html, 640);
   pedFormFotos();
 }
+// Ejemplo del campo único del pedido (lo que pasa hoy + lo que se quiere, todo junto).
+function pedEjemplo(tipo){
+  const t=PED_TIPOS[tipo]||PED_TIPOS.cambio;
+  return 'Escribí lo que quieras, como te salga.'+String.fromCharCode(10,10)+t.hoy+' '+String(t.quiere).replace(/^Ej:\s*/,'Quiero ');
+}
 function pedFormElegir(campo, v){
   if(!_pedNuevo) return;
   _pedNuevo[campo]=v;
   document.querySelectorAll(`#ped-modal .ped-opc[data-campo="${campo}"] .ped-op`).forEach(b=>b.classList.toggle('on', b.dataset.v===v));
   if(campo==='tipo'){
     const t=PED_TIPOS[v];
-    document.getElementById('ped-f-hoy').placeholder=t.hoy;
-    document.getElementById('ped-f-quiere').placeholder=t.quiere;
+    document.getElementById('ped-f-quiere').placeholder=pedEjemplo(v);
   }
 }
 function pedFormFotos(){
@@ -12477,11 +12481,10 @@ async function pedFotoElegida(inp){
 }
 async function pedEnviar(){
   const f=_pedNuevo; if(!f||f.enviando) return;
-  const hoy=document.getElementById('ped-f-hoy').value.trim(), quiere=document.getElementById('ped-f-quiere').value.trim();
+  const hoy='', quiere=document.getElementById('ped-f-quiere').value.trim();
   const faltan=[];
   if(!f.tipo) faltan.push('elegí qué es (paso 1)');
-  if(hoy.length<8) faltan.push('contá qué pasa hoy (paso 2)');
-  if(quiere.length<8) faltan.push('contá qué querés que pase (paso 3)');
+  if(!quiere) faltan.push('escribí el pedido (paso 2)');
   const err=document.getElementById('ped-f-err');
   if(faltan.length){ err.textContent='Para enviarlo falta: '+faltan.join(', ')+'.'; return; }
   err.textContent='';
@@ -12566,8 +12569,8 @@ function renderPedidos(){
     const pregunta=p.estado==='info' && p.quien===yo;
     return `<div class="ped-card ${nuevo?'ped-es-nuevo':''} ${pregunta?'ped-te-toca':''}" onclick="pedAbrir('${p._id}')">
       <div class="ped-card-top"><span class="ped-num">#${p.n||'?'}</span><span class="ped-tipo">${t.icon} ${t.lbl}</span>${pedUrgBadge(p.urg)}<span style="margin-left:auto">${pedEstadoBadge(p.estado)}</span></div>
-      <div class="ped-linea"><span class="ped-k">Hoy</span><span>${escH(pedCorto(p.hoy,220))}</span></div>
-      <div class="ped-linea"><span class="ped-k">Quiere</span><span>${escH(pedCorto(p.quiere,220))}</span></div>
+      ${p.hoy?`<div class="ped-linea"><span class="ped-k">Hoy</span><span>${escH(pedCorto(p.hoy,220))}</span></div>
+      <div class="ped-linea"><span class="ped-k">Quiere</span><span>${escH(pedCorto(p.quiere,220))}</span></div>`:`<div class="ped-linea"><span>${escH(pedCorto(p.quiere,320))}</span></div>`}
       ${pregunta?'<div class="ped-aviso">❓ Te preguntaron algo sobre este pedido: abrilo para responder.</div>':''}
       <div class="ped-meta">📍 ${escH(pedDondeTxt(p.donde))} · 👤 ${escH(novNombre(p.quien))} · pedido el ${pedFecha(p.ts)} · ${pedResumenTiempo(p)}${(p.fotos||[]).length?' · 📷':''}${coments?' · 💬 '+coments:''}${nuevo?' <span class="nov-nuevo">Nuevo</span>':''}</div>
     </div>`;
@@ -12612,8 +12615,8 @@ function pedDetalleRender(){
     .map(([k,e])=>`<button type="button" class="btn btn-outline ped-est-btn" onclick="pedCambiarEstado('${p._id}','${k}')">${e.icon} ${e.lbl}</button>`).join('') : '';
   el.innerHTML=`<div id="ped-modal">
     <div class="ped-card-top" style="margin-bottom:12px"><span class="ped-tipo">${t.icon} ${t.lbl}</span>${pedUrgBadge(p.urg)}<span style="margin-left:auto">${pedEstadoBadge(p.estado)}</span></div>
-    <div class="ped-bloque"><div class="ped-k">¿Qué pasa hoy?</div><div>${pedTxt(p.hoy)}</div></div>
-    <div class="ped-bloque"><div class="ped-k">¿Qué quiere que pase?</div><div>${pedTxt(p.quiere)}</div></div>
+    ${p.hoy?`<div class="ped-bloque"><div class="ped-k">¿Qué pasa hoy?</div><div>${pedTxt(p.hoy)}</div></div>
+    <div class="ped-bloque"><div class="ped-k">¿Qué quiere que pase?</div><div>${pedTxt(p.quiere)}</div></div>`:`<div class="ped-bloque"><div class="ped-k">Pedido</div><div>${pedTxt(p.quiere)}</div></div>`}
     <div class="ped-bloque"><div class="ped-k">Dónde</div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">📍 ${escH(pedDondeTxt(p.donde))}
       ${p.donde&&(p.donde.ref||(p.donde.mod&&p.donde.mod!=='general'))?`<button type="button" class="btn btn-outline" style="padding:2px 10px;font-size:11px" onclick="pedIr('${p._id}')">Ir →</button>`:''}</div></div>
     ${fotosHtml?`<div class="ped-bloque"><div class="ped-k">Fotos</div><div class="ped-fotos">${fotosHtml}</div></div>`:''}
@@ -12693,6 +12696,8 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-11', t:'Pedidos al sistema: en vez de "¿Qué pasa hoy?" y "¿Qué querés que pase?" hay <b>un solo cuadro</b> para escribir el pedido como quieras.'},
+  {f:'2026-11-11', t:'Presupuestos › Incluye / No incluye: nuevas opciones <b>Traslados</b> y <b>Seguros</b>; "Metre" ahora dice <b>Maître</b> (también en los presupuestos ya hechos).'},
   {f:'2026-11-11', t:'Presupuestos › PDF: si una estación no entra en una hoja a letra normal, ahora <b>se achica un poco la letra para que salga entera</b> (antes se cortaba). Solo se corta si es muy larga. En el formulario, debajo de los ítems de cada estación, un aviso dice <b>cuántos caracteres lleva y cuántos le entran</b> (verde: entra · amarillo: entra con letra más chica · rojo: se va a cortar, y cuánto sacarle).'},
   {f:'2026-11-11', t:'Presupuestos › PDF: cuando un ítem con viñeta ocupa más de un renglón, el renglón de abajo queda <b>alineado con el texto</b> y no debajo de la viñeta (también en Incluye / No incluye si se escribe con "-" o "•").'},
   {f:'2026-11-11', t:'Fichas Técnicas › Vajilla salón: nueva sección <b>BARRA</b>, igual que Cristalería, Cubertería y Vajilla (también en los eventos que ya estaban hechos).'},
@@ -14400,7 +14405,7 @@ function presuMoverEstacion(desde, hasta){
 const PRESU_OPC={
   si:[
     'Manager general',
-    'Metre',
+    'Maître',
     'Personal de salón',
     'Personal de cocina',
     'Personal de limpieza',
@@ -14410,7 +14415,9 @@ const PRESU_OPC={
     'Individuales y caminos',
     'Ambientación para las estaciones',
     'Equipamiento de cocina (de ser necesario)',
-    'Bebidas sin alcohol'
+    'Bebidas sin alcohol',
+    'Traslados',
+    'Seguros'
   ],
   no:[
     'Bebidas con alcohol',
@@ -14418,7 +14425,9 @@ const PRESU_OPC={
     'Mesas',
     'Sillas',
     'Mobiliario',
-    'Instalación eléctrica'
+    'Instalación eléctrica',
+    'Traslados',
+    'Seguros'
   ]
 };
 // Opciones de antes (tildar = sacar). presuMigrar las pasa a las nuevas.
