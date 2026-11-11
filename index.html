@@ -1933,6 +1933,8 @@ tr.rec-clic:hover td{background:var(--accent-light)}
       <div class="form-field" style="flex:1">
         <label>Fecha del evento</label>
         <input type="date" id="presu-fecha-evento" style="width:100%">
+        <div id="presu-fechas-extra"></div>
+        <a href="#" onclick="presuAgregarFecha();return false" style="font-size:11.5px;display:inline-block;margin-top:5px">+ Agregar otra fecha</a>
       </div>
       <div class="form-field" style="flex:1">
         <label>Fecha de emisión</label>
@@ -8835,13 +8837,21 @@ function eliminarEvento(periodoId,eventoId){
 // ── Abrir evento (editor con tabs del Excel) ──────────────────────
 // ── Calendario: todos los eventos de Fichas Técnicas (los confirmados) por fecha ──
 let _calMes=null; // {a, m} (m de 0 a 11)
+function calFechasExtra(d){ return (Array.isArray(d.fechas_extra)?d.fechas_extra:[]).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x||'')); }
 function calFechaEvento(d){ return [d.fecha, d.com_fecha, d.fm_fecha].find(x=>/^\d{4}-\d{2}-\d{2}$/.test(x||''))||''; }
 function calEventos(){
   const out=[];
   Object.entries((DB.comanda&&DB.comanda.eventos)||{}).forEach(([pid,evs])=>(evs||[]).forEach(ev=>{
     const d=ev.datos||{};
-    out.push({pid, id:ev.id, nombre:ev.nombre||'Evento', f:calFechaEvento(d), hora:d.horario_inicio||d.com_hora_ini||'',
-      lugar:d.locacion||d.com_locacion||'', inv:d.com_inv_total||d.cant_adultos||''});
+    const base={pid, id:ev.id, nombre:ev.nombre||'Evento', f:calFechaEvento(d), hora:d.horario_inicio||d.com_hora_ini||'',
+      lugar:d.locacion||d.com_locacion||'', inv:d.com_inv_total||d.cant_adultos||''};
+    out.push(base);
+    // Mismo evento en varios días (presupuesto con varias fechas): una entrada por día.
+    const extra=calFechasExtra(d);
+    if(base.f && extra.length){
+      base.nombre+=' (día 1 de '+(extra.length+1)+')';
+      extra.forEach((f,i)=>out.push({...base, f, nombre:(ev.nombre||'Evento')+' (día '+(i+2)+' de '+(extra.length+1)+')'}));
+    }
   }));
   return out.sort((a,b)=>(a.f+a.hora).localeCompare(b.f+b.hora));
 }
@@ -9259,6 +9269,9 @@ function renderEventoSheet(ev, sheetIdx){
           </div>`;
         }
       });
+      if(c.keys.some(k=>k.k==='com_fecha') && calFechasExtra(datos).length){
+        html+=`<div style="width:100%;margin-top:-6px;font-size:12px;color:var(--accent);font-weight:600">📅 Evento de varios días: ${escH(fechasTexto([calFechaEvento(datos),...calFechasExtra(datos)].filter(Boolean).sort()))}</div>`;
+      }
       html+=`</div>`;
     } else if(c.tipo==='opciones_bool'){
       html+=`<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">`;
@@ -10779,7 +10792,9 @@ function pdfFichaEncabezado(ev){
   const primero=keys=>{ for(const k of keys){ const v=limpiarValorPDF(d[k]); if(v) return v; } return ''; };
   return {
     eventName: limpiarValorPDF(ev.nombre || d._nombre_evento || '') || 'Evento sin nombre',
-    fecha: formatFechaPDF(primero(PDF_FECHA_KEYS)),
+    fecha: calFechasExtra(d).length && /^\d{4}-\d{2}-\d{2}$/.test(primero(PDF_FECHA_KEYS))
+      ? fechasTexto([primero(PDF_FECHA_KEYS), ...calFechasExtra(d)].sort())
+      : formatFechaPDF(primero(PDF_FECHA_KEYS)),
     invitados: primero(PDF_INV_KEYS)
   };
 }
@@ -12003,9 +12018,48 @@ function presuDefaultClausulas(){
     {titulo:'Aceptación', texto:'La confirmación del evento y/o el pago de la seña implica la aceptación de todas las condiciones detalladas en esta propuesta.'},
   ];
 }
+// Varias fechas para un mismo evento: fechaEvento = la del primer campo y
+// fechasExtra = las que se agregan con "+ Agregar otra fecha". presuFechas
+// devuelve todas las válidas, sin repetir y ordenadas (la primera es la que
+// usan Fichas Técnicas, el período y el nombre del archivo).
+function presuFechas(p){
+  const ok=f=>/^\d{4}-\d{2}-\d{2}$/.test(f||'');
+  return [...new Set([p&&p.fechaEvento, ...((p&&p.fechasExtra)||[])].filter(ok))].sort();
+}
+// ["2026-11-20","2026-11-21","2026-12-03"] → "20 y 21 de noviembre y 3 de diciembre de 2026"
+function fechasTexto(fechas){
+  const unir=a=>a.length<2?(a[0]||''):a.slice(0,-1).join(', ')+' y '+a[a.length-1];
+  const porAnio=[];
+  fechas.forEach(f=>{
+    const [a,m,d]=f.split('-').map(Number);
+    let ga=porAnio[porAnio.length-1]; if(!ga||ga.a!==a){ ga={a,meses:[]}; porAnio.push(ga); }
+    let gm=ga.meses[ga.meses.length-1]; if(!gm||gm.m!==m){ gm={m,dias:[]}; ga.meses.push(gm); }
+    gm.dias.push(d);
+  });
+  return unir(porAnio.map(ga=>unir(ga.meses.map(gm=>unir(gm.dias.map(String))+' de '+MESES[gm.m].toLowerCase()))+' de '+ga.a));
+}
+function renderPresuFechasExtra(){
+  const cont=document.getElementById('presu-fechas-extra'); if(!cont) return;
+  cont.innerHTML=(_presuEdit.fechasExtra||[]).map((f,i)=>`<div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+    <input type="date" value="${escH(f)}" style="flex:1" oninput="_presuEdit.fechasExtra[${i}]=this.value">
+    <button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:10.5px;color:var(--red);border-color:rgba(192,57,43,.4)" title="Quitar esta fecha" onclick="presuQuitarFecha(${i})">✕</button>
+  </div>`).join('');
+}
+function presuAgregarFecha(){
+  if(!Array.isArray(_presuEdit.fechasExtra)) _presuEdit.fechasExtra=[];
+  _presuEdit.fechasExtra.push('');
+  renderPresuFechasExtra();
+  const ins=document.querySelectorAll('#presu-fechas-extra input'); if(ins.length) ins[ins.length-1].focus();
+}
+function presuQuitarFecha(i){
+  _presuEdit.fechasExtra.splice(i,1);
+  renderPresuFechasExtra();
+}
 // "15/10/2026 (a confirmar)", o "A confirmar" si todavía no hay fecha.
 // Siempre "a confirmar" (a pedido: no es opcional).
 function presuTextoFechaEvento(p){
+  const todas=presuFechas(p);
+  if(todas.length>1) return fechasTexto(todas)+' (a confirmar)';
   const f=formatFechaPDF(p.fechaEvento||'');
   return f ? f+' (a confirmar)' : 'A confirmar';
 }
@@ -12618,6 +12672,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-11', t:'Presupuestos: un evento puede tener <b>varias fechas</b> (botón <b>+ Agregar otra fecha</b> debajo de "Fecha del evento"). En el PDF salen todas juntas (ej. "20, 21 y 22 de noviembre de 2026 (a confirmar)"). Al confirmarlo se crea un solo evento en Fichas Técnicas, que aparece en el calendario en cada uno de esos días.'},
   {f:'2026-11-11', t:'Presupuestos: los <b>ítems de cada estación</b> se escriben con <b>viñetas</b>, como en Word. Para un subtítulo (ej. "FINGER SALADO") parate en ese renglón y tocá <b>• Viñeta</b> (aparece arriba del cuadro): queda sin viñeta, y el PDF sale igual que lo que ves.'},
   {f:'2026-11-11', t:'Pedidos al sistema: nuevo filtro por <b>urgencia</b> (🔴 Me frena el trabajo / 🟡 Molesta / 🟢 Cuando se pueda), al lado de módulos y personas.'},
   {f:'2026-11-05', t:'Fichas Técnicas › Vajilla salón: el botón <b>☕ Desayuno buffet</b> carga siempre la vajilla del buffet que pasó Mariana (17 piezas, con las cantidades para completar).'},
@@ -12864,7 +12919,7 @@ async function novRestaurar(id){
 // ── Ayudas para los registros de cada módulo ──
 const NOV_CAMPOS_INSUMO={nombre:'Nombre', precio_formato:'Precio del formato', formato:'Formato', formato_kg:'Kg del formato', costo:'Costo por kg', proveedor:'Proveedor', unidad:'Unidad'};
 const NOV_CAMPOS_PROV={proveedor:'Proveedor', rubro:'Rubro', razon_social:'Razón social', vendedor:'Vendedor', mail:'Mail', telefono:'Teléfono', cuit:'CUIT'};
-const NOV_CAMPOS_PRESU={cliente:'Cliente', tipoEvento:'Tipo de evento', fechaEvento:'Fecha del evento', cantidadPersonas:'Personas', lugar:'Lugar',
+const NOV_CAMPOS_PRESU={cliente:'Cliente', tipoEvento:'Tipo de evento', fechaEvento:'Fecha del evento', fechasExtra:'Otras fechas del evento', cantidadPersonas:'Personas', lugar:'Lugar',
   horarioInicio:'Hora de inicio', horarioFin:'Hora de fin', referentes:'Solicitante', salonCamareros:'Camareros', salonPrecio:'Precio servicio de salón',
   estaciones:'Estaciones del menú', precios:'Precios', incluye:'Incluye', noIncluye:'No incluye', clausulas:'Términos', menuIntro:'Intro del menú'};
 const NOV_CAMPOS_COTIZ={titulo:'Evento', cliente:'Cliente', fecha:'Fecha', personas:'Personas', precioPersona:'Precio por persona'};
@@ -13069,6 +13124,9 @@ async function prodCompletarMenus(){
       if(ev.presupuesto_id!==p._id){ ev.presupuesto_id=p._id; cambio=true; }
       if(!ev.datos) ev.datos={};
       if(!Array.isArray(ev.datos.menu_presupuesto)){ ev.datos.menu_presupuesto=presuMenuEstaciones(p); cambio=true; }
+      // Evento de varios días: las otras fechas siguen a las del presupuesto.
+      const fs=presuFechas(p), quiere=fs.length>1 ? fs.filter(f=>f!==calFechaEvento(ev.datos)) : [];
+      if(JSON.stringify(calFechasExtra(ev.datos))!==JSON.stringify(quiere)){ ev.datos.fechas_extra=quiere; cambio=true; }
       if(cambio) await guardarEventoActual(per, ev.id);
     }
   }catch(e){ console.error('Eventos a producir: no se pudieron reparar los eventos', e); }
@@ -13615,7 +13673,9 @@ async function presuSegCliente(p){
 }
 function presuSegDatosEvento(p, cli){
   const datos=comandaDatosVacios();
-  datos.fecha=/^\d{4}-\d{2}-\d{2}$/.test(p.fechaEvento||'') ? p.fechaEvento : '';
+  const fechas=presuFechas(p);
+  datos.fecha=fechas[0]||'';
+  if(fechas.length>1) datos.fechas_extra=fechas.slice(1); // mismo evento en varios días
   if(p.horarioInicio) datos.horario_inicio=p.horarioInicio;
   if(p.horarioFin) datos.horario_fin=p.horarioFin;
   if(p.tipoEvento) datos.tipo_evento=p.tipoEvento;
@@ -13651,7 +13711,7 @@ function presuSegDatosEvento(p, cli){
   return datos;
 }
 async function presuSegCrearEvento(p){
-  const f=/^(\d{4})-(\d{2})-\d{2}$/.exec(p.fechaEvento||'');
+  const f=/^(\d{4})-(\d{2})-\d{2}$/.exec(presuFechas(p)[0]||'');
   const hoy=new Date();
   const mes=f?parseInt(f[2],10):hoy.getMonth()+1, anio=f?parseInt(f[1],10):hoy.getFullYear();
   const periodoId=`p_${mes}_${anio}`;
@@ -14470,6 +14530,8 @@ function abrirModalPresupuesto(id){
   document.getElementById('presu-horario-fin').value = _presuEdit.horarioFin||'';
   document.getElementById('presu-lugar').value = _presuEdit.lugar||'';
   document.getElementById('presu-fecha-evento').value = _presuEdit.fechaEvento||'';
+  if(!Array.isArray(_presuEdit.fechasExtra)) _presuEdit.fechasExtra=[];
+  renderPresuFechasExtra();
   document.getElementById('presu-fecha-emision').value = _presuEdit.fechaEmision || new Date().toISOString().slice(0,10);
   document.getElementById('presu-menu-intro').value = _presuEdit.menuIntro||'';
   document.getElementById('presu-salon-camareros').value = _presuEdit.salonCamareros||'';
@@ -14505,6 +14567,7 @@ function presuRecolectarDatosDesdeModal(){
     horarioFin: document.getElementById('presu-horario-fin').value,
     lugar: document.getElementById('presu-lugar').value.trim(),
     fechaEvento: document.getElementById('presu-fecha-evento').value,
+    fechasExtra: (_presuEdit.fechasExtra||[]).filter(f=>/^\d{4}-\d{2}-\d{2}$/.test(f||'')),
     fechaEmision: document.getElementById('presu-fecha-emision').value,
     menuIntro: document.getElementById('presu-menu-intro').value,
     aclaracionPrecios: document.getElementById('presu-aclaracion-precios').value,
@@ -14912,7 +14975,7 @@ function presuDibujarPDF(d, modo){
       ['Tipo de evento', d.tipoEvento, 'Cliente', d.cliente],
       ['Solicitante', d.referentes, 'Cantidad de personas', d.cantidadPersonas?String(d.cantidadPersonas):''],
       ['Horario', horario, 'Lugar', d.lugar],
-      ['Fecha del evento', presuTextoFechaEvento(d), 'Emisión del presupuesto', formatFechaPDF(d.fechaEmision)],
+      [presuFechas(d).length>1?'Fechas del evento':'Fecha del evento', presuTextoFechaEvento(d), 'Emisión del presupuesto', formatFechaPDF(d.fechaEmision)],
     ].forEach(([l1,v1,l2,v2])=>{
       doc.setFont('times','normal'); doc.setFontSize(13);
       let pend=[[rx,l1,v1],[col2,l2,v2]].map(([x,label,v])=>({x,label,lines:doc.splitTextToSize(v||'—', colW-4)}));
@@ -15516,7 +15579,7 @@ function presuDibujarPDF(d, modo){
   // Marval - 20-11-2026 - Cóctel Alumni.pdf"). Se arma al descargar, así vale también para los
   // presupuestos ya guardados.
   const limpiarNombre=t=>String(t||'').replace(/[\\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim().slice(0,60);
-  const fm=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d.fechaEvento||''));
+  const fm=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(presuFechas(d)[0]||d.fechaEvento||''));
   const evFecha=fm?(fm[3]+'-'+fm[2]+'-'+fm[1]):'sin fecha';
   const fname=['Presupuesto MP', limpiarNombre(d.cliente), evFecha, limpiarNombre(d.tipoEvento)].filter(Boolean).join(' - ')+'.pdf';
   // "Ver PDF" lo abre en una pestaña nueva; "Descargar PDF" solo lo baja
