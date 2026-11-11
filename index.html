@@ -12198,7 +12198,7 @@ const PED_ESTADOS={
 const PED_ABIERTOS=['nuevo','info','aprobado','proceso'];
 const PED_MODS={produccion:'🍳 Producción', cotizacion:'🧾 Cotización', comanda:'📋 Fichas Técnicas', stock:'📊 Stock',
   presupuestos:'🧮 Presupuestos', novedades:'🔔 Novedades', pedidos:'💡 Pedidos al sistema', general:'🧩 Otra cosa / todo el sistema'};
-let PEDIDOS=[], _unsubPed=null, _pedFiltro='abiertos', _pedMod='', _pedPersona='', _pedQ='', _pedVistoPrev=0;
+let PEDIDOS=[], _unsubPed=null, _pedFiltro='abiertos', _pedMod='', _pedPersona='', _pedUrg='', _pedQ='', _pedVistoPrev=0;
 let _pedNuevo=null, _pedAbiertoId=null, _pedSacando=false;
 const _pedFotos={}; // id → {captura, foto} (se bajan al abrir el pedido)
 
@@ -12447,6 +12447,7 @@ function pedFiltrar(){
     if(_pedFiltro==='resueltos' && PED_ABIERTOS.includes(p.estado)) return false;
     if(_pedMod && (p.donde&&p.donde.mod||'general')!==_pedMod) return false;
     if(_pedPersona && p.quien!==_pedPersona) return false;
+    if(_pedUrg && p.urg!==_pedUrg) return false;
     if(q && !prodNorm(['#'+p.n, p.hoy, p.quiere, novNombre(p.quien), pedDondeTxt(p.donde), ...(p.historial||[]).map(h=>h.txt||'')].join(' ')).includes(q)) return false;
     return true;
   }).sort((a,b)=>{
@@ -12470,6 +12471,7 @@ function renderPedidos(){
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <select onchange="_pedMod=this.value;renderPedidos()" style="font-size:12px"><option value="">Todos los módulos</option>${mods.map(m=>`<option value="${escH(m)}" ${_pedMod===m?'selected':''}>${escH(PED_MODS[m]||m)}</option>`).join('')}</select>
       <select onchange="_pedPersona=this.value;renderPedidos()" style="font-size:12px"><option value="">Todas las personas</option>${personas.map(p=>`<option value="${escH(p)}" ${_pedPersona===p?'selected':''}>${escH(novNombre(p))}</option>`).join('')}</select>
+      <select onchange="_pedUrg=this.value;renderPedidos()" style="font-size:12px"><option value="">Todas las urgencias</option>${Object.entries(PED_URG).map(([k,u])=>`<option value="${k}" ${_pedUrg===k?'selected':''}>${u.lbl}</option>`).join('')}</select>
       <input type="text" placeholder="🔍 Buscar…" value="${escH(_pedQ)}" oninput="_pedQ=this.value;clearTimeout(window._pedQT);window._pedQT=setTimeout(renderPedidos,250)" style="font-size:12px;min-width:170px">
     </div>
   </div>`;
@@ -12612,6 +12614,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-11', t:'Pedidos al sistema: nuevo filtro por <b>urgencia</b> (🔴 Me frena el trabajo / 🟡 Molesta / 🟢 Cuando se pueda), al lado de módulos y personas.'},
   {f:'2026-11-05', t:'Fichas Técnicas › Vajilla salón: el botón <b>☕ Desayuno buffet</b> carga siempre la vajilla del buffet que pasó Mariana (17 piezas, con las cantidades para completar).'},
   {f:'2026-11-05', t:'Fichas Técnicas › Vajilla salón: al elegir <b>Desayuno buffet</b> o <b>Desayuno formal</b> aparece la <b>foto de referencia</b> de cómo se arma (clic para verla grande). También se puede ver desde el botón <b>⋯</b>.'},
   {f:'2026-11-04', t:'PDFs: se arregló que algunos renglones salieran con las <b>letras separadas</b> (ej. "S a l t e D a s"). Pasaba con la ñ y los acentos de textos copiados del celular, Mac o Word. Ahora todos los PDFs los corrigen solos, y los presupuestos ya guardados así se corrigieron.'},
