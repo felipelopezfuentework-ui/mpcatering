@@ -1933,13 +1933,16 @@ tr.rec-clic:hover td{background:var(--accent-light)}
       <div class="form-field" style="flex:1">
         <label>Fecha del evento</label>
         <input type="date" id="presu-fecha-evento" style="width:100%">
-        <div id="presu-fechas-extra"></div>
-        <a href="#" onclick="presuAgregarFecha();return false" style="font-size:11.5px;display:inline-block;margin-top:5px">+ Agregar otra fecha</a>
       </div>
       <div class="form-field" style="flex:1">
         <label>Fecha de emisión</label>
         <input type="date" id="presu-fecha-emision" style="width:100%">
       </div>
+    </div>
+    <!-- Otras fechas del mismo evento: en su propio renglón, así no desalinea los campos de arriba -->
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px">
+      <div id="presu-fechas-extra" style="display:contents"></div>
+      <a href="#" onclick="presuAgregarFecha();return false" style="font-size:11.5px">+ Agregar otra fecha del evento</a>
     </div>
 
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
@@ -12040,8 +12043,9 @@ function fechasTexto(fechas){
 }
 function renderPresuFechasExtra(){
   const cont=document.getElementById('presu-fechas-extra'); if(!cont) return;
-  cont.innerHTML=(_presuEdit.fechasExtra||[]).map((f,i)=>`<div style="display:flex;gap:6px;align-items:center;margin-top:6px">
-    <input type="date" value="${escH(f)}" style="flex:1" oninput="_presuEdit.fechasExtra[${i}]=this.value">
+  cont.innerHTML=(_presuEdit.fechasExtra||[]).map((f,i)=>`<div style="display:flex;gap:4px;align-items:center">
+    <span style="font-size:11px;color:var(--text3)">Fecha ${i+2}</span>
+    <input type="date" value="${escH(f)}" style="width:150px" oninput="_presuEdit.fechasExtra[${i}]=this.value">
     <button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:10.5px;color:var(--red);border-color:rgba(192,57,43,.4)" title="Quitar esta fecha" onclick="presuQuitarFecha(${i})">✕</button>
   </div>`).join('');
 }
