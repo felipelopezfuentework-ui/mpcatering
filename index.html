@@ -533,6 +533,11 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .rt-bar button{border:none;background:transparent;min-width:24px;height:20px;border-radius:4px;cursor:pointer;font-family:Georgia,serif;font-size:13px;color:var(--text);padding:0 5px;line-height:20px}
 .rt-bar button:hover{background:var(--surface2)}
 .rt-bar button.on{background:var(--accent-light);color:var(--accent)}
+.presu-cabe{font-size:11px;margin:-2px 0 8px;padding:0 2px}
+.presu-cabe:empty{display:none}
+.presu-cabe-ok{color:var(--green,#2e8b57)}
+.presu-cabe-chica{color:#b7791f}
+.presu-cabe-corta{color:var(--red,#c0392b);font-weight:600}
 .rt-ed.rt-lista>div{position:relative;padding-left:16px;min-height:1.45em}
 .rt-ed.rt-lista>div::before{content:'•';position:absolute;left:3px;top:0;color:var(--accent)}
 .rt-ed.rt-lista>div.rt-nv{padding-left:0}
@@ -8139,7 +8144,7 @@ const COMANDA_TEMPLATE = [
       {tipo:'campos_multi', label:'', keys:[{k:'vsa_fecha',l:'Fecha',t:'date'},{k:'vsa_tipo',l:'Tipo de evento'},{k:'vsa_invitados',l:'Invitados',t:'number'}]},
       {tipo:'seccion', label:'RESPONSABLES DE ÁREAS'},
       {tipo:'campos_multi', label:'', keys:[{k:'vsa_planif',l:'Planificación'},{k:'vsa_armado',l:'Armado en local'},{k:'vsa_ctrl_ing',l:'Control ingreso locación'},{k:'vsa_ctrl_eg',l:'Control egreso locación'},{k:'vsa_reingreso',l:'Reingreso al local'}]},
-      {tipo:'checklist_vajilla', key:'vsa_secciones', salon:true, defaultSecciones:[{nombre:'CRISTALERÍA',items:[]},{nombre:'CUBERTERÍA',items:[]},{nombre:'VAJILLA',items:[]}]}
+      {tipo:'checklist_vajilla', key:'vsa_secciones', salon:true, defaultSecciones:[{nombre:'CRISTALERÍA',items:[]},{nombre:'CUBERTERÍA',items:[]},{nombre:'VAJILLA',items:[]},{nombre:'BARRA',items:[]}]}
     ]
   },
   {
@@ -9458,6 +9463,10 @@ function renderEventoSheet(ev, sheetIdx){
         }));
         if(c.salon) vajSalonMigrar(datos, datos[key]);
       }
+      // Vajilla salón: los eventos de antes no tenían la sección BARRA; se suma al abrirlos.
+      if(c.salon) (c.defaultSecciones||[]).forEach(ds=>{
+        if(!datos[key].some(s=>String(s.nombre||'').trim().toUpperCase()===ds.nombre)) datos[key].push({nombre:ds.nombre, items:[]});
+      });
       const secciones = datos[key];
       const wrapId = 'wrap_'+key;
       html+=`<div style="margin-bottom:16px">`;
@@ -10430,7 +10439,7 @@ let VAJ_PRESETS=null;
 // Modelos fijos (pasados por Mariana): mandan sobre lo guardado en la base.
 // Los repetidos van a propósito (cada uno es para un plato distinto).
 const VAJ_PRESETS_FIJOS={
-  buffet:{secciones:[{nombre:'Vajilla', items:[
+  buffet:{secciones:[{nombre:'VAJILLA', items:[
     'Plancha de bambú','Laja rectangular','Falso mármol negro + pinza','Falso mármol negro + pinza',
     'Plancha de bambú + pinza','Laja rectangular','Hoja de melamina','Plato negro grande + pinza',
     'Jarrito de vidrio con asa','Frasco con palito de madera','Triolet triangular','Melamina negra rectangular chica',
@@ -10467,9 +10476,17 @@ async function vajSalonCargarDesayuno(tipo){
     alert(`Todavía no está armada la vajilla de "${VAJ_DESAYUNOS[tipo]}".\n\nAbrí el evento modelo (ej. Stellantis), andá a Vajilla salón y usá "⋯ → Guardar esta vajilla como ${VAJ_DESAYUNOS[tipo]}".`);
     return;
   }
+  if(!Array.isArray(ev.datos.vsa_secciones)) ev.datos.vsa_secciones=[{nombre:'CRISTALERÍA',items:[]},{nombre:'CUBERTERÍA',items:[]},{nombre:'VAJILLA',items:[]},{nombre:'BARRA',items:[]}];
   const secciones=ev.datos.vsa_secciones;
+  // Nombres de sección sin importar mayúsculas ni acentos ("Vajilla" = "VAJILLA")
+  const normSec=n=>String(n||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+  // Junta secciones repetidas (ej. una "Vajilla" que se armó aparte por la diferencia de mayúsculas)
+  for(let i=secciones.length-1;i>0;i--){
+    const j=secciones.findIndex(s=>normSec(s.nombre)===normSec(secciones[i].nombre));
+    if(j<i){ secciones[j].items=[...(secciones[j].items||[]),...(secciones[i].items||[])]; secciones.splice(i,1); }
+  }
   preset.secciones.forEach(ps=>{
-    let sec=secciones.find(s=>s.nombre===ps.nombre);
+    let sec=secciones.find(s=>normSec(s.nombre)===normSec(ps.nombre));
     if(!sec){ sec={nombre:ps.nombre, items:[]}; secciones.push(sec); }
     // Suma lo que falte: si el modelo lleva 2 iguales y el evento ya tiene 1, agrega 1 (apretar dos veces no duplica)
     const clave=n=>String(n||'').trim().toLowerCase();
@@ -12676,6 +12693,9 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-11', t:'Presupuestos › PDF: si una estación no entra en una hoja a letra normal, ahora <b>se achica un poco la letra para que salga entera</b> (antes se cortaba). Solo se corta si es muy larga. En el formulario, debajo de los ítems de cada estación, un aviso dice <b>cuántos caracteres lleva y cuántos le entran</b> (verde: entra · amarillo: entra con letra más chica · rojo: se va a cortar, y cuánto sacarle).'},
+  {f:'2026-11-11', t:'Presupuestos › PDF: cuando un ítem con viñeta ocupa más de un renglón, el renglón de abajo queda <b>alineado con el texto</b> y no debajo de la viñeta (también en Incluye / No incluye si se escribe con "-" o "•").'},
+  {f:'2026-11-11', t:'Fichas Técnicas › Vajilla salón: nueva sección <b>BARRA</b>, igual que Cristalería, Cubertería y Vajilla (también en los eventos que ya estaban hechos).'},
   {f:'2026-11-11', t:'Presupuestos: un evento puede tener <b>varias fechas</b> (botón <b>+ Agregar otra fecha</b> debajo de "Fecha del evento"). En el PDF salen todas juntas (ej. "20, 21 y 22 de noviembre de 2026 (a confirmar)"). Al confirmarlo se crea un solo evento en Fichas Técnicas, que aparece en el calendario en cada uno de esos días.'},
   {f:'2026-11-11', t:'Presupuestos: los <b>ítems de cada estación</b> se escriben con <b>viñetas</b>, como en Word. Para un subtítulo (ej. "FINGER SALADO") parate en ese renglón y tocá <b>• Viñeta</b> (aparece arriba del cuadro): queda sin viñeta, y el PDF sale igual que lo que ves.'},
   {f:'2026-11-11', t:'Pedidos al sistema: nuevo filtro por <b>urgencia</b> (🔴 Me frena el trabajo / 🟡 Molesta / 🟢 Cuando se pueda), al lado de módulos y personas.'},
@@ -13934,6 +13954,7 @@ function renderPresuEstaciones(){
     return estHtml(e,i,nEst,enSeccion);
   }).join('') || '<div style="font-size:11.5px;color:var(--text3)">Sin estaciones todavía.</div>';
   renderPresuFotos();
+  presuCabeActualizar();
   function estHtml(e,i,num,dentro){ return `
     <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)${e.incluir===false?';opacity:.6':''}${dentro?';margin-left:22px;border-left:3px solid var(--mp-gold,#c8a951)':''}">
       ${e.incluir!==undefined?`<label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin:0 0 10px;padding:7px 10px;border-radius:6px;background:var(--surface);border:1px dashed var(--border);font-weight:600"><input type="checkbox" ${e.incluir?'checked':''} onchange="_presuEdit.estaciones[${i}].incluir=this.checked;renderPresuEstaciones()"> Mostrar en el PDF</label>`:''}
@@ -13944,14 +13965,36 @@ function renderPresuEstaciones(){
           <button type="button" class="btn btn-outline" style="padding:2px 8px;font-size:10.5px;color:var(--red);border-color:rgba(192,57,43,.4)" onclick="presuQuitarEstacion(${i})">✕ quitar</button>
         </div>
       </div>
-      <input type="text" value="${escH(e.titulo)}" style="width:100%;margin-bottom:8px" oninput="_presuEdit.estaciones[${i}].titulo=this.value">
+      <input type="text" value="${escH(e.titulo)}" style="width:100%;margin-bottom:8px" oninput="_presuEdit.estaciones[${i}].titulo=this.value;presuCabeLuego()">
       <label>Ítems (uno por línea)</label>
-      <textarea class="rt-lista" rows="4" style="width:100%;margin:6px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical" oninput="_presuEdit.estaciones[${i}].items=this.value">${escH(e.items)}</textarea>
+      <textarea class="rt-lista" rows="4" style="width:100%;margin:6px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical" oninput="_presuEdit.estaciones[${i}].items=this.value;presuCabeLuego()">${escH(e.items)}</textarea>
+      <div class="presu-cabe" id="presu-cabe-${i}"></div>
       <label>Precio de esta estación</label>
       <input type="text" value="${escH(e.precio||'')}" style="width:100%;margin-top:6px" oninput="_presuEdit.estaciones[${i}].precio=this.value">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px"><input type="checkbox" ${e.unaOpcion!==false?'checked':''} onchange="_presuEdit.estaciones[${i}].unaOpcion=this.checked"> Seleccionar 1 opción</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px"><input type="checkbox" ${e.unaOpcion!==false?'checked':''} onchange="_presuEdit.estaciones[${i}].unaOpcion=this.checked;presuCabeLuego()"> Seleccionar 1 opción</label>
       ${e.bebidas?`<label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px"><input type="checkbox" ${presuBebidasTieneJugos(e)?'checked':''} onchange="presuBebidasJugos(${i},this.checked)"> Agregar jugos licuados</label>`:''}
     </div>`; }
+}
+// Aviso por estación: cuántos caracteres lleva y cuántos le entran para que
+// salga entera en una hoja del PDF (lo mide el mismo armado del PDF).
+let _presuCabeT=null;
+function presuCabeLuego(){ clearTimeout(_presuCabeT); _presuCabeT=setTimeout(presuCabeActualizar, 350); }
+function presuCabeActualizar(){
+  if(!_presuEdit) return;
+  let info=null;
+  try{ info=presuDibujarPDF({..._presuEdit}, 'cabe'); }catch(e){ info=null; }
+  const n=v=>Number(v||0).toLocaleString('es-AR');
+  document.querySelectorAll('#presu-estaciones-list .presu-cabe').forEach(el=>{
+    const i=+el.id.replace('presu-cabe-','');
+    const c=info&&info[i];
+    if(!c || !c.chars){ el.innerHTML=''; el.className='presu-cabe'; return; }
+    let txt;
+    if(c.estado==='ok') txt=`✓ Entra en una hoja · ${n(c.chars)} de ~${n(c.max1)} caracteres`+(c.maxMin>c.max1?` <span style="opacity:.75">(achicando la letra, hasta ~${n(c.maxMin)})</span>`:'');
+    else if(c.estado==='chica') txt=`Entra en una hoja con la letra un poco más chica · ${n(c.chars)} caracteres <span style="opacity:.75">(a letra normal entran ~${n(c.max1)}; máximo ~${n(c.maxMin)})</span>`;
+    else txt=`⚠ No entra en una hoja: se va a cortar en dos. Sacale ~${n(Math.max(1,c.chars-c.maxMin))} caracteres (${n(c.chars)} de ~${n(c.maxMin)}) o pasá platos a otra estación.`;
+    el.className='presu-cabe presu-cabe-'+c.estado;
+    el.innerHTML=txt;
+  });
 }
 // ── Texto con formato (negrita / subrayado) en los campos del presupuesto ──
 // Se guarda como texto común con marcas <b>…</b> y <u>…</u>; cada renglón
@@ -14793,15 +14836,38 @@ function presuDibujarPDF(d, modo){
   // {t,b,u}; mide con la fuente activa (times, estilo base est). Un párrafo
   // sin formato se parte igual que siempre.
   const rtEst=(est,b)=>b?(est==='italic'?'bolditalic':'bold'):est;
+  // Sangría colgante: si el renglón empieza con viñeta ("•", "-", "–", "*",
+  // "1." …), cuando no entra en un renglón los que siguen arrancan alineados
+  // con el texto y no debajo de la viñeta (cada renglón lleva .ind = mm a
+  // correr; rtText lo respeta).
+  const RT_VINETA=/^(\s*(?:[•\-–—·*]|\d{1,2}[.)])\s+)/;
   function rtSplit(str, maxW, est){
     est=est||'normal';
     const ancho=(t,b)=>{ doc.setFont('times',rtEst(est,b)); return doc.getTextWidth(t); };
     const out=[];
     rtParrafos(str).forEach(runs=>{
+      const m=runs.length && RT_VINETA.exec(runs[0].t);
+      if(m){
+        const pre=m[1], ind=ancho(pre, runs[0].b);
+        const resto=[{...runs[0], t:runs[0].t.slice(pre.length)}, ...runs.slice(1)].filter(r=>r.t);
+        if(ind<maxW*0.4 && resto.length){
+          const ls=rtSplitRuns(resto, maxW-ind, est, ancho);
+          ls.forEach((l,i)=>{ if(i) l.ind=ind; else l.unshift({t:pre, b:runs[0].b, u:false}); out.push(l); });
+          return;
+        }
+      }
+      rtSplitRuns(runs, maxW, est, ancho).forEach(l=>out.push(l));
+    });
+    doc.setFont('times',est);
+    return out;
+  }
+  function rtSplitRuns(runs, maxW, est, ancho){
+    const out=[];
+    {
       if(!runs.some(r=>r.b||r.u)){
         doc.setFont('times',est);
         doc.splitTextToSize(runs.map(r=>r.t).join(''), maxW).forEach(l=>out.push(l?[{t:l}]:[]));
-        return;
+        return out;
       }
       const toks=[];
       runs.forEach(r=>r.t.split(/(\s+)/).forEach(p=>{ if(p) toks.push({t:p, b:r.b, u:r.u, esp:/^\s+$/.test(p)}); }));
@@ -14819,8 +14885,7 @@ function presuDibujarPDF(d, modo){
         linea.push(tk); w+=tw;
       });
       cerrar();
-    });
-    doc.setFont('times',est);
+    }
     return out;
   }
   // Dibuja renglones de rtSplit. o: {est, lh, lw (trazo de "semi-negrita" como btext)}.
@@ -14829,7 +14894,7 @@ function presuDibujarPDF(d, modo){
     const est=o.est||'normal', fs=doc.getFontSize(), lh=o.lh||LH(fs);
     text(color); drawC(color);
     lineas.forEach((runs,i)=>{
-      let cx=x; const ly=y+i*lh;
+      let cx=x+(runs.ind||0); const ly=y+i*lh;
       // Tramos seguidos con el mismo formato se dibujan juntos (como un solo texto).
       const juntos=[];
       runs.forEach(r=>{ const u=juntos[juntos.length-1]; if(u && !!u.b===!!r.b && !!u.u===!!r.u) u.t+=r.t; else juntos.push({t:r.t, b:r.b, u:r.u}); });
@@ -15008,10 +15073,10 @@ function presuDibujarPDF(d, modo){
     // Secciones ({tipo:'seccion'}): su título va arriba de la primera estación
     // que sale en el PDF de esa sección (si no tiene ninguna, no aparece).
     const estacionesTodas=[]; let secPend='';
-    (d.estaciones||[]).forEach(e=>{
+    (d.estaciones||[]).forEach((e,i)=>{
       if(e.tipo==='seccion'){ secPend=String(e.titulo||'').trim(); return; }
       if(e.incluir===false || !((e.titulo&&e.titulo.trim())||(e.items&&e.items.trim()))) return;
-      estacionesTodas.push(secPend?{...e, _sec:secPend}:e); secPend='';
+      estacionesTodas.push({...e, _i:i, _sec:secPend}); secPend='';
     });
 
     const textColX=M, textColW=46;
@@ -15132,6 +15197,23 @@ function presuDibujarPDF(d, modo){
       while(k<part.items.length && altoHoja(previas.concat([{...part, items:part.items.slice(0,k+1)}]),1)<=dispH) k++;
       return k;
     }
+    // Para el formulario: cuánto ocupa cada estación sola en una hoja y cuántos
+    // caracteres le entran (a letra normal y achicando hasta el mínimo).
+    if(modo==='cabe'){
+      const res={};
+      estacionesTodas.forEach(est=>{
+        const items=itemsDe(est);
+        const part={est, items, cartel:llevaCartel(est), sec:est._sec||''};
+        const chars=items.reduce((a,it)=>a+rtSinFormato(it).trim().length,0);
+        const maxA=s=>{
+          const fijo=altoHoja([{...part, items:[]}],s), var_=altoHoja([part],s)-fijo;
+          return var_>0 ? Math.max(0, Math.floor(chars*(dispH-fijo)/var_)) : 0;
+        };
+        const a1=altoHoja([part],1), aMin=altoHoja([part],MIN_ESCALA);
+        res[est._i]={chars, estado:a1<=dispH?'ok':aMin<=dispH?'chica':'corta', max1:maxA(1), maxMin:maxA(MIN_ESCALA)};
+      });
+      return res;
+    }
 
     const hojas=[]; let cur=[], curCont=false;
     function cerrarHoja(){ if(cur.length) hojas.push({partes:cur, cont:curCont}); cur=[]; curCont=false; }
@@ -15159,7 +15241,11 @@ function presuDibujarPDF(d, modo){
           if(ultima) cur=[ultima];
           continue;
         }
-        // 4) Sola tampoco entra (lista muy larga): se parte, y el resto
+        // 4) Sola no entra a letra normal: antes de cortarla se achica la
+        //    hoja (espacios y letra) hasta donde haga falta, así la estación
+        //    queda entera en una hoja. Solo si ni al mínimo entra se parte.
+        if(escalaPara(prueba)){ cur=prueba; break; }
+        // 5) Sola tampoco entra (lista muy larga): se parte, y el resto
         //    sigue en una hoja nueva con las mismas fotos y el título repetido.
         const k=Math.max(1, cuantosEntran([], part));
         const resto=part.items.slice(k);
@@ -15571,7 +15657,7 @@ function presuDibujarPDF(d, modo){
     ttext('MP Catering', textColX, y);
   }
 
-  if(modo==='hojas') return pageMenu();
+  if(modo==='hojas'||modo==='cabe') return pageMenu();
   pagePortada();
   pageEvento();
   pageMenu();

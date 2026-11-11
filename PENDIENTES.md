@@ -18,6 +18,9 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Vajilla por plato precargada** en el armado de vajilla, según el criterio de Mariana. *(Necesita la lista de Mariana.)*
 
 ## Hecho
+- 11/11/2026 — **Fichas Técnicas › Vajilla salón**: sección BARRA (también en los eventos ya hechos).
+- 11/11/2026 — **Presupuestos › PDF**: los renglones que siguen de un ítem con viñeta quedan alineados con el texto (sangría colgante).
+- 11/11/2026 — **Presupuestos › PDF**: una estación que no entra en la hoja se achica (letra y espacios) para salir entera en vez de cortarse; aviso de caracteres por estación en el formulario.
 - 05/11/2026 — **Vajilla salón › Desayuno buffet**: la vajilla quedó fija en el sistema (lista de Mariana); ya no hace falta guardarla desde Stellantis.
 - 05/11/2026 — **Fichas Técnicas › Vajilla salón**: foto de referencia del desayuno buffet y del formal (aparece al elegirlo; clic para verla grande; también en "⋯").
 - 05/11/2026 — **Checklist de comida automático**: descartado (a pedido).
