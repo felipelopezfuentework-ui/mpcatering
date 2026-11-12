@@ -750,6 +750,14 @@ tr.rec-clic:hover td{background:var(--accent-light)}
 #mp-version-nueva .mpv-tit{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--mp-plum);line-height:1.25}
 #mp-version-nueva .mpv-txt{font-size:14px;color:var(--text2);margin:8px 0 20px}
 #mp-version-nueva .mpv-btn{width:100%;padding:13px;font-size:16px;font-weight:700;border-radius:12px;justify-content:center}
+#mp-sync-caido{position:fixed;inset:0;z-index:100001;background:rgba(13,4,24,.6);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;animation:mpAparece .3s ease}
+#mp-sync-caido .mpv-card{background:var(--surface);border-radius:20px;padding:30px 34px 22px;max-width:440px;width:100%;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.45);border:2px solid var(--red,#c0392b)}
+#mp-sync-caido .mpv-ico{font-size:44px;line-height:1;margin-bottom:10px}
+#mp-sync-caido .mpv-tit{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--mp-plum);line-height:1.25}
+#mp-sync-caido .mpv-txt{font-size:14px;color:var(--text2);margin:8px 0 20px}
+#mp-sync-caido .mpv-btn{width:100%;padding:13px;font-size:16px;font-weight:700;border-radius:12px;justify-content:center}
+#mp-sync-caido .mpv-espera{font-size:13px;color:var(--text3)}
+#mp-sync-caido .mpv-det{margin-top:12px;font-size:10.5px;color:var(--text3)}
 #mp-version-nueva .mpv-luego{margin-top:12px;background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;text-decoration:underline;font-family:inherit}
 .fac-spin{width:38px;height:38px;margin:0 auto;border-radius:50%;border:4px solid var(--surface2);border-top-color:var(--accent);animation:facGira .8s linear infinite}
 @keyframes facGira{to{transform:rotate(360deg)}}
@@ -6638,6 +6646,15 @@ const FB_CONFIG={
 };
 firebase.initializeApp(FB_CONFIG);
 const fbDb=firebase.firestore();
+// Copia local de la base en el navegador (IndexedDB): al abrir el sistema lo
+// último que se vio aparece al instante y de internet baja solo lo que cambió.
+// Las rutinas que escriben reparaciones esperan a los datos confirmados por el
+// servidor (_mpSrv), nunca trabajan sobre la copia local.
+try{ fbDb.settings({cacheSizeBytes:300*1024*1024, merge:true}); }catch(e){ console.warn('Firestore settings', e); }
+fbDb.enablePersistence({synchronizeTabs:true}).catch(e=>console.warn('Sin copia local de la base:', e&&e.code));
+// Antes se copiaba toda la base (con las fotos de los presupuestos) a
+// localStorage en cada cambio: frenaba mucho y ya no se usa.
+try{ localStorage.removeItem('foodcost_mp_v3'); }catch(e){}
 const FB_DOC=fbDb.collection('mp_data').doc('main');
 // Colecciones de Fichas Técnicas/Comanda (migración a un documento por
 // registro, ver plan de migración): cada período, evento y cliente vive en
@@ -6709,7 +6726,9 @@ function puedeVerPresupuestos(){
 // porque el navegador frena los relojes de las pestañas ocultas).
 // Ven el botón solo EMAILS_PRESUPUESTOS.
 const FB_COL_ACT=fbDb.collection('actividad');
-const ACT_PULSO_SEG=20, ACT_VIVO_SEG=60, ACT_VIVO_OCULTA_SEG=150, ACT_BORRAR_MIN=30;
+// Señal cada 60 s (con 20 s cada ventana abierta gastaba miles de escrituras y
+// lecturas por día del cupo gratis de Firebase).
+const ACT_PULSO_SEG=60, ACT_VIVO_SEG=150, ACT_VIVO_OCULTA_SEG=300, ACT_BORRAR_MIN=30;
 const ACT_TABS={insumos:'Insumos',subproductos:'Subproductos',platos:'Platos',proveedores:'Proveedores',prod_eventos:'Eventos a producir',
   cotizaciones:'Eventos a cotizar',costeo:'Cotizador',comanda_periodos:'Períodos',comanda_calendario:'Calendario',comanda_clientes:'Clientes',
   stock:'Stock actual',stock_historial:'Historial',presupuestos:'Presupuestos',novedades:'Novedades',pedidos:'Pedidos al sistema',chat:'Chat interno'};
@@ -6871,6 +6890,82 @@ function reconvertirArraysAnidados(value){
   return value;
 }
 
+// ══════════════════════════════════════════════════════════════════
+//  ESTADO DE LA SINCRONIZACIÓN y cartel que bloquea si no sincroniza
+// ══════════════════════════════════════════════════════════════════
+// _mpSrv[clave]=true cuando esa colección ya llegó confirmada por el servidor
+// (no solo de la copia local del navegador).
+const _mpSrv={};
+const MP_SYNC_ESPERA_SEG=45, MP_SYNC_CORTE_SEG=60;
+let _mpConectado=false, _mpDesconectadoDesde=0, _mpSyncInicio=0, _mpSyncTimer=null, _mpSyncCaido=false;
+// Envuelve el callback de un listener con includeMetadataChanges: anota cuándo
+// llegan los datos del servidor y no redibuja por cambios que son solo de estado.
+function mpSnap(clave, fn){
+  let primera=true;
+  return snap=>{
+    const antes=!!_mpSrv[clave];
+    if(!snap.metadata.fromCache) _mpSrv[clave]=true;
+    const soloEstado=!primera && !snap.docChanges().length;
+    primera=false;
+    if(!soloEstado) fn(snap);
+    if(!antes && _mpSrv[clave]){ presuRepararTextos(); prodCompletarMenus(); recetasCorregirCostoMerma(); }
+  };
+}
+function mpConexion(ok){
+  if(ok){ _mpConectado=true; _mpDesconectadoDesde=0; if(!_mpSyncCaido) mpSyncCartel(null); }
+  else if(!_mpDesconectadoDesde) _mpDesconectadoDesde=Date.now();
+}
+function mpSyncIniciar(){
+  _mpSyncInicio=Date.now(); _mpSyncCaido=false;
+  clearInterval(_mpSyncTimer); _mpSyncTimer=setInterval(mpSyncRevisar,5000);
+}
+function mpSyncDetener(){
+  clearInterval(_mpSyncTimer); _mpSyncTimer=null; _mpSyncCaido=false; _mpConectado=false; _mpDesconectadoDesde=0; _mainCargado=false;
+  Object.keys(_mpSrv).forEach(k=>delete _mpSrv[k]);
+  const ov=document.getElementById('mp-sync-caido'); if(ov) ov.remove();
+}
+function mpSyncRevisar(){
+  if(_mpSyncCaido || !fbAuth.currentUser) return;
+  const ahora=Date.now();
+  if(!navigator.onLine){ mpSyncCartel('offline'); return; }
+  if(!_mpConectado){ if(ahora-_mpSyncInicio>MP_SYNC_ESPERA_SEG*1000) mpSyncCartel('no-arranca'); return; }
+  if(_mpDesconectadoDesde && document.visibilityState==='visible' && ahora-_mpDesconectadoDesde>MP_SYNC_CORTE_SEG*1000) mpSyncCartel('cortada');
+  else if(!_mpDesconectadoDesde) mpSyncCartel(null);
+}
+// Al volver internet o la pestaña, se cuenta de nuevo (la base se reconecta sola en unos segundos).
+['online','offline'].forEach(ev=>window.addEventListener(ev,()=>{ if(_mpDesconectadoDesde) _mpDesconectadoDesde=Date.now(); mpSyncRevisar(); }));
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && _mpDesconectadoDesde) _mpDesconectadoDesde=Date.now(); });
+// Un listener que da error queda muerto: no vuelve a traer cambios. Se bloquea
+// el sistema hasta actualizar, para que nadie trabaje con datos viejos.
+function mpSyncFallo(origen, err){
+  console.error('Error al sincronizar '+origen+':', err);
+  if(!fbAuth.currentUser) return; // se cerró la sesión
+  _mpSyncCaido=true;
+  mpSyncCartel(err&&err.code==='resource-exhausted'?'cupo':'error', origen, err);
+}
+function mpSyncCartel(tipo, origen, err){
+  let ov=document.getElementById('mp-sync-caido');
+  if(!tipo){ if(ov) ov.remove(); return; }
+  const T={
+    offline:['📶','Sin conexión a internet','El sistema queda en pausa para que nadie trabaje con datos viejos. Sigue solo apenas vuelva internet.',false],
+    'no-arranca':['⚠️','El sistema no logra sincronizar','No están llegando los datos. Actualizá la página para volver a conectarte.',true],
+    cortada:['⚠️','Se cortó la sincronización','Hace más de un minuto que no hay conexión con la base. Actualizá la página.',true],
+    error:['⛔','Se cortó la sincronización','Hubo un error y la conexión con la base no se recupera sola. Actualizá la página para seguir (lo ya guardado no se pierde).',true],
+    cupo:['⛔','Se llegó al límite de uso diario de la base','Firebase (plan gratis) frenó el acceso por hoy. Se normaliza solo a la madrugada. Avisale a Felipe.',true]
+  }[tipo];
+  if(!T) return;
+  if(ov && ov.dataset.tipo===tipo) return;
+  if(!ov){ ov=document.createElement('div'); ov.id='mp-sync-caido'; document.body.appendChild(ov); }
+  ov.dataset.tipo=tipo;
+  const det=err?String(err.code||err.message||'')+(origen?' · '+origen:''):'';
+  ov.innerHTML=`<div class="mpv-card"><div class="mpv-ico">${T[0]}</div><div class="mpv-tit">${T[1]}</div>
+    <div class="mpv-txt">${T[2]}</div>
+    ${T[3]?'<button type="button" class="btn btn-primary mpv-btn">⟳ Actualizar</button>':'<div class="mpv-espera">Esperando conexión…</div>'}
+    ${det?`<div class="mpv-det">${escH(det)}</div>`:''}</div>`;
+  const b=ov.querySelector('.mpv-btn');
+  if(b) b.onclick=()=>{ b.disabled=true; b.textContent='Actualizando…'; location.replace(location.pathname+'?v='+Date.now()+location.hash); };
+}
+
 // Actualiza el indicador "☁ Sincronizado" (usado tanto al guardar localmente como al recibir cambios remotos)
 function marcarSincronizado(){
   const el=document.getElementById('autosave-indicator');
@@ -6910,6 +7005,7 @@ document.addEventListener('click',()=>{
 });
 
 async function sbSave(silent=false){
+  if(!_mainCargado){ if(!silent) alert('Todavía se está sincronizando. Probá de nuevo en unos segundos.'); return; }
   try{
     // Todo lo migrado (comanda, clientes, insumos, proveedores,
     // subproductos, platos, sus config/procedimientos/maestros, stock y
@@ -6928,8 +7024,6 @@ async function sbSave(silent=false){
       procedimientos, maestro_subs, maestro_platos, stock, presupuestos, ...restoDB}=DB;
     const payload=convertirArraysAnidados(restoDB);
     await FB_DOC.set({payload,updated_at:new Date().toISOString()});
-    // Backup local
-    try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
     marcarSincronizado();
     if(!silent)alert('✓ Datos guardados y sincronizados en la nube.');
   }catch(e){
@@ -6946,6 +7040,7 @@ function exportData(){const a=document.createElement('a');a.href=URL.createObjec
 let camposEditandoActivos = 0;      // cuántos inputs/textarea/select tienen foco ahora mismo
 let snapshotRemotoPendiente = null; // último snapshot remoto recibido mientras el usuario editaba
 let _dbListenerUnsub = null;
+let _mainCargado = false; // llegó mp_data/main (si no, sbSave no guarda: pisaría maestro_bebidas)
 
 // Lista explícita (allowlist) en vez de excluir solo button/submit/reset: así
 // no hay ambigüedad de que type="text"/"number"/"date" y selects quedan cubiertos
@@ -7053,7 +7148,6 @@ function aplicarActualizacionRemota(p){
   DB.stock=stockPrevio||{conteos:[]};
   DB.presupuestos=presupuestosPrevios||[];
   if(!DB.maestro_bebidas)DB.maestro_bebidas=[];
-  try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
   marcarSincronizado();
   if(perfilActivo) refrescarVistaActual();
 }
@@ -7076,7 +7170,9 @@ function sbListen(){
   return new Promise((resolve)=>{
     let resuelto=false;
     const resolverUnaVez=(ok)=>{ if(!resuelto){ resuelto=true; resolve(ok); } };
-    _dbListenerUnsub=FB_DOC.onSnapshot((doc)=>{
+    if(_dbListenerUnsub){ try{ _dbListenerUnsub(); }catch(e){} }
+    _dbListenerUnsub=FB_DOC.onSnapshot({includeMetadataChanges:true},(doc)=>{
+      mpConexion(!doc.metadata.fromCache);
       let ok=false;
       try{
         if(doc.exists && doc.data().payload){
@@ -7087,13 +7183,13 @@ function sbListen(){
           // eso, solo para descartar un documento vacío/corrupto.
           if(Array.isArray(p.maestro_bebidas)){
             aplicarActualizacionRemota(p);
-            ok=true;
+            ok=true; _mainCargado=true;
           }
         }
       }catch(e){}
       resolverUnaVez(ok);
     }, (err)=>{
-      console.error('Error de sincronización con Firestore:', err);
+      mpSyncFallo('mp_data/main', err);
       resolverUnaVez(false);
     });
     setTimeout(()=>resolverUnaVez(false), 6000);
@@ -7118,8 +7214,8 @@ function iniciarListenersComanda(){
     DB.comanda.periodos=snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>b.anio-a.anio||b.mes-a.mes);
     refrescarVistaSiCorresponde();
-  }, (err)=>console.error('Error al sincronizar comanda_periodos:', err));
-  _unsubComandaEventos=FB_COL_EVENTOS.onSnapshot((snap)=>{
+  }, (err)=>mpSyncFallo('comanda_periodos', err));
+  _unsubComandaEventos=FB_COL_EVENTOS.onSnapshot({includeMetadataChanges:true}, mpSnap('eventos',(snap)=>{
     const porPeriodo={};
     snap.docs.forEach(d=>{
       const data=d.data();
@@ -7131,12 +7227,12 @@ function iniciarListenersComanda(){
     _comandaEventosCargados=true;
     prodCompletarMenus();
     refrescarVistaSiCorresponde();
-  }, (err)=>console.error('Error al sincronizar comanda_eventos:', err));
+  }), (err)=>mpSyncFallo('comanda_eventos', err));
   _unsubComandaClientes=FB_COL_CLIENTES.onSnapshot((snap)=>{
     DB.maestro_clientes=snap.docs.map(d=>({cliente_id:d.id,...d.data()}));
     DB.maestro_clientes.forEach(x=>{ _novBase['cli:'+x.cliente_id]=JSON.stringify(x); });
     refrescarVistaSiCorresponde();
-  }, (err)=>console.error('Error al sincronizar maestro_clientes:', err));
+  }, (err)=>mpSyncFallo('maestro_clientes', err));
 }
 function detenerListenersComanda(){
   [_unsubComandaPeriodos,_unsubComandaEventos,_unsubComandaClientes].forEach(u=>{try{u&&u();}catch(e){}});
@@ -7153,7 +7249,7 @@ let _unsubInsumos=null, _unsubProveedores=null;
 let _limpiezaInsumosYaCorrida=false;
 function iniciarListenersInsumosProveedores(){
   _limpiezaInsumosYaCorrida=false;
-  _unsubInsumos=FB_COL_INSUMOS.onSnapshot((snap)=>{
+  _unsubInsumos=FB_COL_INSUMOS.onSnapshot({includeMetadataChanges:true}, mpSnap('insumos',(snap)=>{
     // Firestore no garantiza ningún orden particular sin orderBy() -antes,
     // "agregar insumo" lo ponía siempre primero (unshift) y la lista nunca
     // se reordenaba sola; ahora, cada snapshot puede devolver los
@@ -7168,13 +7264,13 @@ function iniciarListenersInsumosProveedores(){
     if(!_limpiezaInsumosYaCorrida){ _limpiezaInsumosYaCorrida=true; limpiarInsumosRevisarEliminar(); }
     _insumosCargados=true; recetasCorregirCostoMerma();
     refrescarVistaSiCorresponde();
-  }, (err)=>console.error('Error al sincronizar insumos:', err));
+  }), (err)=>mpSyncFallo('insumos', err));
   _unsubProveedores=FB_COL_PROVEEDORES.onSnapshot((snap)=>{
     // Mismo motivo que en insumos: orden estable, más nuevo primero.
     DB.proveedores=snap.docs.map(d=>({...d.data(), _id:Number(d.id)})).sort((a,b)=>b._id-a._id);
     DB.proveedores.forEach(x=>{ _novBase['prov:'+x._id]=JSON.stringify(x); });
     refrescarVistaSiCorresponde();
-  }, (err)=>console.error('Error al sincronizar proveedores:', err));
+  }, (err)=>mpSyncFallo('proveedores', err));
 }
 function detenerListenersInsumosProveedores(){
   [_unsubInsumos,_unsubProveedores].forEach(u=>{try{u&&u();}catch(e){}});
@@ -7195,7 +7291,7 @@ function nombreDocSeguro(nombre){ return String(nombre).replace(/\//g,'∕'); }
 
 let _unsubSubproductos=null, _unsubPlatos=null, _unsubMaestroSubs=null, _unsubMaestroPlatos=null;
 function iniciarListenersRecetas(){
-  _unsubSubproductos=FB_COL_SUBPRODUCTOS.onSnapshot((snap)=>{
+  _unsubSubproductos=FB_COL_SUBPRODUCTOS.onSnapshot({includeMetadataChanges:true}, mpSnap('subs',(snap)=>{
     const filas=[], config={}, procedimientos={};
     snap.docs.forEach(d=>{
       const data=d.data();
@@ -7209,8 +7305,8 @@ function iniciarListenersRecetas(){
     DB.procedimientos={...DB.procedimientos, ...procedimientos};
     _subsCargados=true; recetasCorregirCostoMerma();
     refrescarVistaSiCorresponde();
-  }, (err)=>console.error('Error al sincronizar subproductos:', err));
-  _unsubPlatos=FB_COL_PLATOS.onSnapshot((snap)=>{
+  }), (err)=>mpSyncFallo('subproductos', err));
+  _unsubPlatos=FB_COL_PLATOS.onSnapshot({includeMetadataChanges:true}, mpSnap('platos',(snap)=>{
     const filas=[], config={}, procedimientos={};
     snap.docs.forEach(d=>{
       const data=d.data();
@@ -7224,15 +7320,15 @@ function iniciarListenersRecetas(){
     DB.procedimientos={...DB.procedimientos, ...procedimientos};
     _platosCargados=true; recetasCorregirCostoMerma();
     refrescarVistaSiCorresponde();
-  }, (err)=>console.error('Error al sincronizar platos:', err));
+  }), (err)=>mpSyncFallo('platos', err));
   _unsubMaestroSubs=FB_COL_MAESTRO_SUBS.doc('lista').onSnapshot((doc)=>{
     DB.maestro_subs=(doc.exists&&doc.data().nombres)||[];
     refrescarVistaSiCorresponde();
-  }, (err)=>console.error('Error al sincronizar maestro_subs:', err));
+  }, (err)=>mpSyncFallo('maestro_subs', err));
   _unsubMaestroPlatos=FB_COL_MAESTRO_PLATOS.doc('lista').onSnapshot((doc)=>{
     DB.maestro_platos=(doc.exists&&doc.data().nombres)||[];
     refrescarVistaSiCorresponde();
-  }, (err)=>console.error('Error al sincronizar maestro_platos:', err));
+  }, (err)=>mpSyncFallo('maestro_platos', err));
 }
 // Corrección de recetas guardadas con cuentas viejas. Una vez por sesión,
 // cuando ya llegaron insumos, subs y platos: recalcula cada ingrediente como
@@ -7244,6 +7340,7 @@ function iniciarListenersRecetas(){
 let _insumosCargados=false, _subsCargados=false, _platosCargados=false, _costoMermaRevisado=false;
 function recetasCorregirCostoMerma(){
   if(_costoMermaRevisado || !_insumosCargados || !_subsCargados || !_platosCargados) return;
+  if(!_mpSrv.insumos || !_mpSrv.subs || !_mpSrv.platos) return; // no sobre la copia local
   _costoMermaRevisado=true;
   const subs=new Set(), platos=new Set();
   const corregir=(r,set,nombre)=>{
@@ -7299,7 +7396,7 @@ function iniciarListenerStock(){
     if(!DB.stock) DB.stock={conteos:[]};
     DB.stock.conteos=snap.docs.map(d=>({...d.data()})).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
     refrescarVistaSiCorresponde();
-  }, (err)=>console.error('Error al sincronizar stock:', err));
+  }, (err)=>mpSyncFallo('stock', err));
 }
 function detenerListenerStock(){
   if(_unsubStock){ _unsubStock(); _unsubStock=null; }
@@ -7361,6 +7458,7 @@ function mpTextosNFC(v){
 const _presuNfcHechos=new Set();
 function presuRepararTextos(){
   if(typeof puedeVerPresupuestos==='function' && !puedeVerPresupuestos()) return;
+  if(!_mpSrv.presu) return; // no sobre la copia local
   (DB.presupuestos||[]).forEach(p=>{
     if(_presuNfcHechos.has(p._id)) return;
     const {_id, ...resto}=p;
@@ -7377,13 +7475,13 @@ function presuRepararTextos(){
 let _unsubPresupuestos=null;
 let _presuCargados=false;
 function iniciarListenersPresupuestos(){
-  _unsubPresupuestos=FB_COL_PRESUPUESTOS.onSnapshot((snap)=>{
+  _unsubPresupuestos=FB_COL_PRESUPUESTOS.onSnapshot({includeMetadataChanges:true}, mpSnap('presu',(snap)=>{
     DB.presupuestos=snap.docs.map(d=>({...d.data(), _id:Number(d.id)})).sort((a,b)=>b._id-a._id);
     _presuCargados=true;
     presuRepararTextos();
     prodCompletarMenus();
     refrescarVistaSiCorresponde();
-  }, (err)=>console.error('Error al sincronizar presupuestos:', err));
+  }), (err)=>mpSyncFallo('presupuestos', err));
 }
 function detenerListenersPresupuestos(){
   if(_unsubPresupuestos){ _unsubPresupuestos(); _unsubPresupuestos=null; }
@@ -7399,7 +7497,6 @@ async function guardarPresupuesto(id, datos){
     const {_id, ...resto0}=datos;
     const resto=mpTextosNFC(resto0).out;
     await FB_COL_PRESUPUESTOS.doc(String(id)).set({...resto, updated_at:new Date().toISOString()});
-    try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
     marcarSincronizado();
     return true;
   }catch(e){
@@ -7469,7 +7566,6 @@ function guardarInsumo(id){
       const {_id, ...datosInsumo}=x;
       try{ const b=_novBase['ins:'+id]; if(b) novRegistrar({mod:'produccion', acc:'editar', que:'el insumo', titulo:x.nombre, det:novDiff(JSON.parse(b), x, NOV_CAMPOS_INSUMO), ref:{tipo:'insumo', nombre:x.nombre}, clave:'ins:'+id}); }catch(e){}
       await FB_COL_INSUMOS.doc(String(id)).set({...datosInsumo, updated_at:new Date().toISOString()});
-      try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
       marcarSincronizado();
     }catch(e){ marcarErrorSincronizacion(e); console.error('Error al guardar insumo:', e); }
   }, 400);
@@ -7483,7 +7579,6 @@ function guardarProveedor(id){
       const {_id, ...datosProveedor}=x;
       try{ const b=_novBase['prov:'+id]; if(b) novRegistrar({mod:'produccion', acc:'editar', que:'el proveedor', titulo:x.proveedor, det:novDiff(JSON.parse(b), x, NOV_CAMPOS_PROV), ref:{tipo:'proveedor'}, clave:'prov:'+id}); }catch(e){}
       await FB_COL_PROVEEDORES.doc(String(id)).set({...datosProveedor, updated_at:new Date().toISOString()});
-      try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
       marcarSincronizado();
     }catch(e){ marcarErrorSincronizacion(e); console.error('Error al guardar proveedor:', e); }
   }, 400);
@@ -7493,9 +7588,12 @@ function guardarProveedor(id){
 // en sí ya quedó actualizado en DB por el snapshot; solo se pospone el
 // refresco visual hasta que termine de editar, vía el listener de focusout
 // existente que ya llama a programarGuardadoAutomatico en ese momento).
+// Varios cambios seguidos (al abrir llegan ~15 colecciones casi juntas) se
+// dibujan una sola vez.
+let _refrescoTimer=null;
 function refrescarVistaSiCorresponde(){
-  try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
-  if(perfilActivo && camposEditandoActivos===0) refrescarVistaActual();
+  if(_refrescoTimer) return;
+  _refrescoTimer=setTimeout(()=>{ _refrescoTimer=null; if(perfilActivo && camposEditandoActivos===0) refrescarVistaActual(); }, 80);
 }
 
 // Guardado inmediato al terminar de editar un campo (blur/change), con un
@@ -7916,6 +8014,8 @@ function entrarComo(){
   document.querySelectorAll('.solo-presupuestos').forEach(b=>b.style.display=verPresu?'':'none');
   if(_listenersYaIniciados) return;
   _listenersYaIniciados=true;
+  sbListen();
+  mpSyncIniciar();
   iniciarListenersComanda();
   iniciarListenersInsumosProveedores();
   iniciarListenersRecetas();
@@ -7962,6 +8062,8 @@ function cerrarSesion(){
   mpSalida(els,_cerrarSesionReal);
 }
 function _cerrarSesionReal(){
+  if(_dbListenerUnsub){ try{ _dbListenerUnsub(); }catch(e){} _dbListenerUnsub=null; }
+  mpSyncDetener();
   fbAuth.signOut().catch(e=>console.error('Error al cerrar sesión:',e));
   try{localStorage.removeItem(MP_AUTH_TS_KEY);}catch(e){}
   detenerListenersComanda();
@@ -8148,14 +8250,10 @@ function limpiarInsumosRevisarEliminar(){
 // ══════════════════════════════════════════════════════════════════
 (async function(){
   document.getElementById('login-screen').style.display='flex';
-  const ok=await sbListen();
-  if(!ok){
-    // Fallback a localStorage si no llegó ningún dato de Firestore a tiempo
-    try{
-      const s=localStorage.getItem('foodcost_mp_v3');
-      if(s){const p=JSON.parse(s);if(p.insumos&&p.insumos.length>=100)DB=p;}
-    }catch(e){}
-  }
+  // sbListen() arranca recién con la sesión iniciada (entrarComo): antes
+  // arrancaba acá, sin sesión, la base lo rechazaba y a los 6 s se reemplazaba
+  // TODA la base en memoria por una copia vieja de localStorage, pisando lo que
+  // ya habían traído las demás colecciones (módulos a medias hasta actualizar).
   if(!DB.comanda) DB.comanda={periodos:[],eventos:{}};
   if(!DB.maestro_bebidas) DB.maestro_bebidas=[];
   if(!DB.maestro_clientes) DB.maestro_clientes=[];
@@ -8391,7 +8489,6 @@ async function guardarEventoActual(periodoId, eventoId){
       datos: convertirArraysAnidados(ev.datos||{}),
       updated_at: new Date().toISOString()
     });
-    try{localStorage.setItem('foodcost_mp_v3',JSON.stringify(DB));}catch(e){}
     marcarSincronizado();
   }catch(e){
     marcarErrorSincronizacion(e);
@@ -11371,7 +11468,7 @@ function iniciarListenersCotizaciones(){
     COTIZACIONES=snap.docs.map(d=>({...d.data(), _id:Number(d.id)}));
     COTIZACIONES.forEach(x=>{ _novBase['cot:'+x._id]=JSON.stringify(x); });
     refrescarVistaSiCorresponde();
-  }, (err)=>console.error('Error al sincronizar cotizaciones:', err));
+  }, (err)=>mpSyncFallo('cotizaciones', err));
 }
 function detenerListenersCotizaciones(){
   if(_unsubCotiz){ _unsubCotiz(); _unsubCotiz=null; }
@@ -12488,7 +12585,7 @@ function iniciarListenerPedidos(){
     pedPintarBadge();
     if(_pedAbiertoId && document.getElementById('ped-detalle')) pedDetalleRender();
     refrescarVistaSiCorresponde();
-  }, err=>console.error('Error al sincronizar pedidos:', err));
+  }, err=>mpSyncFallo('pedidos', err));
 }
 function detenerListenerPedidos(){ if(_unsubPed){ _unsubPed(); _unsubPed=null; } PEDIDOS=[]; }
 function pedVistoKey(){ return 'ped_visto_'+novMail(); }
@@ -12871,6 +12968,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-12', t:'El sistema <b>abre más rápido</b>: cada compu guarda una copia de los datos y al abrir muestra lo último al instante, bajando de internet solo lo que cambió (la primera vez después de esta mejora tarda lo de siempre). Se arregló que a veces los módulos aparecieran <b>a medias</b> hasta actualizar. Si el sistema <b>no logra sincronizar</b> o se corta la conexión, ahora aparece un cartel que no deja seguir hasta actualizar, para que nadie trabaje con datos viejos.'},
   {f:'2026-11-11', t:'Nuevo módulo <b>💬 Chat interno</b>, como WhatsApp y para usar desde el celular: un chat <b>General</b> y uno por cada <b>evento</b> de Fichas Técnicas. Se pueden mandar fotos (o sacarlas con la cámara) y documentos, responder un mensaje, nombrar a alguien con <b>@</b>, fijar un mensaje arriba y ver quién lo leyó. En cada evento, arriba, están los datos (fecha, horario, lugar, invitados) y <b>atajos a cada solapa de la ficha</b>; también se puede mandar un atajo en un mensaje (📎 → Atajo a la ficha). Los cambios que se hacen en la ficha aparecen solos en el chat del evento. Los chats de eventos que ya pasaron quedan en <b>Archivados</b>.'},
   {f:'2026-11-11', t:'Pedidos al sistema: en vez de "¿Qué pasa hoy?" y "¿Qué querés que pase?" hay <b>un solo cuadro</b> para escribir el pedido como quieras.'},
   {f:'2026-11-11', t:'Presupuestos › Incluye / No incluye: nuevas opciones <b>Traslados</b> y <b>Seguros</b>; "Metre" ahora dice <b>Maître</b> (también en los presupuestos ya hechos).'},
@@ -12981,7 +13079,7 @@ function iniciarListenerNovedades(){
     NOVEDADES=snap.docs.map(d=>({...d.data(), _id:d.id}));
     novPintarBadge();
     refrescarVistaSiCorresponde();
-  }, err=>console.error('Error al sincronizar novedades:', err));
+  }, err=>mpSyncFallo('novedades', err));
   // Limpieza de lo viejo (una vez por sesión, desde una compu con acceso total).
   setTimeout(async ()=>{
     if(!puedeVerPresupuestos()) return;
@@ -13236,7 +13334,7 @@ function iniciarListenerProducciones(){
     // Si el evento abierto cambió desde otra compu (y acá no hay nada sin guardar), se toma lo nuevo.
     if(_prodAbierto && !_prodGuardarTimer && m[_prodAbierto]) _prodEdit=JSON.parse(JSON.stringify(m[_prodAbierto]));
     refrescarVistaSiCorresponde();
-  }, err=>console.error('Error al sincronizar producciones:', err));
+  }, err=>mpSyncFallo('producciones', err));
 }
 
 // ── Recetas ──
@@ -13309,6 +13407,7 @@ function prodDocDe(ev){
 let _prodReparando=false;
 async function prodCompletarMenus(){
   if(_prodReparando || !_presuCargados || !_comandaEventosCargados) return;
+  if(!_mpSrv.presu || !_mpSrv.eventos) return; // no sobre la copia local
   _prodReparando=true;
   try{
     const ubicar=id=>{ for(const [per,evs] of Object.entries((DB.comanda&&DB.comanda.eventos)||{})){ const ev=(evs||[]).find(e=>e.id===id); if(ev) return {per,ev}; } return null; };
@@ -15988,18 +16087,18 @@ function iniciarListenerChat(){
     _chatPrimera=false;
     chatPintarBadge(); chatRefrescar();
     nuevos.forEach(chatAvisarNuevo);
-  }, err=>console.error('Chat: error al sincronizar mensajes', err)));
+  }, err=>mpSyncFallo('chat mensajes', err)));
   _chatUnsubs.push(FB_COL_CHAT_LEIDOS.onSnapshot(snap=>{
     CHAT_LEIDOS={}; snap.docs.forEach(d=>{ CHAT_LEIDOS[d.id]=d.data()||{}; });
     const yo=chatYo();
     // Primera vez de esta persona: lo anterior no cuenta como "sin leer".
     if(yo && !CHAT_LEIDOS[yo]){ const b=Date.now(); CHAT_LEIDOS[yo]={_base:b}; FB_COL_CHAT_LEIDOS.doc(yo).set({_base:b},{merge:true}).catch(()=>{}); }
     chatPintarBadge(); chatRefrescar();
-  }, err=>console.error('Chat: error al sincronizar leídos', err)));
+  }, err=>mpSyncFallo('chat leídos', err)));
   _chatUnsubs.push(FB_COL_CHAT_FIJ.onSnapshot(snap=>{
     CHAT_FIJ={}; snap.docs.forEach(d=>{ const x=d.data(); if(x&&x.id) CHAT_FIJ[d.id]=x; });
     chatPintarFijado();
-  }, err=>console.error('Chat: error al sincronizar fijados', err)));
+  }, err=>mpSyncFallo('chat fijados', err)));
 }
 function detenerListenerChat(){
   _chatUnsubs.forEach(u=>{ try{ u(); }catch(e){} }); _chatUnsubs=[];

@@ -21,6 +21,7 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Vajilla por plato precargada** en el armado de vajilla, según el criterio de Mariana. *(Necesita la lista de Mariana.)*
 
 ## Hecho
+- 12/11/2026 — **Sistema más rápido al abrir** (copia local de los datos en cada compu); arreglado que los módulos aparecieran a medias; cartel que bloquea si no sincroniza y obliga a actualizar.
 - 11/11/2026 — **Nuevo módulo Chat interno** (tipo WhatsApp, para celular): General + un chat por evento de Fichas, fotos y documentos, responder, @ nombrar, fijar, visto por, atajos a las solapas de la ficha, cambios de la ficha automáticos en el chat del evento, archivados. Sin audios (a pedido).
 - 11/11/2026 — **Presupuestos › Incluye / No incluye**: opciones Traslados y Seguros; Metre → Maître.
 - 11/11/2026 — **Pedidos al sistema**: un solo cuadro libre para el pedido (en vez de "qué pasa hoy" + "qué querés que pase").
