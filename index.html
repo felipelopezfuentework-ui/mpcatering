@@ -750,6 +750,23 @@ tr.rec-clic:hover td{background:var(--accent-light)}
 #mp-version-nueva .mpv-tit{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--mp-plum);line-height:1.25}
 #mp-version-nueva .mpv-txt{font-size:14px;color:var(--text2);margin:8px 0 20px}
 #mp-version-nueva .mpv-btn{width:100%;padding:13px;font-size:16px;font-weight:700;border-radius:12px;justify-content:center}
+.vaj-tabla{width:100%;min-width:900px;table-layout:fixed}
+.vaj-tabla td{padding:3px 4px}
+.vaj-tabla input,.vaj-tabla select{width:100%;box-sizing:border-box;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:4px 5px;font-size:12px;font-family:inherit;outline:none}
+.vaj-tabla select{cursor:pointer}
+.vaj-tabla .vaj-stock-in{text-align:center;font-weight:700}
+.vaj-tabla .vaj-nom{font-size:12px;font-weight:600;color:var(--mp-plum,var(--text))}
+.vaj-tabla .vaj-usos{text-align:center;font-size:11.5px;color:var(--text3)}
+.vaj-filtro{font-size:12px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text)}
+.vaj-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.vaj-form-grid label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:600;color:var(--text2,var(--text))}
+.vaj-form-grid input,.vaj-form-grid select{padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--surface2);color:var(--text)}
+.vaj-form-nombre{margin-top:12px;font-size:12.5px;color:var(--text2,var(--text))}
+@media (max-width:560px){.vaj-form-grid{grid-template-columns:1fr}}
+input.vaj-elegir{width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box;cursor:pointer}
+input.vaj-elegir:focus{cursor:text;border-bottom-color:var(--mp-violet)}
+input.vaj-elegir.vaj-sin{color:var(--red,#c0392b);border-bottom:1px dashed var(--red,#c0392b)}
+.vaj-falta{font-size:10.5px;font-weight:700;color:var(--red,#c0392b);text-align:center;line-height:1.2;min-height:0}
 #mp-sync-caido{position:fixed;inset:0;z-index:100001;background:rgba(13,4,24,.6);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;animation:mpAparece .3s ease}
 #mp-sync-caido .mpv-card{background:var(--surface);border-radius:20px;padding:30px 34px 22px;max-width:440px;width:100%;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.45);border:2px solid var(--red,#c0392b)}
 #mp-sync-caido .mpv-ico{font-size:44px;line-height:1;margin-bottom:10px}
@@ -1162,6 +1179,7 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
   <div class="tab active" onclick="switchTab('comanda_calendario')">📅 Calendario</div>
   <div class="tab" onclick="switchTab('comanda_periodos')">📋 Períodos</div>
   <div class="tab" onclick="switchTab('comanda_clientes')">🧑‍💼 Clientes</div>
+  <div class="tab" onclick="switchTab('comanda_vajilla')">🍽 Stock vajilla</div>
 </div>
 <!-- Tabs Stock -->
 <div class="tabs" id="tabs-stock" style="display:none">
@@ -1378,6 +1396,25 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
 </div>
 
 <!-- ═══ MAESTRO DE CLIENTES ══════════════════════════════════════ -->
+<div class="content" id="tab-comanda_vajilla">
+  <div class="card">
+    <div class="card-title" style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px;flex-wrap:wrap;gap:8px">
+      🍽 Stock vajilla <span class="badge badge-blue" id="vaj-count">0</span>
+      <button class="btn btn-outline" style="margin-left:auto" onclick="vajTraerDeFichas()" title="Suma al maestro los nombres de vajilla que ya se usan en las fichas">⤓ Traer nombres de las fichas</button>
+      <button class="btn btn-primary" onclick="vajFormAbrir()">+ Nuevo ítem</button>
+    </div>
+    <div class="toolbar">
+      <div class="sbox"><input type="text" id="vaj-search" placeholder="Buscar vajilla…" oninput="renderVajStock()"></div>
+      <select id="vaj-f-area" class="vaj-filtro" onchange="renderVajStock()"></select>
+      <select id="vaj-f-tipo" class="vaj-filtro" onchange="renderVajStock()"></select>
+    </div>
+    <div class="tw"><table class="vaj-tabla">
+      <colgroup><col style="width:120px"><col style="width:150px"><col><col style="width:110px"><col style="width:90px"><col><col style="width:70px"><col style="width:56px"><col style="width:40px"></colgroup>
+      <thead><tr><th>Área</th><th>Tipo</th><th>Descripción / material</th><th>Color</th><th>Tamaño</th><th>Nombre en las fichas</th><th>Stock</th><th title="En cuántas fichas se usa">Fichas</th><th></th></tr></thead>
+      <tbody id="vaj-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
 <div class="content" id="tab-comanda_clientes">
   <div class="card">
     <div class="card-title" style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px">
@@ -3038,7 +3075,7 @@ const escH=(s)=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 // ══════════════════════════════════════════════════════════════════
 const TABS_PROD=['insumos','subproductos','platos','proveedores','prod_eventos'];
 const TABS_COT=['cotizaciones','costeo'];
-const TABS_COM=['comanda_calendario','comanda_periodos','comanda_clientes'];
+const TABS_COM=['comanda_calendario','comanda_periodos','comanda_clientes','comanda_vajilla'];
 const TABS_STOCK=['stock','stock_historial'];
 const TABS_PRESU=['presupuestos'];
 const TABS_NOV=['novedades'];
@@ -3067,7 +3104,7 @@ function switchTab(name){
   if(contentEl)contentEl.classList.add('active');
   ({insumos:renderInsumos,subproductos:renderSubproductos,platos:renderPlatos,
     cotizaciones:renderCotizLista,costeo:renderCotizEditor,proveedores:renderProveedores,
-    comanda_periodos:renderComandaPeriodos,comanda_calendario:renderComandaCalendario,comanda_clientes:renderClientes,
+    comanda_periodos:renderComandaPeriodos,comanda_calendario:renderComandaCalendario,comanda_clientes:renderClientes,comanda_vajilla:renderVajStock,
     stock:renderStockActual,stock_historial:renderStockHistorial,
     presupuestos:renderPresupuestos,prod_eventos:renderProdEventos,novedades:abrirNovedades,pedidos:abrirPedidos,chat:abrirChat})[name]?.();
   actAvisar(name);
@@ -6730,7 +6767,7 @@ const FB_COL_ACT=fbDb.collection('actividad');
 // lecturas por día del cupo gratis de Firebase).
 const ACT_PULSO_SEG=60, ACT_VIVO_SEG=150, ACT_VIVO_OCULTA_SEG=300, ACT_BORRAR_MIN=30;
 const ACT_TABS={insumos:'Insumos',subproductos:'Subproductos',platos:'Platos',proveedores:'Proveedores',prod_eventos:'Eventos a producir',
-  cotizaciones:'Eventos a cotizar',costeo:'Cotizador',comanda_periodos:'Períodos',comanda_calendario:'Calendario',comanda_clientes:'Clientes',
+  cotizaciones:'Eventos a cotizar',costeo:'Cotizador',comanda_periodos:'Períodos',comanda_calendario:'Calendario',comanda_clientes:'Clientes',comanda_vajilla:'Stock vajilla',
   stock:'Stock actual',stock_historial:'Historial',presupuestos:'Presupuestos',novedades:'Novedades',pedidos:'Pedidos al sistema',chat:'Chat interno'};
 const ACT_MODS={produccion:'🍳 Producción',cotizacion:'🧾 Cotización',comanda:'📋 Fichas Técnicas',stock:'📊 Stock',presupuestos:'🧮 Presupuestos',novedades:'🔔 Novedades',pedidos:'💡 Pedidos al sistema',chat:'💬 Chat interno'};
 // Id de la pestaña (sobrevive a recargar, así no quedan "fantasmas") y de la
@@ -7088,7 +7125,7 @@ function refrescarVistaActual(){
       else{
         ({insumos:renderInsumos,subproductos:renderSubproductos,platos:renderPlatos,
           cotizaciones:renderCotizLista,costeo:cotizActualizarNumeros,proveedores:renderProveedores,
-          comanda_clientes:renderClientes,comanda_calendario:renderComandaCalendario,stock:renderStockActual,
+          comanda_clientes:renderClientes,comanda_vajilla:renderVajStock,comanda_calendario:renderComandaCalendario,stock:renderStockActual,
           stock_historial:renderStockHistorial,
           presupuestos:renderPresupuestos,prod_eventos:renderProdEventos,novedades:renderNovedades,pedidos:renderPedidos,chat:chatRefrescar})[name]?.();
       }
@@ -7606,7 +7643,7 @@ let _guardadoAutoTimer=null;
 // vez de a sbSave(), o quedarían editados en memoria pero sin persistir
 // nunca. El resto de los módulos sigue exactamente igual que antes.
 function programarGuardadoAutomatico(el){
-  if(el && el.closest && el.closest('#tab-costeo,#tab-cotizaciones,#tab-prod_eventos,#mp-menu,#ped-modal,#tab-pedidos')) return; // Cotización guarda por su cuenta
+  if(el && el.closest && el.closest('#tab-costeo,#tab-cotizaciones,#tab-prod_eventos,#mp-menu,#ped-modal,#tab-pedidos,#tab-comanda_vajilla,.vaj-form')) return; // Cotización guarda por su cuenta
   clearTimeout(_guardadoAutoTimer);
   const esCampoDeEvento = el && el.closest && el.closest('#modal-evento-detalle');
   _guardadoAutoTimer=setTimeout(()=>{
@@ -8024,6 +8061,7 @@ function entrarComo(){
   iniciarListenerNovedades();
   iniciarListenerPedidos();
   iniciarListenerChat();
+  iniciarListenerVajStock();
   { const b=document.getElementById('ped-flotante'); if(b) b.style.display='inline-flex'; }
   actIniciar();
   if(verPresu){ iniciarListenersPresupuestos(); iniciarListenersCotizaciones(); }
@@ -8074,6 +8112,7 @@ function _cerrarSesionReal(){
   detenerListenersCotizaciones();
   detenerListenerPedidos();
   detenerListenerChat();
+  detenerListenerVajStock();
   { const b=document.getElementById('ped-flotante'); if(b) b.style.display='none'; }
   actDetener();
   _listenersYaIniciados=false;
@@ -8406,7 +8445,7 @@ const COMANDA_TEMPLATE = [
     nombre: 'ARMADO VAJILLA',
     campos: [
       {tipo:'titulo', label:'ARMADO VAJILLA'},
-      {tipo:'info', label:'La columna Menú se completa sola desde el menú del evento (Ficha Técnica). La Vajilla sugiere lo cargado en Vajilla salón y lo usado en otros eventos.'},
+      {tipo:'info', label:'La columna Menú se completa sola desde el menú del evento (Ficha Técnica). La Vajilla se elige del maestro Stock vajilla (avisa si se pide más de lo que hay).'},
       {tipo:'tabla_armado_vajilla', key:'armado_vajilla', cols:['Menú','Cantidad','Vajilla','Cantidad']}
     ]
   },
@@ -9740,6 +9779,10 @@ function renderEventoSheet(ev, sheetIdx){
         if(!datos[key].some(s=>String(s.nombre||'').trim().toUpperCase()===ds.nombre)) datos[key].push({nombre:ds.nombre, items:[]});
       });
       const secciones = datos[key];
+      // Vajilla salón: cada ítem se engancha con el maestro Stock vajilla.
+      const vMapa=c.salon?vajMapaNombres():null;
+      if(c.salon) secciones.forEach(s=>(s.items||[]).forEach(it=>vajVincular(it,'nombre',vMapa)));
+      const vTot=c.salon?vajTotales(datos,key,'salon'):{};
       const wrapId = 'wrap_'+key;
       html+=`<div style="margin-bottom:16px">`;
       if(c.salon) html+=vajSalonBarraHtml(datos);
@@ -9768,13 +9811,14 @@ function renderEventoSheet(ev, sheetIdx){
             </tr></thead>
             <tbody>`;
         (sec.items||[]).forEach((item,itemIdx)=>{
+          const vx=c.salon?vajPorId(item.vid):null;
           html+=`<tr>
-            <td style="padding:2px 2px"><input type="text" value="${escH(item.nombre||'')}"
+            <td style="padding:2px 2px">${c.salon?vajInputHtml(vx,item.nombre,'salon',key,secIdx,itemIdx):`<input type="text" value="${escH(item.nombre||'')}"
               style="width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
-              oninput="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'nombre',this.value)"></td>
+              oninput="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'nombre',this.value)">`}</td>
             <td style="padding:2px 2px"><input type="text" value="${escH(item.cantidad||'')}"
               style="width:100%;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
-              oninput="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'cantidad',this.value)"></td>
+              oninput="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'cantidad',this.value)${c.salon?`;vajAvisosPintar('${key}','salon')`:''}">${c.salon?vajAvisoHtml(`vaj-av-${key}-${secIdx}-${itemIdx}`,vx,vx?(vTot[vx._id]||0):0):''}</td>
             <td style="text-align:center;padding:2px"><input type="checkbox" ${item.armado?'checked':''}
               onchange="updateChecklistVajillaCampo('${key}',${secIdx},${itemIdx},'armado',this.checked);guardarEventoActual()"
               style="accent-color:var(--mp-violet);width:15px;height:15px"></td>
@@ -9816,19 +9860,12 @@ function renderEventoSheet(ev, sheetIdx){
           filas:(sec.filas||[]).map((f,filaIdx)=>({nombre:Array.isArray(f)?String(f[0]||'').trim():'', filaIdx})).filter(x=>x.nombre)
         }))
         .filter(s=>s.filas.length);
-      // Catálogo de vajilla para el autocompletado: lo cargado en Vajilla salón
-      // de este evento y la vajilla ya usada en el armado de cualquier evento.
-      const catalogoVajilla=[...new Set([
-        ...(Array.isArray(datos.vsa_secciones)?datos.vsa_secciones:[]).flatMap(s=>(s.items||[]).map(it=>String(it.nombre||'').trim())),
-        ...Object.values(DB.comanda&&DB.comanda.eventos||{}).flat().flatMap(e=>{
-          const a=e&&e.datos&&e.datos[key];
-          return a&&typeof a==='object'&&!Array.isArray(a)?Object.values(a).map(r=>String(r&&r.vajilla||'').trim()):[];
-        })
-      ].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
-      const datalistId='armado-vajilla-list-'+key;
+      // Vajilla: se elige del maestro Stock vajilla (cada renglón guarda su id).
+      const vMapa=vajMapaNombres();
+      Object.values(estado).forEach(r=>{ if(r&&typeof r==='object') vajVincular(r,'vajilla',vMapa); });
+      const vTot=vajTotales(datos,key,'armado');
       const wrapId='wrap_'+key;
       html+=`<div style="margin-bottom:16px">`;
-      html+=`<datalist id="${datalistId}">${catalogoVajilla.map(v=>`<option value="${escH(v)}">`).join('')}</datalist>`;
       if(!seccionesConItems.length){
         html+=`<p style="font-size:11px;color:var(--text3);font-style:italic;margin:0">No hay menú cargado en la Ficha Técnica.</p>`;
       } else {
@@ -9850,17 +9887,16 @@ function renderEventoSheet(ev, sheetIdx){
           filas.forEach(({nombre:nombrePlato,filaIdx})=>{
             const itemKey=nombre+'::'+nombrePlato;
             const row=estado[itemKey]||{cantidad_porciones:'',vajilla:'',cantidad_vajilla:''};
+            const vx=vajPorId(row.vid);
             html+=`<tr>
               <td style="padding:4px 5px;font-size:12px;color:var(--text)">${escH(nombrePlato)}</td>
               <td style="padding:2px 2px"><input type="number" value="${escH(String(row.cantidad_porciones||''))}"
                 style="width:100%;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
                 oninput="updateArmadoVajillaCampo('${key}',${secIdx},${filaIdx},'cantidad_porciones',this.value)"></td>
-              <td style="padding:2px 2px"><input type="text" value="${escH(String(row.vajilla||''))}" list="${datalistId}" placeholder="Ej: Plato hondo, Fuente…"
-                style="width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
-                oninput="updateArmadoVajillaCampo('${key}',${secIdx},${filaIdx},'vajilla',this.value)"></td>
+              <td style="padding:2px 2px">${vajInputHtml(vx,row.vajilla,'armado',key,secIdx,filaIdx)}</td>
               <td style="padding:2px 2px"><input type="number" value="${escH(String(row.cantidad_vajilla||''))}"
                 style="width:100%;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
-                oninput="updateArmadoVajillaCampo('${key}',${secIdx},${filaIdx},'cantidad_vajilla',this.value)"></td>
+                oninput="updateArmadoVajillaCampo('${key}',${secIdx},${filaIdx},'cantidad_vajilla',this.value);vajAvisosPintar('${key}','armado')">${vajAvisoHtml(`vaj-av-${key}-${secIdx}-${filaIdx}`,vx,vx?(vTot[vx._id]||0):0)}</td>
             </tr>`;
           });
           html+=`</tbody></table></div>`;
@@ -10806,6 +10842,307 @@ function removeChecklistVajillaItem(key, secIdx, itemIdx){
   sec.items.splice(itemIdx,1);
   renderEventoSheet(ev, comandaSheetActual);
   guardarEventoActual();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  STOCK VAJILLA (maestro de Fichas Técnicas)
+// ══════════════════════════════════════════════════════════════════
+// Un solo doc mp_data/vajilla_stock {items:{<id>:{material,color,tamano,area,
+// tipo,stock,alias[]}}}. Nombre del ítem = descripción/material + color +
+// tamaño (vajNombre). Cada ítem se guarda con merge por su id, así dos
+// personas editando ítems distintos no se pisan. Vajilla salón y Armado
+// vajilla eligen SOLO de este maestro (vajElegir) y guardan el id (vid); el
+// nombre de la ficha sigue al del maestro. alias = nombres anteriores (para
+// reconocer fichas viejas escritas a mano o con el nombre de antes).
+const VAJ_STOCK_DOC=fbDb.collection('mp_data').doc('vajilla_stock');
+const VAJ_AREAS={salon:'Salón', cocina:'Cocina / Producción', barra:'Barra', ambientacion:'Ambientación'};
+const VAJ_TIPOS={cristaleria:'Cristalería', cuberteria:'Cubertería', vajilla:'Vajilla (platos, tazas, bowls)', fuentes:'Fuentes y bandejas',
+  maderas:'Maderas, lajas y alturas', utensilios:'Utensilios', equipamiento:'Equipamiento', manteleria:'Mantelería', otros:'Otros'};
+const NOV_CAMPOS_VAJ={material:'Descripción / material', color:'Color', tamano:'Tamaño', area:'Área', tipo:'Tipo', stock:'Stock'};
+let VAJ_STOCK={}, _vajStockUnsub=null, _vajStockCargado=false, _vajTimers={}, _vajBase={}, _vajAliasHecho=new Set();
+function iniciarListenerVajStock(){
+  if(_vajStockUnsub) return;
+  _vajStockUnsub=VAJ_STOCK_DOC.onSnapshot(d=>{
+    const items={...((d.exists&&d.data().items)||{})};
+    // Lo que se está editando acá (con guardado pendiente) no se pisa.
+    Object.keys(_vajTimers).forEach(id=>{ if(VAJ_STOCK[id]) items[id]=VAJ_STOCK[id]; });
+    VAJ_STOCK=items; _vajStockCargado=true;
+    refrescarVistaSiCorresponde();
+  }, err=>mpSyncFallo('vajilla_stock', err));
+}
+function detenerListenerVajStock(){ if(_vajStockUnsub){ _vajStockUnsub(); _vajStockUnsub=null; } VAJ_STOCK={}; _vajStockCargado=false; }
+
+function vajNombre(it){ return [it&&it.material, it&&it.color, it&&it.tamano].map(x=>String(x||'').trim()).filter(Boolean).join(' '); }
+function vajNorm(t){ return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().replace(/\s+/g,' ').toLowerCase(); }
+function vajPorId(id){ const it=id&&VAJ_STOCK[id]; return it?{...it, _id:id, nombre:vajNombre(it)}:null; }
+function vajLista(){
+  return Object.keys(VAJ_STOCK).map(vajPorId).filter(x=>x&&x.nombre).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+}
+// nombre normalizado (y nombres anteriores) → id
+function vajMapaNombres(){
+  const m={};
+  Object.entries(VAJ_STOCK).forEach(([id,it])=>{ (it.alias||[]).forEach(a=>{ const k=vajNorm(a); if(k&&!m[k]) m[k]=id; }); });
+  Object.entries(VAJ_STOCK).forEach(([id,it])=>{ const k=vajNorm(vajNombre(it)); if(k) m[k]=id; });
+  return m;
+}
+function vajStockNum(x){
+  const s=String(x&&x.stock!=null?x.stock:'').trim(); if(s==='') return null;
+  const n=parseFloat(s.replace(',','.')); return isNaN(n)?null:n;
+}
+function vajCant(v){ const n=parseFloat(String(v==null?'':v).replace(',','.')); return isNaN(n)?0:n; }
+// Engancha un renglón de la ficha con el maestro: por id o, si no tiene, por
+// nombre. Deja el nombre de la ficha igual al del maestro. Devuelve el ítem o null.
+function vajVincular(obj, campo, mapa){
+  if(!obj || !_vajStockCargado) return null;
+  let x=obj.vid ? vajPorId(obj.vid) : null;
+  if(!x && obj[campo]){ const id=(mapa||vajMapaNombres())[vajNorm(obj[campo])]; if(id){ x=vajPorId(id); obj.vid=id; } }
+  if(x && x.nombre && obj[campo]!==x.nombre) obj[campo]=x.nombre;
+  return x;
+}
+function vajAvisoHtml(id, x, total){
+  const st=x?vajStockNum(x):null;
+  const falta=st!=null && total>st;
+  return `<div class="vaj-falta" id="${id}"${falta?` title="Se piden ${total} y en stock hay ${st}"`:''}>${falta?'⚠ Hay '+st:''}</div>`;
+}
+// Renglones de Armado vajilla del evento (mismo armado que la pantalla).
+function vajArmadoFilas(datos, key){
+  const estado=datos[key]&&typeof datos[key]==='object'&&!Array.isArray(datos[key])?datos[key]:{};
+  const secs=(Array.isArray(datos.com_menu_secciones)&&datos.com_menu_secciones.length)?datos.com_menu_secciones:[{nombre:'', filas:(datos.com_menu||[])}];
+  const out=[];
+  secs.forEach((sec,secIdx)=>(sec.filas||[]).forEach((f,filaIdx)=>{
+    const p=Array.isArray(f)?String(f[0]||'').trim():''; if(!p) return;
+    const row=estado[(sec.nombre||'Sin sección')+'::'+p];
+    out.push({secIdx, filaIdx, row});
+  }));
+  return out;
+}
+// Totales pedidos por ítem del maestro: en Vajilla salón (suma de repetidos) y en Armado vajilla.
+function vajTotales(datos, key, tipo){
+  const t={};
+  if(tipo==='salon') (Array.isArray(datos[key])?datos[key]:[]).forEach(s=>(s.items||[]).forEach(it=>{ if(it.vid) t[it.vid]=(t[it.vid]||0)+vajCant(it.cantidad); }));
+  else vajArmadoFilas(datos, key).forEach(({row})=>{ if(row&&row.vid) t[row.vid]=(t[row.vid]||0)+vajCant(row.cantidad_vajilla); });
+  return t;
+}
+// Al escribir una cantidad: actualiza los avisos de stock sin redibujar.
+function vajAvisosPintar(key, tipo){
+  const ev=vajSalonEvento(); if(!ev) return;
+  const t=vajTotales(ev.datos, key, tipo);
+  const pintar=(id, vid)=>{ const el=document.getElementById(id); if(!el) return; const x=vajPorId(vid), tmp=document.createElement('div');
+    tmp.innerHTML=vajAvisoHtml(id, x, t[vid]||0); el.replaceWith(tmp.firstChild); };
+  if(tipo==='salon') (ev.datos[key]||[]).forEach((s,si)=>(s.items||[]).forEach((it,ii)=>pintar(`vaj-av-${key}-${si}-${ii}`, it.vid)));
+  else vajArmadoFilas(ev.datos, key).forEach(({secIdx,filaIdx,row})=>pintar(`vaj-av-${key}-${secIdx}-${filaIdx}`, row&&row.vid));
+}
+
+// ── Buscador en la ficha (solo del maestro) ──
+function vajSeccionNombre(ctx){
+  if(ctx.tipo!=='salon') return '';
+  const ev=vajSalonEvento(); return vajNorm(ev&&ev.datos[ctx.key]&&ev.datos[ctx.key][ctx.a]&&ev.datos[ctx.key][ctx.a].nombre);
+}
+// Lo que corresponde a la sección va primero (el resto igual se puede elegir).
+function vajPreferido(ctx){
+  const s=vajSeccionNombre(ctx), platos=x=>['vajilla','fuentes','maderas'].includes(x.tipo);
+  if(ctx.tipo==='armado') return platos;
+  if(s==='cristaleria') return x=>x.tipo==='cristaleria';
+  if(s==='cuberteria') return x=>x.tipo==='cuberteria';
+  if(s==='barra') return x=>x.area==='barra';
+  if(s==='vajilla') return platos;
+  return ()=>true;
+}
+function vajOpciones(ctx, q){
+  const pref=vajPreferido(ctx), k=vajNorm(q);
+  const l=vajLista().filter(x=>!k || vajNorm(x.nombre).includes(k));
+  const opts=[...l.filter(pref), ...l.filter(x=>!pref(x))].map(x=>{ const st=vajStockNum(x); return {val:x._id, label:x.nombre+(st!=null?'  ·  stock '+st:'')}; });
+  opts.push({val:'__nuevo__', label:'➕ Agregar al maestro'+(String(q||'').trim()?': «'+String(q).trim()+'»':'…')});
+  return opts;
+}
+function vajElegir(el, tipo, key, a, b){
+  const ctx={tipo, key, a, b};
+  if(!_vajStockCargado){ return; }
+  if(el.dataset.antes===undefined) el.dataset.antes=el.value;
+  const q=()=>el.value===el.dataset.antes?'':el.value;
+  const abrir=()=>ddOpen(el, vajOpciones(ctx, q()), '', vid=>vajElegido(ctx, vid, q()));
+  try{ el.select(); }catch(e){}
+  abrir();
+  if(!el._vajIni){
+    el._vajIni=true;
+    el.addEventListener('input',()=>{ if(_ddAnchor===el){ _ddOpts=vajOpciones(ctx, q()); ddRender(_ddOpts, '', ''); ddPosition(); } else abrir(); });
+    el.addEventListener('blur',()=>setTimeout(()=>{ if(_ddPicking || _ddAnchor===el) return; el.value=el.dataset.antes||''; }, 150));
+  }
+}
+function vajElegido(ctx, vid, q){
+  if(vid==='__nuevo__'){
+    const s=vajSeccionNombre(ctx);
+    vajFormAbrir({material:q, area:s==='barra'?'barra':'salon', tipo:s==='cristaleria'?'cristaleria':s==='cuberteria'?'cuberteria':'vajilla'}, id=>vajAsignar(ctx, id));
+    return;
+  }
+  vajAsignar(ctx, vid);
+}
+function vajAsignar(ctx, vid){
+  const ev=vajSalonEvento(), x=vajPorId(vid); if(!ev || !x) return;
+  if(ctx.tipo==='salon'){ updateChecklistVajillaCampo(ctx.key, ctx.a, ctx.b, 'vid', vid); updateChecklistVajillaCampo(ctx.key, ctx.a, ctx.b, 'nombre', x.nombre); }
+  else{ updateArmadoVajillaCampo(ctx.key, ctx.a, ctx.b, 'vid', vid); updateArmadoVajillaCampo(ctx.key, ctx.a, ctx.b, 'vajilla', x.nombre); }
+  renderEventoSheet(ev, comandaSheetActual);
+  guardarEventoActual();
+}
+function vajInputHtml(x, nombre, tipo, key, a, b){
+  const sin=!x && String(nombre||'').trim();
+  return `<input type="text" class="vaj-elegir${sin?' vaj-sin':''}" autocomplete="off" value="${escH(x?x.nombre:(nombre||''))}" placeholder="Elegí del maestro…"
+    title="${sin?'No está en el maestro de Stock vajilla: elegí uno de la lista o agregalo':'Se elige del maestro Stock vajilla'}"
+    onfocus="vajElegir(this,'${tipo}','${key}',${a},${b})">`;
+}
+
+// ── Alta (desde el maestro o desde una ficha) ──
+function vajFormAbrir(pre, alGuardar){
+  pre=pre||{};
+  const sel=(id,obj,v)=>`<select id="${id}">${Object.entries(obj).map(([k,l])=>`<option value="${k}"${k===v?' selected':''}>${escH(l)}</option>`).join('')}</select>`;
+  mpModalGen('🍽 Nuevo ítem de vajilla', `<div class="vaj-form">
+    <div class="vaj-form-grid">
+      <label>Descripción / material<input id="vajf-material" value="${escH(pre.material||'')}" placeholder="Ej: Plato playo porcelana"></label>
+      <label>Color<input id="vajf-color" value="${escH(pre.color||'')}" placeholder="Ej: Blanco"></label>
+      <label>Tamaño<input id="vajf-tamano" value="${escH(pre.tamano||'')}" placeholder="Ej: 27 cm"></label>
+      <label>Stock<input id="vajf-stock" type="number" min="0" value="${escH(pre.stock||'')}" placeholder="Cantidad que hay"></label>
+      <label>Área${sel('vajf-area', VAJ_AREAS, pre.area||'salon')}</label>
+      <label>Tipo${sel('vajf-tipo', VAJ_TIPOS, pre.tipo||'vajilla')}</label>
+    </div>
+    <div class="vaj-form-nombre">Nombre en las fichas: <b id="vajf-nombre">—</b></div>
+    <div style="text-align:right;margin-top:14px"><button type="button" class="btn btn-primary" id="vajf-ok">✓ Guardar</button></div></div>`, 620);
+  const g=id=>document.getElementById(id);
+  const leer=()=>({material:g('vajf-material').value.trim(), color:g('vajf-color').value.trim(), tamano:g('vajf-tamano').value.trim(),
+    area:g('vajf-area').value, tipo:g('vajf-tipo').value, stock:g('vajf-stock').value.trim()});
+  const pintar=()=>{ g('vajf-nombre').textContent=vajNombre(leer())||'—'; };
+  ['vajf-material','vajf-color','vajf-tamano'].forEach(id=>g(id).addEventListener('input', pintar));
+  pintar();
+  setTimeout(()=>{ const m=g('vajf-material'); if(m) m.focus(); }, 60);
+  g('vajf-ok').onclick=async ()=>{
+    const it=leer();
+    if(!it.material){ alert('Falta la descripción / material.'); return; }
+    const ya=vajMapaNombres()[vajNorm(vajNombre(it))];
+    if(ya){
+      alert('Ya está en el maestro: '+vajNombre(VAJ_STOCK[ya]));
+      if(alGuardar){ mpCerrarModalGen(); alGuardar(ya); }
+      return;
+    }
+    g('vajf-ok').disabled=true;
+    const id=await vajCrear(it);
+    if(!id){ g('vajf-ok').disabled=false; return; }
+    mpCerrarModalGen();
+    if(alGuardar) alGuardar(id); else renderVajStock();
+  };
+}
+async function vajCrear(it){
+  const id=String(Date.now())+Math.random().toString(36).slice(2,5);
+  const dato={...it, creado:new Date().toISOString(), quien:novMail()};
+  VAJ_STOCK[id]=dato;
+  try{
+    await VAJ_STOCK_DOC.set({items:{[id]:dato}}, {merge:true});
+    marcarSincronizado();
+    novRegistrar({mod:'comanda', acc:'crear', que:'el ítem de vajilla', titulo:vajNombre(dato), clave:'vaj:'+id});
+    return id;
+  }catch(e){ delete VAJ_STOCK[id]; marcarErrorSincronizacion(e); alert('No se pudo guardar: '+e.message); return null; }
+}
+
+// ── Pantalla del maestro ──
+function vajCampo(id, campo, valor){
+  const it=VAJ_STOCK[id]; if(!it) return;
+  if(!_vajBase[id]) _vajBase[id]={...it};
+  // El nombre de antes (una vez por sesión) queda como alias: las fichas
+  // viejas lo siguen reconociendo.
+  if(['material','color','tamano'].includes(campo) && !_vajAliasHecho.has(id)){
+    _vajAliasHecho.add(id);
+    const viejo=vajNombre(it);
+    if(viejo) it.alias=[...new Set([...(it.alias||[]), viejo])];
+  }
+  it[campo]=valor;
+  if(it.alias) it.alias=it.alias.filter(a=>vajNorm(a)!==vajNorm(vajNombre(it)));
+  const el=document.getElementById('vaj-nom-'+id); if(el) el.textContent=vajNombre(it)||'—';
+  clearTimeout(_vajTimers[id]);
+  _vajTimers[id]=setTimeout(async ()=>{
+    const dato={...it, actualizado:new Date().toISOString()};
+    try{
+      await VAJ_STOCK_DOC.set({items:{[id]:dato}}, {merge:true});
+      marcarSincronizado();
+      const base=_vajBase[id]; delete _vajBase[id];
+      novRegistrar({mod:'comanda', acc:'editar', que:'el ítem de vajilla', titulo:vajNombre(it), det:novDiff(base, it, NOV_CAMPOS_VAJ), clave:'vaj:'+id});
+    }catch(e){ marcarErrorSincronizacion(e); }
+    finally{ delete _vajTimers[id]; }
+  }, 600);
+}
+// En cuántas fichas se usa cada ítem.
+function vajUsos(){
+  const u={}, mapa=vajMapaNombres();
+  const idDe=(vid,n)=>vid&&VAJ_STOCK[vid]?vid:mapa[vajNorm(n)];
+  Object.values(DB.comanda&&DB.comanda.eventos||{}).flat().forEach(ev=>{
+    const d=ev&&ev.datos||{}, ids=new Set();
+    (Array.isArray(d.vsa_secciones)?d.vsa_secciones:[]).forEach(s=>(s.items||[]).forEach(it=>{ const id=idDe(it.vid, it.nombre); if(id) ids.add(id); }));
+    const a=d.armado_vajilla; if(a&&typeof a==='object'&&!Array.isArray(a)) Object.values(a).forEach(r=>{ const id=r&&idDe(r.vid, r.vajilla); if(id) ids.add(id); });
+    ids.forEach(id=>{ u[id]=(u[id]||0)+1; });
+  });
+  return u;
+}
+async function vajBorrar(id){
+  const x=vajPorId(id); if(!x) return;
+  const n=vajUsos()[id]||0;
+  if(!confirm(`¿Borrar "${x.nombre||'(sin nombre)'}" del maestro?`+(n?`\n\nSe usa en ${n} ficha${n>1?'s':''}: ahí queda escrito el nombre, marcado como "no está en el maestro".`:''))) return;
+  clearTimeout(_vajTimers[id]); delete _vajTimers[id];
+  try{
+    await VAJ_STOCK_DOC.update({['items.'+id]:firebase.firestore.FieldValue.delete()});
+    delete VAJ_STOCK[id];
+    marcarSincronizado();
+    novRegistrar({mod:'comanda', acc:'borrar', que:'el ítem de vajilla', titulo:x.nombre});
+    renderVajStock();
+  }catch(e){ marcarErrorSincronizacion(e); alert('No se pudo borrar: '+e.message); }
+}
+// Primera carga: suma al maestro los nombres que ya se usan en las fichas.
+async function vajTraerDeFichas(){
+  if(!_vajStockCargado){ alert('Todavía se está sincronizando. Probá en unos segundos.'); return; }
+  const mapa=vajMapaNombres(), nuevos={};
+  const tipoDe=(sec,n)=>{ const s=vajNorm(sec); if(s==='cristaleria') return 'cristaleria'; if(s==='cuberteria') return 'cuberteria';
+    const g=vajSalonSeccionDe(n); return g==='CUBERTERÍA'?'cuberteria':g==='CRISTALERÍA'?'cristaleria':'vajilla'; };
+  const sumar=(nombre, sec)=>{ const n=String(nombre||'').trim(), k=vajNorm(n); if(!k || mapa[k] || nuevos[k]) return;
+    nuevos[k]={material:n, color:'', tamano:'', stock:'', area:vajNorm(sec)==='barra'?'barra':'salon', tipo:tipoDe(sec,n)}; };
+  Object.values(DB.comanda&&DB.comanda.eventos||{}).flat().forEach(ev=>{
+    const d=ev&&ev.datos||{};
+    (Array.isArray(d.vsa_secciones)?d.vsa_secciones:[]).forEach(s=>(s.items||[]).forEach(it=>sumar(it.nombre, s.nombre)));
+    const a=d.armado_vajilla; if(a&&typeof a==='object'&&!Array.isArray(a)) Object.values(a).forEach(r=>sumar(r&&r.vajilla, ''));
+  });
+  Object.values(VAJ_PRESETS_FIJOS).forEach(p=>(p.secciones||[]).forEach(s=>(s.items||[]).forEach(n=>sumar(n, s.nombre))));
+  const lista=Object.values(nuevos);
+  if(!lista.length){ alert('No hay nombres nuevos: todo lo que se usa en las fichas ya está en el maestro.'); return; }
+  if(!confirm(`Se van a agregar ${lista.length} ítems al maestro con los nombres que ya se usan en las fichas (Vajilla salón, Armado vajilla y el desayuno buffet).\n\nDespués conviene completar color, tamaño y stock de cada uno y revisar el área y el tipo.`)) return;
+  const items={}, base=Date.now(), ahora=new Date().toISOString();
+  lista.forEach((it,i)=>{ items[String(base+i)]={...it, creado:ahora, quien:novMail(), deFichas:true}; });
+  try{
+    await VAJ_STOCK_DOC.set({items}, {merge:true});
+    Object.assign(VAJ_STOCK, items);
+    marcarSincronizado();
+    novRegistrar({mod:'comanda', acc:'crear', que:'ítems de vajilla', titulo:lista.length+' ítems traídos de las fichas'});
+    renderVajStock();
+  }catch(e){ marcarErrorSincronizacion(e); alert('No se pudo guardar: '+e.message); }
+}
+function renderVajStock(){
+  const tbody=document.getElementById('vaj-tbody'); if(!tbody) return;
+  const fa=document.getElementById('vaj-f-area'), ft=document.getElementById('vaj-f-tipo');
+  if(fa && !fa.options.length) fa.innerHTML='<option value="">Todas las áreas</option>'+Object.entries(VAJ_AREAS).map(([k,l])=>`<option value="${k}">${escH(l)}</option>`).join('');
+  if(ft && !ft.options.length) ft.innerHTML='<option value="">Todos los tipos</option>'+Object.entries(VAJ_TIPOS).map(([k,l])=>`<option value="${k}">${escH(l)}</option>`).join('');
+  const q=vajNorm((document.getElementById('vaj-search')||{}).value), area=fa?fa.value:'', tipo=ft?ft.value:'';
+  const todos=Object.keys(VAJ_STOCK).map(vajPorId).filter(Boolean)
+    .sort((a,b)=>(a.area||'').localeCompare(b.area||'') || (a.tipo||'').localeCompare(b.tipo||'') || a.nombre.localeCompare(b.nombre,'es'));
+  const lista=todos.filter(x=>(!area||x.area===area) && (!tipo||x.tipo===tipo) && (!q||vajNorm(x.nombre).includes(q)));
+  const cnt=document.getElementById('vaj-count'); if(cnt) cnt.textContent=todos.length;
+  const usos=vajUsos();
+  const sel=(id,campo,obj,v)=>`<select onchange="vajCampo('${id}','${campo}',this.value)">${Object.entries(obj).map(([k,l])=>`<option value="${k}"${k===v?' selected':''}>${escH(l)}</option>`).join('')}</select>`;
+  const inp=(id,campo,v,ph,extra)=>`<input type="text" value="${escH(v||'')}" placeholder="${ph}" oninput="vajCampo('${id}','${campo}',this.value)"${extra||''}>`;
+  tbody.innerHTML=lista.map(x=>`<tr>
+    <td>${sel(x._id,'area',VAJ_AREAS,x.area)}</td>
+    <td>${sel(x._id,'tipo',VAJ_TIPOS,x.tipo)}</td>
+    <td>${inp(x._id,'material',x.material,'Ej: Plato playo porcelana')}</td>
+    <td>${inp(x._id,'color',x.color,'Color')}</td>
+    <td>${inp(x._id,'tamano',x.tamano,'Tamaño')}</td>
+    <td class="vaj-nom" id="vaj-nom-${x._id}">${escH(x.nombre||'—')}</td>
+    <td>${inp(x._id,'stock',x.stock,'—',' inputmode="numeric" class="vaj-stock-in"')}</td>
+    <td class="vaj-usos">${usos[x._id]||''}</td>
+    <td><button class="btn btn-danger" style="padding:2px 6px;font-size:11px" title="Borrar del maestro" onclick="vajBorrar('${x._id}')">🗑</button></td>
+  </tr>`).join('') || `<tr><td colspan="9" class="empty">${todos.length?'Sin resultados.':(_vajStockCargado?'Todavía no hay vajilla cargada. Usá "+ Nuevo ítem" o "⤓ Traer nombres de las fichas".':'Cargando…')}</td></tr>`;
 }
 
 // Drag & drop entre filas de subsecciones — soporta reordenar dentro de la
@@ -12968,6 +13305,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-12', t:'Fichas Técnicas: nueva pestaña <b>🍽 Stock vajilla</b>, el maestro de la vajilla. Cada ítem lleva descripción / material, color y tamaño (juntos arman el nombre), el stock, y el área (Salón, Cocina / Producción, Barra, Ambientación) y el tipo (Cristalería, Cubertería, Vajilla, Fuentes, etc.). En <b>Vajilla salón</b> y <b>Armado vajilla</b> la vajilla ahora se elige de ese maestro (si falta algo, se agrega ahí mismo) y avisa en rojo si se pide más de lo que hay en stock. Con «⤓ Traer nombres de las fichas» se cargan de una vez los nombres que ya se venían usando.'},
   {f:'2026-11-12', t:'El sistema <b>abre más rápido</b>: cada compu guarda una copia de los datos y al abrir muestra lo último al instante, bajando de internet solo lo que cambió (la primera vez después de esta mejora tarda lo de siempre). Se arregló que a veces los módulos aparecieran <b>a medias</b> hasta actualizar. Si el sistema <b>no logra sincronizar</b> o se corta la conexión, ahora aparece un cartel que no deja seguir hasta actualizar, para que nadie trabaje con datos viejos.'},
   {f:'2026-11-11', t:'Nuevo módulo <b>💬 Chat interno</b>, como WhatsApp y para usar desde el celular: un chat <b>General</b> y uno por cada <b>evento</b> de Fichas Técnicas. Se pueden mandar fotos (o sacarlas con la cámara) y documentos, responder un mensaje, nombrar a alguien con <b>@</b>, fijar un mensaje arriba y ver quién lo leyó. En cada evento, arriba, están los datos (fecha, horario, lugar, invitados) y <b>atajos a cada solapa de la ficha</b>; también se puede mandar un atajo en un mensaje (📎 → Atajo a la ficha). Los cambios que se hacen en la ficha aparecen solos en el chat del evento. Los chats de eventos que ya pasaron quedan en <b>Archivados</b>.'},
   {f:'2026-11-11', t:'Pedidos al sistema: en vez de "¿Qué pasa hoy?" y "¿Qué querés que pase?" hay <b>un solo cuadro</b> para escribir el pedido como quieras.'},

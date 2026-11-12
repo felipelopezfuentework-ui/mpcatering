@@ -10,6 +10,10 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 
 ## Para hacer en el sistema (Felipe)
 
+### Fichas Técnicas — Stock vajilla
+- [ ] **Cargar el maestro**: usar «⤓ Traer nombres de las fichas» y completar color, tamaño, stock, área y tipo de cada ítem (Mariana / equipo).
+- [ ] **Definir**: ¿el Check list de vajilla salón (solapa CHECK LIST) se arma solo desde Vajilla salón + Armado vajilla?
+
 ### Chat interno
 - [ ] **Avisos al celular con el sistema cerrado**: necesita pasar Firebase al plan Blaze (pago por uso; a este tamaño, casi gratis) para mandar notificaciones push, y que cada uno agregue el sistema a la pantalla de inicio. Decidir con Mariana.
 
@@ -21,6 +25,7 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Vajilla por plato precargada** en el armado de vajilla, según el criterio de Mariana. *(Necesita la lista de Mariana.)*
 
 ## Hecho
+- 12/11/2026 — **Fichas Técnicas › Stock vajilla**: maestro de vajilla (descripción/material + color + tamaño = nombre, stock, área y tipo); Vajilla salón y Armado vajilla eligen solo de ahí y avisan si se pide más de lo que hay.
 - 12/11/2026 — **Sistema más rápido al abrir** (copia local de los datos en cada compu); arreglado que los módulos aparecieran a medias; cartel que bloquea si no sincroniza y obliga a actualizar.
 - 11/11/2026 — **Nuevo módulo Chat interno** (tipo WhatsApp, para celular): General + un chat por evento de Fichas, fotos y documentos, responder, @ nombrar, fijar, visto por, atajos a las solapas de la ficha, cambios de la ficha automáticos en el chat del evento, archivados. Sin audios (a pedido).
 - 11/11/2026 — **Presupuestos › Incluye / No incluye**: opciones Traslados y Seguros; Metre → Maître.
