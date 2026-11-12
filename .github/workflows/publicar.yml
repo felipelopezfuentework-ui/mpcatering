@@ -14,7 +14,9 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  # Nombre nuevo (12/11/2026): GitHub dejó una publicación "fantasma" en la fila
+  # 'pages' que no se puede cancelar ni borrar y trababa todas las siguientes.
+  group: publicar
   cancel-in-progress: true
 
 jobs:
