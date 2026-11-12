@@ -9,7 +9,7 @@ Usuario: dueño del negocio, no técnico. Hablar en español rioplatense, resúm
 - Verificar sintaxis: extraer el último `<script>` a un .js y `node --check`.
 - PDFs: arnés en el scratchpad que extrae `presuDibujarPDF` + constantes y lo corre con `jspdf@2.5.1` en node; revisar con `pymupdf` (texto y PNG).
 - Al terminar: commit en español + `git push origin main` sin preguntar. Actualizar este archivo si cambia algo de lo que describe.
-- Publicación: GitHub Pages con el workflow propio `.github/workflows/publicar.yml` (desde 05/11/2026; antes el automático se colgaba y frenaba las siguientes). Cada push nuevo cancela la publicación en curso. Si igual queda trabada ("due to in progress deployment"): `gh api -X POST repos/{owner}/{repo}/pages/deployments/<sha colgado>/cancel` y `gh run rerun <id>`.
+- Publicación: GitHub Pages con el workflow propio `.github/workflows/publicar.yml` (desde 05/11/2026; antes el automático se colgaba y frenaba las siguientes). Cada push nuevo cancela la publicación en curso. Si igual queda trabada ("due to in progress deployment"): `gh api -X POST repos/{owner}/{repo}/pages/deployments/<sha colgado>/cancel` y `gh run rerun <id>`. Si una publicación queda "en cola" para siempre y GitHub no deja cancelarla ni borrarla (pasó el 11/11/2026), traba la fila: cambiar el nombre de `concurrency.group` en el workflow (hoy `publicar`) y hacer push.
 
 ## UI
 - Botones agrupados con criterio: buscar a la vista; "⚙ Ver ▾" (mostrar/ordenar/vista); "+ Nuevo" (Excel queda como botón flotante); acciones por fila = Editar + "⋯"; un clic en la receta la abre (`recActivarClic`). Menú flotante compartido `mpMenuAbrir(btn, items|html)` (items `{icon,label,accion,peligro}` o `'-'`).
