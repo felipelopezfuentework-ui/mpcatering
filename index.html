@@ -889,14 +889,19 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
 .chat-fila{display:flex;align-items:center;gap:12px;padding:0 0 0 14px;cursor:pointer;background:#fff}
 .chat-fila:hover{background:#f5f6f6}.chat-fila.act{background:#f0f2f5}
 .chat-av{width:46px;height:46px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px}
-.chat-av-gen{background:linear-gradient(135deg,#25d366,#0b7a5e);font-size:22px}
+.chat-av-gen{background:#3d1a52;font-size:14px;color:var(--mp-gold);overflow:hidden;border:2px solid var(--mp-gold);box-sizing:border-box}
+.chat-av-gen img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .chat-av-chico{width:28px;height:28px;font-size:11px}
 .chat-fila-c{flex:1;min-width:0;border-bottom:1px solid #f0f2f5;padding:11px 14px 11px 0}
 .chat-fila-l1,.chat-fila-l2{display:flex;align-items:center;gap:6px}
 .chat-fila-nom{flex:1;font-size:15.5px;color:#111b21;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chat-fila-hora{font-size:12px;color:#667781;flex-shrink:0}.chat-fila-hora.nl{color:#1fa855;font-weight:600}
 .chat-fila-l2{margin-top:2px;font-size:13.5px;color:#667781}
-.chat-fila-fecha{flex-shrink:0;font-size:11.5px;background:#f0f2f5;border-radius:6px;padding:1px 6px;color:#54656f}
+.chat-fila-fecha{flex-shrink:0;font-size:12.5px;font-weight:600;border-radius:7px;padding:2px 8px;background:#ede7f6;color:#4a2260;white-space:nowrap}
+.chat-fila-fecha b{font-weight:800}
+.chat-fila-fecha.cf-hoy{background:#1fa855;color:#fff}
+.chat-fila-fecha.cf-pronto{background:#fff3cd;color:#8a5a00}
+.chat-fila-fecha.cf-paso,.chat-fila-fecha.cf-sin{background:#f0f2f5;color:#667781;font-weight:500}
 .chat-fila-ult{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chat-nl{background:#25d366;color:#fff;border-radius:11px;min-width:21px;height:21px;padding:0 6px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .chat-at{background:#25d366;color:#fff;border-radius:50%;width:21px;height:21px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -1107,7 +1112,7 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
         <span class="mod-brillo"></span>
         <span class="chat-badge mod-nov-badge" style="display:none"></span>
         <span class="mod-tit">Chat interno</span>
-        <span class="mod-sub">General y un chat por evento</span>
+        <span class="mod-sub">MP Catering Interno y un chat por evento</span>
         <svg class="mod-ilu" viewBox="0 0 250 210" aria-hidden="true"><g class="chispas" fill="#fff"><path class="chispa" d="M40 40 l3 9 9 3 -9 3 -3 9 -3 -9 -9 -3 9 -3z"/><path class="chispa c2" d="M205 58 l2 6 6 2 -6 2 -2 6 -2 -6 -6 -2 6 -2z"/><path class="chispa c3" d="M60 95 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z"/></g><g class="ped"><path d="M17 172 L125 202 L125 228 L17 198 Z" fill="#d6d3e2"/><path d="M233 172 L125 202 L125 228 L233 198 Z" fill="#e9e7f1"/><path d="M17 172 L125 142 L233 172 L125 202 Z" fill="#fbfbfd"/></g><g class="ped2"><path d="M55 152 L125 171 L125 187 L55 168 Z" fill="#0b6b52"/><path d="M195 152 L125 171 L125 187 L195 168 Z" fill="#128c6e"/><path d="M55 152 L125 133 L195 152 L125 171 Z" fill="#c9f2d9"/></g><g class="obj"><g class="chat-burb1"><path d="M66 50 h86 a15 15 0 0 1 15 15 v38 a15 15 0 0 1 -15 15 h-52 l-20 17 v-17 h-14 a15 15 0 0 1 -15 -15 v-38 a15 15 0 0 1 15 -15z" fill="#ffffff"/><circle cx="88" cy="84" r="7" fill="#25d366"/><circle cx="109" cy="84" r="7" fill="#25d366"/><circle cx="130" cy="84" r="7" fill="#25d366"/></g><g class="chat-burb2"><path d="M134 98 h58 a13 13 0 0 1 13 13 v28 a13 13 0 0 1 -13 13 h-6 v15 l-17 -15 h-35 a13 13 0 0 1 -13 -13 v-28 a13 13 0 0 1 13 -13z" fill="#d9fdd3"/><rect x="138" y="113" width="48" height="7" rx="3.5" fill="#6cc68f"/><rect x="138" y="127" width="32" height="7" rx="3.5" fill="#6cc68f"/></g></g></svg>
       </button>
     </div>
@@ -13305,6 +13310,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-12', t:'Chat interno: el chat General ahora se llama <b>MP Catering Interno</b> y lleva el logo. Los chats de eventos se ordenan por la fecha más próxima (arriba lo que viene antes) y la fecha se ve bien marcada, con «Hoy», «Mañana» o «En 3 días».'},
   {f:'2026-11-12', t:'Fichas Técnicas: nueva pestaña <b>🍽 Stock vajilla</b>, el maestro de la vajilla. Cada ítem lleva descripción / material, color y tamaño (juntos arman el nombre), el stock, y el área (Salón, Cocina / Producción, Barra, Ambientación) y el tipo (Cristalería, Cubertería, Vajilla, Fuentes, etc.). En <b>Vajilla salón</b> y <b>Armado vajilla</b> la vajilla ahora se elige de ese maestro (si falta algo, se agrega ahí mismo) y avisa en rojo si se pide más de lo que hay en stock. Con «⤓ Traer nombres de las fichas» se cargan de una vez los nombres que ya se venían usando.'},
   {f:'2026-11-12', t:'El sistema <b>abre más rápido</b>: cada compu guarda una copia de los datos y al abrir muestra lo último al instante, bajando de internet solo lo que cambió (la primera vez después de esta mejora tarda lo de siempre). Se arregló que a veces los módulos aparecieran <b>a medias</b> hasta actualizar. Si el sistema <b>no logra sincronizar</b> o se corta la conexión, ahora aparece un cartel que no deja seguir hasta actualizar, para que nadie trabaje con datos viejos.'},
   {f:'2026-11-11', t:'Nuevo módulo <b>💬 Chat interno</b>, como WhatsApp y para usar desde el celular: un chat <b>General</b> y uno por cada <b>evento</b> de Fichas Técnicas. Se pueden mandar fotos (o sacarlas con la cámara) y documentos, responder un mensaje, nombrar a alguien con <b>@</b>, fijar un mensaje arriba y ver quién lo leyó. En cada evento, arriba, están los datos (fecha, horario, lugar, invitados) y <b>atajos a cada solapa de la ficha</b>; también se puede mandar un atajo en un mensaje (📎 → Atajo a la ficha). Los cambios que se hacen en la ficha aparecen solos en el chat del evento. Los chats de eventos que ya pasaron quedan en <b>Archivados</b>.'},
@@ -16354,6 +16360,28 @@ function chatDiaTxt(ts){
   const t=d.toLocaleDateString('es-AR',{weekday:'long', day:'numeric', month:'long'});
   return t.charAt(0).toUpperCase()+t.slice(1);
 }
+// Chat de todo el equipo (id 'general'), con el logo de MP (el mismo del encabezado).
+const CHAT_GENERAL_NOMBRE='MP Catering Interno';
+function chatAvGeneral(chico){
+  const img=document.querySelector('.logo img, .mod-logo img');
+  return `<div class="chat-av chat-av-gen${chico?' chat-av-chico':''}">${img?`<img src="${img.src}" alt="MP">`:'MP'}</div>`;
+}
+// Fecha del evento en la lista: bien visible y con "Hoy", "Mañana", "En 3 días".
+function chatFechaPill(c){
+  if(!c.f) return '<span class="chat-fila-fecha cf-sin">📅 Sin fecha</span>';
+  const hoy=chatISO(new Date());
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(c.f), d=m?new Date(+m[1],+m[2]-1,+m[3]):null;
+  const h=new Date(); h.setHours(0,0,0,0);
+  const dias=d?Math.round((d-h)/86400000):null;
+  let rel='', cls='cf-lejos';
+  if(c.ult<hoy){ rel='Ya pasó'; cls='cf-paso'; }
+  else if(c.f<=hoy){ rel=c.fechas.length>1&&c.f<hoy?'En curso':'Hoy'; cls='cf-hoy'; }
+  else if(dias===1){ rel='Mañana'; cls='cf-pronto'; }
+  else if(dias<=7){ rel='En '+dias+' días'; cls='cf-pronto'; }
+  const extra=c.fechas.length>1?' (+'+(c.fechas.length-1)+' días)':'';
+  const txt=d?d.toLocaleDateString('es-AR',{weekday:'short', day:'numeric', month:'short'}).replace(/[,.]/g,''):c.f;
+  return `<span class="chat-fila-fecha ${cls}">📅 ${escH(txt.charAt(0).toUpperCase()+txt.slice(1))}${extra}${rel?` · <b>${rel}</b>`:''}</span>`;
+}
 function chatFechaCorta(iso){
   const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); if(!m) return '';
   const d=new Date(+m[1], +m[2]-1, +m[3]);
@@ -16388,12 +16416,17 @@ function chatEventos(){
     const d=ev.datos||{};
     const fechas=[calFechaEvento(d), ...calFechasExtra(d)].filter(Boolean).sort();
     const ult=fechas[fechas.length-1]||'';
-    out.push({id:'ev_'+ev.id, evId:ev.id, pid, ev, nombre:ev.nombre||'Evento', f:fechas[0]||'', fechas, archivado:!!ult && ult<lim});
+    out.push({id:'ev_'+ev.id, evId:ev.id, pid, ev, nombre:ev.nombre||'Evento', f:fechas[0]||'', ult, fechas, archivado:!!ult && ult<lim});
   }));
-  return out.sort((a,b)=>(a.f||'9999').localeCompare(b.f||'9999') || a.nombre.localeCompare(b.nombre));
+  // Primero los que vienen o están en curso (del más cercano al más lejano),
+  // después los que ya pasaron y todavía no se archivaron (el más reciente
+  // primero) y al final los que no tienen fecha.
+  const hoy=chatISO(new Date());
+  const grupo=c=>!c.f?2:(c.ult>=hoy?0:1);
+  return out.sort((a,b)=>grupo(a)-grupo(b) || (grupo(a)===1?b.ult.localeCompare(a.ult):(a.f||'').localeCompare(b.f||'')) || a.nombre.localeCompare(b.nombre));
 }
 function chatInfo(id){
-  if(id==='general') return {id:'general', nombre:'General', general:true};
+  if(id==='general') return {id:'general', nombre:CHAT_GENERAL_NOMBRE, general:true};
   return chatEventos().find(c=>c.id===id)||null;
 }
 
@@ -16539,7 +16572,7 @@ function chatMontar(){
       <div class="chat-lista" id="chat-lista"></div>
     </aside>
     <section class="chat-conv">
-      <div class="chat-vacio" id="chat-vacio"><div class="chat-vacio-ico">💬</div><div>Elegí un chat de la lista</div><div class="chat-vacio-sub">Hay un chat General y uno por cada evento confirmado.</div></div>
+      <div class="chat-vacio" id="chat-vacio"><div class="chat-vacio-ico">💬</div><div>Elegí un chat de la lista</div><div class="chat-vacio-sub">Hay un chat MP Catering Interno para todo el equipo y uno por cada evento.</div></div>
       <div class="chat-conv-in" id="chat-conv-in" style="display:none">
         <div class="chat-conv-hd" id="chat-conv-hd"></div>
         <div class="chat-atajos" id="chat-atajos"></div>
@@ -16572,9 +16605,9 @@ function chatRefrescar(){
 function chatFilaHtml(c){
   const msgs=chatMsgsDe(c.id), ult=msgs.filter(m=>!m.sis||m.det).slice(-1)[0];
   const nl=chatNoLeidos(c.id), yo=chatYo(), menc=nl.some(m=>(m.menc||[]).includes(yo));
-  const av=c.general?`<div class="chat-av chat-av-gen">💬</div>`:`<div class="chat-av" style="background:${chatColor(c.id)}">${escH(chatIniciales(c.nombre))}</div>`;
-  const fecha=c.general?'':(c.f?`<span class="chat-fila-fecha">📅 ${escH(chatFechaCorta(c.f))}${c.fechas.length>1?' (+'+(c.fechas.length-1)+')':''}</span>`:'<span class="chat-fila-fecha">📅 sin fecha</span>');
-  const prev=ult?((ult.quien===yo&&!ult.sis?'Vos: ':(!ult.sis?novNombre(ult.quien)+': ':''))+chatResumen(ult)):(c.general?'Todo el equipo':'Sin mensajes todavía');
+  const av=c.general?chatAvGeneral():`<div class="chat-av" style="background:${chatColor(c.id)}">${escH(chatIniciales(c.nombre))}</div>`;
+  const fecha=c.general?'':chatFechaPill(c);
+  const prev=ult?((ult.quien===yo&&!ult.sis?'Vos: ':(!ult.sis?novNombre(ult.quien)+': ':''))+chatResumen(ult)):(c.general?'Todo el equipo':'');
   return `<div class="chat-fila ${_chatAbierto===c.id?'act':''}" data-id="${escH(c.id)}" onclick="chatAbrir(this.dataset.id)">
     ${av}
     <div class="chat-fila-c">
@@ -16589,7 +16622,7 @@ function chatRenderLista(){
   const evs=chatEventos().filter(c=>!q || chatNorm(c.nombre).includes(q));
   const act=evs.filter(c=>!c.archivado), arch=evs.filter(c=>c.archivado).reverse();
   let html='';
-  if(!q || chatNorm('general').includes(q)) html+=chatFilaHtml(chatInfo('general'));
+  if(!q || chatNorm(CHAT_GENERAL_NOMBRE+' general').includes(q)) html+=chatFilaHtml(chatInfo('general'));
   html+=act.length?`<div class="chat-lista-sep">Eventos</div>`+act.map(chatFilaHtml).join(''):'';
   if(arch.length){
     const nlArch=arch.reduce((s,c)=>s+chatNoLeidos(c.id).length,0);
@@ -16649,7 +16682,7 @@ function chatDatosEvento(c){
 }
 function chatRenderHeader(info){
   const hd=document.getElementById('chat-conv-hd'), at=document.getElementById('chat-atajos');
-  const av=info.general?`<div class="chat-av chat-av-gen">💬</div>`:`<div class="chat-av" style="background:${chatColor(info.id)}">${escH(chatIniciales(info.nombre))}</div>`;
+  const av=info.general?chatAvGeneral():`<div class="chat-av" style="background:${chatColor(info.id)}">${escH(chatIniciales(info.nombre))}</div>`;
   const sub=info.general?'Todo el equipo':(chatDatosEvento(info).join(' · ')||'Sin datos cargados');
   hd.innerHTML=`<button type="button" class="chat-ico chat-solo-movil" onclick="chatVolver()" title="Volver a los chats">←</button>
     ${av}
