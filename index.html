@@ -889,6 +889,8 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
 .chat-fila{display:flex;align-items:center;gap:12px;padding:0 0 0 14px;cursor:pointer;background:#fff}
 .chat-fila:hover{background:#f5f6f6}.chat-fila.act{background:#f0f2f5}
 .chat-av{width:46px;height:46px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px}
+#presu-tbody tr.presu-fila{cursor:pointer}
+#presu-tbody tr.presu-fila:hover td{background:rgba(200,169,81,.08)}
 .chat-av-gen{background:#3d1a52;font-size:14px;color:var(--mp-gold);overflow:hidden;border:2px solid var(--mp-gold);box-sizing:border-box}
 .chat-av-gen img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .chat-av-chico{width:28px;height:28px;font-size:11px}
@@ -2131,7 +2133,7 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
       </div>
       <div class="form-field" style="flex:1">
         <label>Cantidad de personas</label>
-        <input type="number" id="presu-cantidad-personas" min="0" style="width:100%">
+        <input type="text" id="presu-cantidad-personas" placeholder="Ej: 80 o 15-20" style="width:100%">
       </div>
     </div>
     <div class="form-row">
@@ -2155,7 +2157,7 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
       </div>
       <div class="form-field" style="flex:1">
         <label>Fecha de emisión</label>
-        <input type="date" id="presu-fecha-emision" style="width:100%">
+        <input type="date" id="presu-fecha-emision" readonly tabindex="-1" title="Se pone sola con la fecha del día en que se ve o descarga el PDF" style="width:100%;opacity:.75;cursor:default">
       </div>
     </div>
     <!-- Otras fechas del mismo evento: en su propio renglón, así no desalinea los campos de arriba -->
@@ -11818,9 +11820,13 @@ function detenerListenersCotizaciones(){
 }
 
 // ── Cálculos ──
+// Cantidad de personas del presupuesto; si es un rango ("15-20"), el número más alto.
+function presuPaxNum(p){
+  const ns=(String((p&&p.cantidadPersonas)||'').replace(/\./g,'').match(/\d+/g)||[]).map(n=>parseInt(n,10));
+  return ns.length?Math.max(...ns):0;
+}
 function cotizPersonasDePresu(p){
-  const m=String((p&&p.cantidadPersonas)||'').replace(/\./g,'').match(/\d+/);
-  return m?parseInt(m[0],10):0;
+  return presuPaxNum(p);
 }
 function cotizCantidad(c,it){
   const pers=parseFloat(c.personas)||0;
@@ -12769,7 +12775,7 @@ function presuConIva(v){
   return t+' + IVA';
 }
 function presuNuevoBorrador(){
-  const hoy=new Date().toISOString().slice(0,10);
+  const hoy=presuHoyISO();
   return {
     tipoEvento:'', cliente:'', referentes:'', cantidadPersonas:'', lugar:'',
     horarioInicio:'', horarioFin:'', fechaEvento:'', fechaEmision:hoy,
@@ -13310,6 +13316,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-12', t:'Presupuestos: <b>Descorche</b> en Incluye; la <b>fecha de emisión</b> se pone sola con el día en que se ve o descarga el PDF; en <b>Cantidad de personas</b> se puede escribir un rango (ej. 15-20); al confirmar, la ficha técnica se llama <b>tipo de evento + cliente</b> (ej. CENA BECCAR VARELA); y con <b>un clic en el renglón</b> se abre el presupuesto.'},
   {f:'2026-11-12', t:'Chat interno: el chat General ahora se llama <b>MP Catering Interno</b> y lleva el logo. Los chats de eventos se ordenan por la fecha más próxima (arriba lo que viene antes) y la fecha se ve bien marcada, con «Hoy», «Mañana» o «En 3 días».'},
   {f:'2026-11-12', t:'Fichas Técnicas: nueva pestaña <b>🍽 Stock vajilla</b>, el maestro de la vajilla. Cada ítem lleva descripción / material, color y tamaño (juntos arman el nombre), el stock, y el área (Salón, Cocina / Producción, Barra, Ambientación) y el tipo (Cristalería, Cubertería, Vajilla, Fuentes, etc.). En <b>Vajilla salón</b> y <b>Armado vajilla</b> la vajilla ahora se elige de ese maestro (si falta algo, se agrega ahí mismo) y avisa en rojo si se pide más de lo que hay en stock. Con «⤓ Traer nombres de las fichas» se cargan de una vez los nombres que ya se venían usando.'},
   {f:'2026-11-12', t:'El sistema <b>abre más rápido</b>: cada compu guarda una copia de los datos y al abrir muestra lo último al instante, bajando de internet solo lo que cambió (la primera vez después de esta mejora tarda lo de siempre). Se arregló que a veces los módulos aparecieran <b>a medias</b> hasta actualizar. Si el sistema <b>no logra sincronizar</b> o se corta la conexión, ahora aparece un cartel que no deja seguir hasta actualizar, para que nadie trabaje con datos viejos.'},
@@ -14330,7 +14337,9 @@ function presuSegDatosEvento(p, cli){
   if(p.horarioFin) datos.horario_fin=p.horarioFin;
   if(p.tipoEvento) datos.tipo_evento=p.tipoEvento;
   if(p.lugar){ datos.locacion=p.lugar; datos.ubicacion=p.lugar; }
-  if(p.cantidadPersonas) datos.cant_adultos=p.cantidadPersonas;
+  // Personas puede ser un rango ("15-20"): en la ficha va el número más alto.
+  const pax=presuPaxNum(p);
+  if(pax) datos.cant_adultos=String(pax);
   if(p.cliente) datos.contacto=p.cliente;
   // Mismos campos que aplicarClienteAEvento (elegir el cliente a mano).
   if(cli){
@@ -14341,8 +14350,8 @@ function presuSegDatosEvento(p, cli){
   Object.entries(CAMPOS_COMPARTIDOS).forEach(([origen,destinos])=>{
     if(datos[origen]) destinos.forEach(d=>{ datos[d]=datos[origen]; });
   });
-  if(p.cantidadPersonas){
-    ['com_inv_total','vco_invitados','vsa_invitados','eva_invitados','fm_invitados','bar_personas'].forEach(k=>datos[k]=p.cantidadPersonas);
+  if(pax){
+    ['com_inv_total','vco_invitados','vsa_invitados','eva_invitados','fm_invitados','bar_personas'].forEach(k=>datos[k]=String(pax));
   }
   // Menú: los ítems de las estaciones que salen en el PDF; la Barra clásica y Bebidas van a la solapa BARRA.
   const esBarra=e=>e.barra || e.bebidas || /^barra cl[aá]sica$/i.test(String(e.titulo||'').trim());
@@ -14369,7 +14378,8 @@ async function presuSegCrearEvento(p){
     await FB_COL_PERIODOS.doc(periodoId).set({mes,anio,updated_at:new Date().toISOString()});
   }
   const id='ev_'+FB_COL_EVENTOS.doc().id;
-  const nombre=(p.tipoEvento||'').trim()||(p.cliente||'').trim()||'Evento';
+  // Nombre de la ficha: tipo de evento + cliente, en mayúsculas (ej. CENA BECCAR VARELA).
+  const nombre=([p.tipoEvento,p.cliente].map(x=>String(x||'').trim()).filter(Boolean).join(' ')||'Evento').toUpperCase();
   const cli=await presuSegCliente(p);
   await FB_COL_EVENTOS.doc(id).set({
     id, periodo_id:periodoId, nombre, cliente_id:cli?cli.cliente_id:null, creado:new Date().toLocaleDateString('es-AR'),
@@ -14434,6 +14444,12 @@ async function presuSegCambiar(id, nuevo){
   }finally{ _presuSegOcupado=false; }
 }
 
+// Un clic en el renglón abre el presupuesto (salvo en sus botones y menús).
+function presuFilaClic(e, id){
+  const t=e.target.closest('button,a,input,select,textarea,[onclick]');
+  if(t && t!==e.currentTarget) return;
+  abrirModalPresupuesto(id);
+}
 function renderPresupuestos(){
   const searchEl=document.getElementById('presu-search');
   const q=(searchEl?searchEl.value:'').trim().toLowerCase();
@@ -14448,7 +14464,7 @@ function renderPresupuestos(){
   const tbody=document.getElementById('presu-tbody');
   if(!tbody) return;
   tbody.innerHTML = lista.map(p=>`
-    <tr>
+    <tr class="presu-fila" title="Abrir el presupuesto" onclick="presuFilaClic(event,${p._id})">
       <td style="white-space:nowrap;width:1%">${presuSegBadge(p)}</td>
       <td>${escH(p.cliente||'—')}</td>
       <td>${escH(p.tipoEvento||'—')}</td>
@@ -15038,7 +15054,8 @@ const PRESU_OPC={
     'Equipamiento de cocina (de ser necesario)',
     'Bebidas sin alcohol',
     'Traslados',
-    'Seguros'
+    'Seguros',
+    'Descorche'
   ],
   no:[
     'Bebidas con alcohol',
@@ -15209,7 +15226,7 @@ function abrirModalPresupuesto(id){
   document.getElementById('presu-fecha-evento').value = _presuEdit.fechaEvento||'';
   if(!Array.isArray(_presuEdit.fechasExtra)) _presuEdit.fechasExtra=[];
   renderPresuFechasExtra();
-  document.getElementById('presu-fecha-emision').value = _presuEdit.fechaEmision || new Date().toISOString().slice(0,10);
+  document.getElementById('presu-fecha-emision').value = _presuEdit.fechaEmision || presuHoyISO();
   document.getElementById('presu-menu-intro').value = _presuEdit.menuIntro||'';
   document.getElementById('presu-salon-camareros').value = _presuEdit.salonCamareros||'';
   document.getElementById('presu-salon-precio').value = presuFormatoPesos(_presuEdit.salonPrecio);
@@ -15396,13 +15413,21 @@ function delPresupuesto(id){
 
 // ── Generación del PDF (estética fija Mariana Pages, 6 páginas) ─────────
 // modo: 'ver' (abre el PDF en una pestaña nueva) o 'descargar' (lo baja).
+// Fecha de emisión = el día en que se genera el PDF (se guarda en el presupuesto).
+function presuHoyISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function generarPresupuestoPDF(id, modo){
   let datos;
+  const hoy=presuHoyISO();
   if(id){
     datos=DB.presupuestos.find(p=>p._id===id);
     if(!datos){ alert('No se encontró el presupuesto.'); return; }
+    if(datos.fechaEmision!==hoy){
+      datos.fechaEmision=hoy;
+      FB_COL_PRESUPUESTOS.doc(String(id)).update({fechaEmision:hoy}).catch(e=>console.warn('No se pudo actualizar la fecha de emisión', e));
+    }
     presuDibujarPDF(datos, modo);
   } else if(_presuEdit){
+    { const fe=document.getElementById('presu-fecha-emision'); if(fe) fe.value=hoy; }
     // Desde el modal, Ver/Descargar PDF también guardan el presupuesto (si no,
     // al cerrar con ✕ después de generar el PDF el presupuesto se perdía).
     // El PDF se dibuja primero, sin esperas, para que el navegador no bloquee
