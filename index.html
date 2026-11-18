@@ -2170,7 +2170,8 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
       </div>
       <div class="form-field" style="flex:1">
         <label>Fecha de emisión</label>
-        <input type="date" id="presu-fecha-emision" readonly tabindex="-1" title="Se pone sola con la fecha del día en que se ve o descarga el PDF" style="width:100%;opacity:.75;cursor:default">
+        <input type="date" id="presu-fecha-emision" onchange="presuFechaEmisionCambio()" title="Se pone sola con la fecha del día en que se ve o descarga el PDF. Si la cambiás a mano, queda fija." style="width:100%">
+        <div id="presu-fecha-emision-modo" style="font-size:11px;color:#888;margin-top:3px"></div>
       </div>
     </div>
     <!-- Otras fechas del mismo evento: en su propio renglón, así no desalinea los campos de arriba -->
@@ -13514,6 +13515,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-18', t:'Presupuestos: la <b>Fecha de emisión</b> ahora se puede cambiar a mano. Si la cambiás, queda fija y el PDF no la pisa; con «usar la del día» vuelve a ponerse sola.'},
   {f:'2026-11-18', t:'Pedidos al sistema: los pedidos en <b>❓ Necesito más info</b> ya no aparecen en «Abiertos»: se ven en «Falta info» (y en Todos / Míos).'},
   {f:'2026-11-18', t:'Pedidos al sistema: al tocar <b>Enviar pedido</b> el formulario se cierra enseguida (se sigue enviando de fondo y avisa cuando llegó).'},
   {f:'2026-11-18', t:'Fichas Técnicas: en <b>Armado vajilla</b> la cantidad se completa sola con las <b>Unidades</b> de cada plato de la Comanda (en gris; si escribís otro número queda el tuyo). En la <b>Comanda</b>, cada sección del menú tiene <b>📷 Fotos / observaciones</b> para subir fotos con un comentario. Producción: al <b>importar recetas desde Excel</b>, en la pantalla de revisión ahora se pueden cambiar los <b>kilos</b> y la <b>merma</b> de cada ingrediente, sacar o agregar ingredientes y cambiar el insumo elegido.'},
@@ -15433,6 +15435,7 @@ function abrirModalPresupuesto(id){
   if(!Array.isArray(_presuEdit.fechasExtra)) _presuEdit.fechasExtra=[];
   renderPresuFechasExtra();
   document.getElementById('presu-fecha-emision').value = _presuEdit.fechaEmision || presuHoyISO();
+  presuFechaEmisionModoPintar();
   document.getElementById('presu-menu-intro').value = _presuEdit.menuIntro||'';
   document.getElementById('presu-salon-camareros').value = _presuEdit.salonCamareros||'';
   document.getElementById('presu-salon-precio').value = presuFormatoPesos(_presuEdit.salonPrecio);
@@ -15597,7 +15600,7 @@ function cancelarModalPresupuesto(){
 async function duplicarPresupuesto(id){
   const orig=DB.presupuestos.find(p=>p._id===id);
   if(!orig){ alert('No se encontró el presupuesto.'); return; }
-  const {_id, updated_at, seguimiento, eventoFichaId, eventoFichaPeriodo, ...datos}=JSON.parse(JSON.stringify(orig));
+  const {_id, updated_at, seguimiento, eventoFichaId, eventoFichaPeriodo, fechaEmisionManual, ...datos}=JSON.parse(JSON.stringify(orig));
   const nuevoId=Date.now();
   if(!(await guardarPresupuesto(nuevoId, datos))){
     alert('⚠ No se pudo duplicar el presupuesto (revisá la conexión a internet).');
@@ -15620,6 +15623,26 @@ function delPresupuesto(id){
 // ── Generación del PDF (estética fija Mariana Pages, 6 páginas) ─────────
 // modo: 'ver' (abre el PDF en una pestaña nueva) o 'descargar' (lo baja).
 // Fecha de emisión = el día en que se genera el PDF (se guarda en el presupuesto).
+// Fecha de emisión a mano: queda fija (fechaEmisionManual) y el PDF no la pisa.
+function presuFechaEmisionCambio(){
+  if(!_presuEdit) return;
+  const fe=document.getElementById('presu-fecha-emision');
+  if(!fe.value){ _presuEdit.fechaEmisionManual=false; fe.value=presuHoyISO(); }
+  else _presuEdit.fechaEmisionManual=true;
+  presuFechaEmisionModoPintar();
+}
+function presuFechaEmisionAuto(){
+  if(!_presuEdit) return;
+  _presuEdit.fechaEmisionManual=false;
+  document.getElementById('presu-fecha-emision').value=presuHoyISO();
+  presuFechaEmisionModoPintar();
+}
+function presuFechaEmisionModoPintar(){
+  const el=document.getElementById('presu-fecha-emision-modo'); if(!el) return;
+  el.innerHTML=(_presuEdit&&_presuEdit.fechaEmisionManual)
+    ? '✎ Puesta a mano · <a href="#" onclick="presuFechaEmisionAuto();return false" style="color:inherit">usar la del día</a>'
+    : 'Se pone sola al ver o descargar el PDF';
+}
 function presuHoyISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function generarPresupuestoPDF(id, modo){
   let datos;
@@ -15627,13 +15650,13 @@ function generarPresupuestoPDF(id, modo){
   if(id){
     datos=DB.presupuestos.find(p=>p._id===id);
     if(!datos){ alert('No se encontró el presupuesto.'); return; }
-    if(datos.fechaEmision!==hoy){
+    if(!datos.fechaEmisionManual && datos.fechaEmision!==hoy){
       datos.fechaEmision=hoy;
       FB_COL_PRESUPUESTOS.doc(String(id)).update({fechaEmision:hoy}).catch(e=>console.warn('No se pudo actualizar la fecha de emisión', e));
     }
     presuDibujarPDF(datos, modo);
   } else if(_presuEdit){
-    { const fe=document.getElementById('presu-fecha-emision'); if(fe) fe.value=hoy; }
+    { const fe=document.getElementById('presu-fecha-emision'); if(fe && !_presuEdit.fechaEmisionManual) fe.value=hoy; }
     // Desde el modal, Ver/Descargar PDF también guardan el presupuesto (si no,
     // al cerrar con ✕ después de generar el PDF el presupuesto se perdía).
     // El PDF se dibuja primero, sin esperas, para que el navegador no bloquee
