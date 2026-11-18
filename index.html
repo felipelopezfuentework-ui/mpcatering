@@ -12900,6 +12900,10 @@ const PED_ABIERTOS=['nuevo','info','aprobado','proceso'];
 const PED_MODS={produccion:'🍳 Producción', cotizacion:'🧾 Cotización', comanda:'📋 Fichas Técnicas', stock:'📊 Stock',
   presupuestos:'🧮 Presupuestos', novedades:'🔔 Novedades', pedidos:'💡 Pedidos al sistema', chat:'💬 Chat interno', general:'🧩 Otra cosa / todo el sistema'};
 let PEDIDOS=[], _unsubPed=null, _pedFiltro='abiertos', _pedMod='', _pedPersona='', _pedUrg='', _pedQ='', _pedVistoPrev=0;
+// Orden de la lista: 'urgencia' (más urgentes primero), 'recientes' o 'viejos' (por fecha del pedido). Se recuerda en esta compu.
+let _pedOrden=(()=>{ try{ return localStorage.getItem('ped_orden')||'urgencia'; }catch(e){ return 'urgencia'; } })();
+const PED_ORDENES={urgencia:'↕ Más urgentes primero', recientes:'↓ Más recientes primero', viejos:'↑ Más viejos primero'};
+function pedSetOrden(v){ _pedOrden=PED_ORDENES[v]?v:'urgencia'; try{ localStorage.setItem('ped_orden', _pedOrden); }catch(e){} renderPedidos(); }
 let _pedNuevo=null, _pedAbiertoId=null, _pedSacando=false;
 const _pedFotos={}; // id → {captura, foto} (se bajan al abrir el pedido)
 
@@ -13128,6 +13132,8 @@ async function pedEnviar(){
     err.textContent='No se pudo enviar ('+e.message+'). Probá de nuevo en un rato.';
     return;
   }
+  novRegistrar({mod:'pedidos', acc:'crear', que:'el pedido', titulo:'#'+n+' · '+pedCorto(quiere,80), ref:{tipo:'pedido', id:ref.id},
+    det:[{c:'Dónde', a:'', d:pedDondeTxt(donde)}, {c:'Tipo', a:'', d:(PED_TIPOS[f.tipo]||{}).lbl||f.tipo}]});
   mpCerrarModalGen(); _pedNuevo=null;
   presuSegAviso('✅ Pedido #'+n+' enviado. Lo podés seguir en "Pedidos al sistema".');
 }
@@ -13153,11 +13159,12 @@ function pedFiltrar(){
     if(q && !prodNorm(['#'+p.n, p.hoy, p.quiere, novNombre(p.quien), pedDondeTxt(p.donde), ...(p.historial||[]).map(h=>h.txt||'')].join(' ')).includes(q)) return false;
     return true;
   }).sort((a,b)=>{
-    if(_pedFiltro==='abiertos'){
+    if(_pedOrden==='viejos') return (a.ts||0)-(b.ts||0);
+    if(_pedOrden==='urgencia'){
       const ua=(PED_URG[a.urg]||{orden:9}).orden, ub=(PED_URG[b.urg]||{orden:9}).orden;
       if(ua!==ub) return ua-ub;
     }
-    return b.ts-a.ts;
+    return (b.ts||0)-(a.ts||0);
   });
 }
 function renderPedidos(){
@@ -13174,6 +13181,7 @@ function renderPedidos(){
       <select onchange="_pedMod=this.value;renderPedidos()" style="font-size:12px"><option value="">Todos los módulos</option>${mods.map(m=>`<option value="${escH(m)}" ${_pedMod===m?'selected':''}>${escH(PED_MODS[m]||m)}</option>`).join('')}</select>
       <select onchange="_pedPersona=this.value;renderPedidos()" style="font-size:12px"><option value="">Todas las personas</option>${personas.map(p=>`<option value="${escH(p)}" ${_pedPersona===p?'selected':''}>${escH(novNombre(p))}</option>`).join('')}</select>
       <select onchange="_pedUrg=this.value;renderPedidos()" style="font-size:12px"><option value="">Todas las urgencias</option>${Object.entries(PED_URG).map(([k,u])=>`<option value="${k}" ${_pedUrg===k?'selected':''}>${u.lbl}</option>`).join('')}</select>
+      <select onchange="pedSetOrden(this.value)" style="font-size:12px" title="Ordenar la lista">${Object.entries(PED_ORDENES).map(([k,t])=>`<option value="${k}" ${_pedOrden===k?'selected':''}>${t}</option>`).join('')}</select>
       <input type="text" placeholder="🔍 Buscar…" value="${escH(_pedQ)}" oninput="_pedQ=this.value;clearTimeout(window._pedQT);window._pedQT=setTimeout(renderPedidos,250)" style="font-size:12px;min-width:170px">
     </div>
   </div>`;
@@ -13279,7 +13287,12 @@ async function pedCambiarEstado(id, est){
   const extra={estado:est, resuelto:(est==='listo'||est==='no')?Date.now():null};
   if(est==='info') extra.estadoPrevio=p.estado==='info'?(p.estadoPrevio||'nuevo'):p.estado;
   const entrada={acc:'estado', de:p.estado, a:est}; if(txt) entrada.txt=txt;
-  try{ await pedNota(id, entrada, extra); if(ta) ta.value=''; }
+  try{
+    await pedNota(id, entrada, extra); if(ta) ta.value='';
+    const lbl=k=>{ const e=PED_ESTADOS[k]||{}; return ((e.icon||'')+' '+(e.lbl||k||'')).trim(); };
+    const det=[{c:'Estado', a:lbl(p.estado), d:lbl(est)}]; if(txt) det.push({c:'Comentario', a:'', d:pedCorto(txt,120)});
+    novRegistrar({mod:'pedidos', acc:'estado', que:'el pedido', titulo:'#'+(p.n||'?')+' · '+pedCorto(p.quiere||p.hoy||'',80), ref:{tipo:'pedido', id}, det});
+  }
   catch(e){ alert('No se pudo guardar: '+e.message); }
 }
 async function pedBorrar(id){
@@ -13289,6 +13302,9 @@ async function pedBorrar(id){
   try{
     await FB_COL_PED.doc(id).delete();
     if((p.fotos||[]).length) await FB_COL_PED_FOTOS.doc(id).delete().catch(()=>{});
+    const {_id, ...datos}=p;
+    novRegistrar({mod:'pedidos', acc:'borrar', que:'el pedido', titulo:'#'+(p.n||'?')+' · '+pedCorto(p.quiere||p.hoy||'',80),
+      copia:{col:'pedidos', id, data:{...datos, fotos:[]}}});
     mpCerrarModalGen(); _pedAbiertoId=null;
   }catch(e){ alert('No se pudo borrar: '+e.message); }
 }
@@ -13311,11 +13327,14 @@ const NOV_MODS={
   cotizacion:{lbl:'Cotización', icon:'🧾', presu:true},
   comanda:{lbl:'Fichas Técnicas', icon:'📋'},
   stock:{lbl:'Stock', icon:'📊'},
-  presupuestos:{lbl:'Presupuestos', icon:'🧮', presu:true}
+  presupuestos:{lbl:'Presupuestos', icon:'🧮', presu:true},
+  pedidos:{lbl:'Pedidos al sistema', icon:'💡'},
+  chat:{lbl:'Chat interno', icon:'💬'}
 };
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-18', t:'Pedidos al sistema: nuevo selector para <b>ordenar la lista</b> (más urgentes primero, más recientes primero o más viejos primero; cada compu recuerda el elegido). Novedades: ahora también muestra <b>💡 Pedidos al sistema</b> (pedidos nuevos, cambios de estado y borrados) y <b>💬 Chat interno</b> (mensajes borrados y fijados).'},
   {f:'2026-11-12', t:'Presupuestos: <b>Descorche</b> en Incluye; la <b>fecha de emisión</b> se pone sola con el día en que se ve o descarga el PDF; en <b>Cantidad de personas</b> se puede escribir un rango (ej. 15-20); al confirmar, la ficha técnica se llama <b>tipo de evento + cliente</b> (ej. CENA BECCAR VARELA); y con <b>un clic en el renglón</b> se abre el presupuesto.'},
   {f:'2026-11-12', t:'Chat interno: el chat General ahora se llama <b>MP Catering Interno</b> y lleva el logo. Los chats de eventos se ordenan por la fecha más próxima (arriba lo que viene antes) y la fecha se ve bien marcada, con «Hoy», «Mañana» o «En 3 días».'},
   {f:'2026-11-12', t:'Fichas Técnicas: nueva pestaña <b>🍽 Stock vajilla</b>, el maestro de la vajilla. Cada ítem lleva descripción / material, color y tamaño (juntos arman el nombre), el stock, y el área (Salón, Cocina / Producción, Barra, Ambientación) y el tipo (Cristalería, Cubertería, Vajilla, Fuentes, etc.). En <b>Vajilla salón</b> y <b>Armado vajilla</b> la vajilla ahora se elige de ese maestro (si falta algo, se agrega ahí mismo) y avisa en rojo si se pide más de lo que hay en stock. Con «⤓ Traer nombres de las fichas» se cargan de una vez los nombres que ya se venían usando.'},
@@ -13545,6 +13564,8 @@ function novIrRef(r){
     else if(r.tipo==='produccion'){ cambiarModulo('produccion'); switchTab('prod_eventos'); setTimeout(()=>prodAbrir(r.id),50); }
     else if(r.tipo==='cliente'){ cambiarModulo('comanda'); switchTab('comanda_clientes'); }
     else if(r.tipo==='stock'){ cambiarModulo('stock'); switchTab('stock_historial'); }
+    else if(r.tipo==='pedido'){ cambiarModulo('pedidos'); setTimeout(()=>pedAbrir(r.id),50); }
+    else if(r.tipo==='chat'){ chatIr(r.id); }
   }catch(e){ console.warn('Novedades: no se pudo abrir', e); }
 }
 
@@ -16857,13 +16878,20 @@ function chatPintarFijado(){
   el.innerHTML=`<div class="chat-fijado-c" onclick="chatIrMsg('${escH(f.id)}')"><span>📌</span><span class="chat-fijado-t"><b>${escH(novNombre(f.quien))}</b> ${escH(pedCorto(f.txt,140))}</span></div>
     <button type="button" class="chat-ico" title="Desfijar" onclick="chatDesfijar()">✕</button>`;
 }
+function chatNovNombre(id){ const c=chatInfo(id); return c&&c.nombre||(id==='general'?CHAT_GENERAL_NOMBRE:'chat'); }
 function chatFijar(m){
   FB_COL_CHAT_FIJ.doc(m.chat).set({id:m._id, txt:chatResumen(m), quien:m.quien, ts:m.ts, por:chatYo(), cuando:Date.now()})
+    .then(()=>novRegistrar({mod:'chat', acc:'editar', que:'el mensaje fijado de', titulo:chatNovNombre(m.chat), ref:{tipo:'chat', id:m.chat},
+      det:[{c:'📌 Fijado', a:'', d:novNombre(m.quien)+': '+pedCorto(chatResumen(m),100)}]}))
     .catch(e=>alert('No se pudo fijar: '+e.message));
 }
 function chatDesfijar(){
   if(!_chatAbierto) return;
-  FB_COL_CHAT_FIJ.doc(_chatAbierto).delete().catch(e=>alert('No se pudo desfijar: '+e.message));
+  const id=_chatAbierto, f=CHAT_FIJ[id];
+  FB_COL_CHAT_FIJ.doc(id).delete()
+    .then(()=>{ if(f) novRegistrar({mod:'chat', acc:'editar', que:'el mensaje fijado de', titulo:chatNovNombre(id), ref:{tipo:'chat', id},
+      det:[{c:'📌 Fijado', a:novNombre(f.quien)+': '+pedCorto(f.txt||'',100), d:'(desfijado)'}]}); })
+    .catch(e=>alert('No se pudo desfijar: '+e.message));
 }
 
 // Menú de cada mensaje
@@ -16899,6 +16927,8 @@ async function chatBorrar(m){
     await FB_COL_CHAT.doc(m._id).update({borrado:true, txt:'', adj:[], resp:null, atajo:null, menc:[], borradoTs:Date.now()});
     (m.adj||[]).forEach(a=>{ for(let i=0;i<(a.partes||1);i++) FB_COL_CHAT_ARCH.doc(a.id+'_'+i).delete().catch(()=>{}); });
     if(CHAT_FIJ[m.chat]&&CHAT_FIJ[m.chat].id===m._id) FB_COL_CHAT_FIJ.doc(m.chat).delete().catch(()=>{});
+    novRegistrar({mod:'chat', acc:'borrar', que:'un mensaje de', titulo:chatNovNombre(m.chat), ref:{tipo:'chat', id:m.chat},
+      det:[{c:'Mensaje de '+novNombre(m.quien), a:pedCorto(chatResumen(m),100), d:'(borrado)'}]});
   }catch(e){ alert('No se pudo borrar: '+e.message); }
 }
 
