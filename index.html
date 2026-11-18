@@ -914,6 +914,7 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
 .chat-conv-tit{flex:1;min-width:0}
 .chat-conv-nom{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chat-conv-sub{font-size:12.5px;color:#667781;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-chat-badge{position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#25d366;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;box-sizing:border-box}
 .chat-btn-ficha{border:1px solid #d1d7db;background:#fff;border-radius:18px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;color:#5c2d6e;flex-shrink:0;font-family:inherit}
 .chat-btn-ficha:hover{background:#f5eefa}
 .chat-atajos{display:flex;gap:6px;overflow-x:auto;padding:7px 12px;background:#f7f8fa;border-bottom:1px solid #e9edef;scrollbar-width:none}
@@ -1717,6 +1718,7 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="exportarEventoPDF()">📄 PDF Completo</button>
         <button class="btn btn-outline" style="color:var(--mp-mid);border-color:rgba(92,45,110,.4)" onclick="exportarPestañaPDF()">📄 PDF Pestaña</button>
+        <button class="btn btn-outline ev-btn-chat" style="color:#1f8a5b;border-color:rgba(31,138,91,.45);position:relative" onclick="evIrAlChat()" title="Abrir el chat de este evento">💬 Chat<span id="ev-chat-badge" class="ev-chat-badge" style="display:none"></span></button>
         <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModalEvento()">✕ Cerrar</button>
       </div>
       <div style="font-size:10px;color:var(--text3);margin-top:6px;white-space:nowrap">🔴 Fondo rojo = campo editable vacío &nbsp;&nbsp;|&nbsp;&nbsp; 🟣 Fondo violeta = campo que se edita desde otra solapa o desde el Maestro de Clientes</div>
@@ -8453,7 +8455,7 @@ const COMANDA_TEMPLATE = [
     campos: [
       {tipo:'titulo', label:'ARMADO VAJILLA'},
       {tipo:'info', label:'La columna Menú se completa sola desde el menú del evento (Ficha Técnica). La Vajilla se elige del maestro Stock vajilla (avisa si se pide más de lo que hay).'},
-      {tipo:'tabla_armado_vajilla', key:'armado_vajilla', cols:['Menú','Cantidad','Vajilla','Cantidad']}
+      {tipo:'tabla_armado_vajilla', key:'armado_vajilla', cols:['Menú','Vajilla','Cantidad']}
     ]
   },
   {
@@ -9231,6 +9233,7 @@ function abrirEvento(periodoId, eventoId){
   // los campos autocompletados por si sus datos cambiaron desde la última vez.
   if(sincronizarClienteConMaestro(ev)) guardarEventoActual();
   document.getElementById('modal-evento-titulo').textContent='📋 '+ev.nombre;
+  evChatBadgePintar();
   // Construir tabs
   const tabsEl = document.getElementById('evento-sheet-tabs');
   tabsEl.innerHTML = COMANDA_TEMPLATE.map((s,i)=>
@@ -9869,7 +9872,7 @@ function renderEventoSheet(ev, sheetIdx){
         .filter(s=>s.filas.length);
       // Vajilla: se elige del maestro Stock vajilla (cada renglón guarda su id).
       const vMapa=vajMapaNombres();
-      Object.values(estado).forEach(r=>{ if(r&&typeof r==='object') vajVincular(r,'vajilla',vMapa); });
+      Object.values(estado).forEach(r=>{ if(r&&typeof r==='object'){ vajVincular(r,'vajilla',vMapa); vajArmadoUnirCant(r); } });
       const vTot=vajTotales(datos,key,'armado');
       const wrapId='wrap_'+key;
       html+=`<div style="margin-bottom:16px">`;
@@ -9888,8 +9891,8 @@ function renderEventoSheet(ev, sheetIdx){
           html+=`<div data-sec-block="${escH(nombre)}" style="margin-bottom:16px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:rgba(200,169,81,.04)">
             <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:8px">${escH(nombre)}</div>
             <div class="tw" style="overflow-x:auto"><table style="min-width:640px;width:100%;table-layout:fixed">
-              <colgroup><col style="width:34%"><col style="width:14%"><col style="width:34%"><col style="width:18%"></colgroup>
-              <thead><tr>${c.cols.map((col,ci)=>`<th style="font-size:11px;padding:4px 5px;text-align:${ci%2===0?'left':'center'}">${escH(col)}</th>`).join('')}</tr></thead>
+              <colgroup><col style="width:40%"><col style="width:40%"><col style="width:20%"></colgroup>
+              <thead><tr>${c.cols.map((col,ci)=>`<th style="font-size:11px;padding:4px 5px;text-align:${ci===c.cols.length-1?'center':'left'}">${escH(col)}</th>`).join('')}</tr></thead>
               <tbody>`;
           filas.forEach(({nombre:nombrePlato,filaIdx})=>{
             const itemKey=nombre+'::'+nombrePlato;
@@ -9897,9 +9900,6 @@ function renderEventoSheet(ev, sheetIdx){
             const vx=vajPorId(row.vid);
             html+=`<tr>
               <td style="padding:4px 5px;font-size:12px;color:var(--text)">${escH(nombrePlato)}</td>
-              <td style="padding:2px 2px"><input type="number" value="${escH(String(row.cantidad_porciones||''))}"
-                style="width:100%;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
-                oninput="updateArmadoVajillaCampo('${key}',${secIdx},${filaIdx},'cantidad_porciones',this.value)"></td>
               <td style="padding:2px 2px">${vajInputHtml(vx,row.vajilla,'armado',key,secIdx,filaIdx)}</td>
               <td style="padding:2px 2px"><input type="number" value="${escH(String(row.cantidad_vajilla||''))}"
                 style="width:100%;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
@@ -10864,7 +10864,7 @@ function removeChecklistVajillaItem(key, secIdx, itemIdx){
 const VAJ_STOCK_DOC=fbDb.collection('mp_data').doc('vajilla_stock');
 const VAJ_AREAS={salon:'Salón', cocina:'Cocina / Producción', barra:'Barra', ambientacion:'Ambientación'};
 const VAJ_TIPOS={cristaleria:'Cristalería', cuberteria:'Cubertería', vajilla:'Vajilla (platos, tazas, bowls)', fuentes:'Fuentes y bandejas',
-  maderas:'Maderas, lajas y alturas', utensilios:'Utensilios', equipamiento:'Equipamiento', manteleria:'Mantelería', otros:'Otros'};
+  maderas:'Maderas, lajas y alturas', utensilios:'Utensilios', equipamiento:'Equipamiento', manteleria:'Mantelería', ambientacion:'Ambientación', otros:'Otros'};
 const NOV_CAMPOS_VAJ={material:'Descripción / material', color:'Color', tamano:'Tamaño', area:'Área', tipo:'Tipo', stock:'Stock'};
 let VAJ_STOCK={}, _vajStockUnsub=null, _vajStockCargado=false, _vajTimers={}, _vajBase={}, _vajAliasHecho=new Set();
 function iniciarListenerVajStock(){
@@ -10911,6 +10911,14 @@ function vajAvisoHtml(id, x, total){
   const falta=st!=null && total>st;
   return `<div class="vaj-falta" id="${id}"${falta?` title="Se piden ${total} y en stock hay ${st}"`:''}>${falta?'⚠ Hay '+st:''}</div>`;
 }
+// Armado vajilla tenía dos columnas de cantidad (porciones y vajilla); quedó una sola
+// (cantidad_vajilla). Si la de vajilla está vacía y la otra tiene dato, se pasa;
+// si las dos tienen dato, la de porciones queda guardada (sin mostrarse), no se borra.
+function vajArmadoUnirCant(r){
+  if(!r || typeof r!=='object') return;
+  const v=String(r.cantidad_vajilla==null?'':r.cantidad_vajilla).trim(), p=String(r.cantidad_porciones==null?'':r.cantidad_porciones).trim();
+  if(!v && p){ r.cantidad_vajilla=r.cantidad_porciones; r.cantidad_porciones=''; }
+}
 // Renglones de Armado vajilla del evento (mismo armado que la pantalla).
 function vajArmadoFilas(datos, key){
   const estado=datos[key]&&typeof datos[key]==='object'&&!Array.isArray(datos[key])?datos[key]:{};
@@ -10919,6 +10927,7 @@ function vajArmadoFilas(datos, key){
   secs.forEach((sec,secIdx)=>(sec.filas||[]).forEach((f,filaIdx)=>{
     const p=Array.isArray(f)?String(f[0]||'').trim():''; if(!p) return;
     const row=estado[(sec.nombre||'Sin sección')+'::'+p];
+    vajArmadoUnirCant(row);
     out.push({secIdx, filaIdx, row});
   }));
   return out;
@@ -11393,11 +11402,12 @@ function buildValueItems(ev, item){
       rows.push({__seccion:nombreSec});
       platos.forEach(p=>{
         const r=estado[nombreSec+'::'+p]||{};
-        rows.push([p, r.cantidad_porciones||'', r.vajilla||'', r.cantidad_vajilla||'']);
+        const cant=String(r.cantidad_vajilla==null?'':r.cantidad_vajilla).trim()||r.cantidad_porciones||'';
+        rows.push([p, r.vajilla||'', cant]);
       });
     });
     // Se dibuja como tabla_menu para que la columna Menú salga más ancha.
-    return rows.length ? [{label:item.label||'', value:rows, type:'tabla_menu', cols:item.cols || []}] : [];
+    return rows.length ? [{label:item.label||'', value:rows, type:'tabla_menu', cols:['Menú','Vajilla','Cantidad']}] : [];
   }
   if(item.tipo==='tabla_libre'||item.tipo==='tabla_menu'||item.tipo==='tabla_timing'||item.tipo==='tabla_bebidas'||item.tipo==='tabla_checks'||item.tipo==='tabla_evaluacion'||item.tipo==='tabla_personal'||item.tipo==='tabla_dietas'){
     const rows=Array.isArray(ev.datos?.[item.key]) ? ev.datos[item.key] : [];
@@ -13334,6 +13344,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-18', t:'Fichas Técnicas: <b>Armado vajilla</b> queda con una sola columna de cantidad (Menú · Vajilla · Cantidad); lo que estaba en la columna que se sacó pasó a la que queda. En la ficha de cada evento hay un botón <b>💬 Chat</b> (con los mensajes sin leer) que abre el chat del evento, y desde el chat «📋 Ficha» vuelve a la ficha. En Stock vajilla se agregó el tipo <b>Ambientación</b>.'},
   {f:'2026-11-18', t:'Pedidos al sistema: nuevo selector para <b>ordenar la lista</b> (más urgentes primero, más recientes primero o más viejos primero; cada compu recuerda el elegido). Novedades: ahora también muestra <b>💡 Pedidos al sistema</b> (pedidos nuevos, cambios de estado y borrados) y <b>💬 Chat interno</b> (mensajes borrados y fijados).'},
   {f:'2026-11-12', t:'Presupuestos: <b>Descorche</b> en Incluye; la <b>fecha de emisión</b> se pone sola con el día en que se ve o descarga el PDF; en <b>Cantidad de personas</b> se puede escribir un rango (ej. 15-20); al confirmar, la ficha técnica se llama <b>tipo de evento + cliente</b> (ej. CENA BECCAR VARELA); y con <b>un clic en el renglón</b> se abre el presupuesto.'},
   {f:'2026-11-12', t:'Chat interno: el chat General ahora se llama <b>MP Catering Interno</b> y lleva el logo. Los chats de eventos se ordenan por la fecha más próxima (arriba lo que viene antes) y la fecha se ve bien marcada, con «Hoy», «Mañana» o «En 3 días».'},
@@ -16493,6 +16504,7 @@ function chatPintarBadge(){
   let n=0;
   ['general', ...chatEventos().map(c=>c.id)].forEach(id=>{ n+=chatNoLeidos(id).length; });
   document.querySelectorAll('.chat-badge').forEach(el=>{ el.textContent=n>99?'99+':n; el.style.display=n?'':'none'; });
+  evChatBadgePintar();
 }
 function iniciarListenerChat(){
   if(_chatUnsubs.length) return;
@@ -16737,6 +16749,17 @@ function chatRenderHeader(info){
   if(info.general){ at.style.display='none'; at.innerHTML=''; return; }
   at.style.display='';
   at.innerHTML=COMANDA_TEMPLATE.map((s,i)=>`<button type="button" class="chat-atajo" onclick="chatAbrirFicha('${escH(info.evId)}',${i})">${escH(s.nombre.charAt(0)+s.nombre.slice(1).toLowerCase())}</button>`).join('');
+}
+// Desde la ficha técnica abierta: ir al chat de ese evento (y desde el chat, «📋 Ficha» vuelve).
+function evIrAlChat(){
+  const eId=comandaEventoActual; if(!eId) return;
+  cerrarModalEvento();
+  chatIr('ev_'+eId);
+}
+function evChatBadgePintar(){
+  const el=document.getElementById('ev-chat-badge'); if(!el) return;
+  let n=0; try{ n=comandaEventoActual?chatNoLeidos('ev_'+comandaEventoActual).length:0; }catch(e){}
+  el.textContent=n>99?'99+':n; el.style.display=n?'':'none';
 }
 function chatAbrirFicha(evId, hoja){
   const r=chatBuscarEv(evId);
