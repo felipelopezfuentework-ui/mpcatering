@@ -914,6 +914,17 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
 .chat-conv-tit{flex:1;min-width:0}
 .chat-conv-nom{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chat-conv-sub{font-size:12.5px;color:#667781;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.imp-num{width:86px;text-align:right;padding:3px 6px;font-size:12px}
+.com-fotos{margin-top:10px;border-top:1px dashed var(--border);padding-top:8px}
+.com-fotos-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;font-weight:600;color:var(--text2)}
+.com-fotos-btn{font-size:11px;padding:3px 10px;cursor:pointer;font-weight:500}
+.com-fotos-est{font-size:11px;color:var(--text3);font-weight:400}
+.com-fotos-grid{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.com-foto{position:relative;width:140px}
+.com-foto img{display:block;width:140px;height:105px;object-fit:cover;border-radius:6px;cursor:zoom-in;border:1px solid var(--border)}
+.com-foto input{width:100%;box-sizing:border-box;margin-top:4px;font-size:11px;padding:3px 5px}
+.com-foto-x{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:11px;cursor:pointer;line-height:22px;padding:0}
+.vaj-cant-auto{color:var(--text3)!important;font-style:italic}
 .ev-chat-badge{position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#25d366;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;box-sizing:border-box}
 .chat-btn-ficha{border:1px solid #d1d7db;background:#fff;border-radius:18px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;color:#5c2d6e;flex-shrink:0;font-family:inherit}
 .chat-btn-ficha:hover{background:#f5eefa}
@@ -6363,20 +6374,22 @@ function renderImportPreview(){
         <span>📝 Nota del chef: ${rec.nota_chef?'<span style="color:var(--green)">sí</span>':'<span style="opacity:.7">no</span>'}</span>
       </div>
       <div class="tw" style="overflow-x:auto"><table style="min-width:500px">
-        <thead><tr><th>Ingrediente</th><th class="num">Cantidad (kg)</th><th class="num">% Merma</th><th class="num">Quedan (kg)</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Ingrediente</th><th class="num">Cantidad (kg)</th><th class="num">% Merma</th><th class="num">Quedan (kg)</th><th>Estado</th><th></th></tr></thead>
         <tbody>${rec.ingredientes.map((ing,ii)=>`<tr>
-          <td>${escH(ing.nombreExcel)}</td>
-          <td class="num">${fmtN(ing.peso,4)}</td>
-          <td class="num">${ing.merma?fmtN(ing.merma,1)+'%':'—'}</td>
-          <td class="num">${fmtN(kgQuedanIng(ing.peso,ing.merma),4)}</td>
-          <td>${ing.matched?'<span style="color:var(--green)">✅ Encontrado'+(ing.resuelto?' (elegido)':'')+'</span>':`
+          <td>${ing.nombreExcel?escH(ing.nombreExcel):'<em style="color:var(--text3)">Nuevo ingrediente</em>'}${ing.matched&&ing.comp?`<div style="font-size:10px;color:var(--text3)">→ ${escH(String(ing.comp).replace(/^INSUMO - /,''))}</div>`:''}</td>
+          <td class="num"><input type="number" step="0.001" min="0" class="imp-num" value="${ing.peso||ing.peso===0?ing.peso:''}" oninput="impSetIng(${idx},${ii},'peso',this.value)"></td>
+          <td class="num"><input type="number" step="0.1" min="0" max="99" class="imp-num" value="${ing.merma?ing.merma:''}" placeholder="0" oninput="impSetIng(${idx},${ii},'merma',this.value)"></td>
+          <td class="num" id="imp-q-${idx}-${ii}">${fmtN(kgQuedanIng(ing.peso,ing.merma),4)}</td>
+          <td>${ing.matched?'<span style="color:var(--green)">✅ Encontrado'+(ing.resuelto?' (elegido)':'')+'</span> <button class="btn btn-outline" style="font-size:10px;padding:2px 6px;margin-left:4px" onclick="impCambiarIng('+idx+','+ii+')" title="Elegir otro insumo">Cambiar</button>':`
             <div style="display:flex;flex-direction:column;gap:4px;min-width:210px">
               <span style="color:var(--red)">❌ No encontrado (se carga como texto)</span>
               <input type="text" class="dd-input" id="imp-dd-${idx}-${ii}" placeholder="🔍 Buscar insumo…" autocomplete="off" style="width:100%">
               <button class="btn btn-outline" style="font-size:10px;padding:3px 7px;align-self:flex-start" onclick="abrirAltaInsumoDesdeImport(${idx},${ii})">➕ Agregar insumo</button>
             </div>`}</td>
+          <td><button class="btn btn-danger" style="padding:2px 6px;font-size:10px" onclick="impQuitarIng(${idx},${ii})" title="Sacar este ingrediente">🗑</button></td>
         </tr>`).join('')}</tbody>
       </table></div>
+      <button class="btn btn-outline" style="margin-top:6px;font-size:11px" onclick="impAgregarIng(${idx})">+ Agregar ingrediente</button>
       ${rec.nota_chef?`<div style="margin-top:8px;font-size:11px;color:var(--text3)"><strong>Nota del chef:</strong> ${escH(rec.nota_chef)}</div>`:''}
     </div>`;
   }).join('');
@@ -6389,7 +6402,7 @@ function renderImportPreview(){
       const inp=document.getElementById('imp-dd-'+ri+'-'+ii);
       if(!inp)return;
       attachDD(inp,
-        ()=>DB.insumos.map(i=>({val:String(i._id),label:i.nombre})),
+        ()=>DB.insumos.map(i=>({val:String(i._id),label:i.nombre})).concat(rec.tipo!=='sub'?(DB.maestro_subs||[]).map(n=>({val:'sub:'+n,label:'🧩 '+n})):[]),
         ()=>'',
         val=>resolverIngredienteMapeo(ri,ii,val)
       );
@@ -6443,6 +6456,41 @@ function actualizarBtnConfirmarImport(){
 }
 
 function impSetNombre(idx,v){importRecetas[idx].nombre=v;actualizarBtnConfirmarImport();}
+// Edición de ingredientes en la revisión del Excel (sin redibujar, para no perder el foco).
+function impRecalcularTotal(rec){
+  rec.totalKg=rec.ingredientes.reduce((s,x)=>s+kgQuedanIng(x.peso,x.merma),0);
+  if((parseFloat(rec.porciones)||0)>0 && rec.totalKg>0) rec.pesoPorcionG=Math.round(rec.totalKg/rec.porciones*1000*100)/100;
+}
+function impSetIng(idx,ii,campo,v){
+  const rec=importRecetas[idx], ing=rec&&rec.ingredientes[ii]; if(!ing) return;
+  let n=parseFloat(String(v).replace(',','.')); if(!(n>=0)) n=0;
+  if(campo==='merma') n=Math.min(n,99);
+  ing[campo]=n;
+  impRecalcularTotal(rec);
+  const q=document.getElementById('imp-q-'+idx+'-'+ii); if(q) q.textContent=fmtN(kgQuedanIng(ing.peso,ing.merma),4);
+  const pe=document.getElementById('imp-peso-'+idx); if(pe && document.activeElement!==pe) pe.value=rec.pesoPorcionG||'';
+  actualizarBtnConfirmarImport();
+}
+function impQuitarIng(idx,ii){
+  const rec=importRecetas[idx]; if(!rec) return;
+  const ing=rec.ingredientes[ii];
+  if(!confirm('¿Sacar «'+((ing&&ing.nombreExcel)||'este ingrediente')+'» de la receta?')) return;
+  rec.ingredientes.splice(ii,1);
+  impRecalcularTotal(rec);
+  renderImportPreview();
+}
+function impAgregarIng(idx){
+  const rec=importRecetas[idx]; if(!rec) return;
+  rec.ingredientes.push({nombreExcel:'', peso:0, rinde:null, merma:0, comp:'', matched:false, candidatos:[], needsResolution:false, fallbackComp:''});
+  renderImportPreview();
+  setTimeout(()=>{ const inp=document.getElementById('imp-dd-'+idx+'-'+(rec.ingredientes.length-1)); if(inp) inp.focus(); },30);
+}
+function impCambiarIng(idx,ii){
+  const ing=importRecetas[idx]?.ingredientes[ii]; if(!ing) return;
+  ing.matched=false; ing.resuelto=false; ing.comp=ing.fallbackComp||'';
+  renderImportPreview();
+  setTimeout(()=>{ const inp=document.getElementById('imp-dd-'+idx+'-'+ii); if(inp) inp.focus(); },30);
+}
 function impSetPeso(idx,v){
   const rec=importRecetas[idx];
   rec.pesoPorcionG=parseFloat(v)||0;
@@ -6472,8 +6520,14 @@ function abrirAltaInsumoDesdeImport(ri,ii){
 
 function resolverIngredienteMapeo(ri,ii,insumoId){
   const ing=importRecetas[ri]?.ingredientes[ii];
+  if(ing&&String(insumoId).startsWith('sub:')){
+    ing.comp=String(insumoId).slice(4); ing.matched=true; ing.resuelto=true;
+    if(!ing.nombreExcel) ing.nombreExcel=ing.comp.replace(/^SUB - /,'');
+    renderImportPreview(); return;
+  }
   const insumo=DB.insumos.find(x=>x._id===parseInt(insumoId,10));
   if(!ing||!insumo)return;
+  if(!ing.nombreExcel) ing.nombreExcel=insumo.nombre;
   ing.comp=insumo.key;
   ing.matched=true;
   ing.resuelto=true;
@@ -8454,7 +8508,7 @@ const COMANDA_TEMPLATE = [
     nombre: 'ARMADO VAJILLA',
     campos: [
       {tipo:'titulo', label:'ARMADO VAJILLA'},
-      {tipo:'info', label:'La columna Menú se completa sola desde el menú del evento (Ficha Técnica). La Vajilla se elige del maestro Stock vajilla (avisa si se pide más de lo que hay).'},
+      {tipo:'info', label:'La columna Menú se completa sola desde el menú del evento (Ficha Técnica) y la Cantidad trae sola las Unidades de cada plato de la Comanda (en gris; si escribís otro número, queda el tuyo). La Vajilla se elige del maestro Stock vajilla (avisa si se pide más de lo que hay).'},
       {tipo:'tabla_armado_vajilla', key:'armado_vajilla', cols:['Menú','Vajilla','Cantidad']}
     ]
   },
@@ -9234,6 +9288,7 @@ function abrirEvento(periodoId, eventoId){
   if(sincronizarClienteConMaestro(ev)) guardarEventoActual();
   document.getElementById('modal-evento-titulo').textContent='📋 '+ev.nombre;
   evChatBadgePintar();
+  delete _comFotos[eventoId];
   // Construir tabs
   const tabsEl = document.getElementById('evento-sheet-tabs');
   tabsEl.innerHTML = COMANDA_TEMPLATE.map((s,i)=>
@@ -9867,7 +9922,7 @@ function renderEventoSheet(ev, sheetIdx){
       const seccionesConItems = seccionesMenu
         .map((sec,secIdx)=>({
           nombre: sec.nombre||'Sin sección', secIdx,
-          filas:(sec.filas||[]).map((f,filaIdx)=>({nombre:Array.isArray(f)?String(f[0]||'').trim():'', filaIdx})).filter(x=>x.nombre)
+          filas:(sec.filas||[]).map((f,filaIdx)=>({nombre:Array.isArray(f)?String(f[0]||'').trim():'', unid:Array.isArray(f)?String(f[1]==null?'':f[1]).trim():'', filaIdx})).filter(x=>x.nombre)
         }))
         .filter(s=>s.filas.length);
       // Vajilla: se elige del maestro Stock vajilla (cada renglón guarda su id).
@@ -9894,16 +9949,18 @@ function renderEventoSheet(ev, sheetIdx){
               <colgroup><col style="width:40%"><col style="width:40%"><col style="width:20%"></colgroup>
               <thead><tr>${c.cols.map((col,ci)=>`<th style="font-size:11px;padding:4px 5px;text-align:${ci===c.cols.length-1?'center':'left'}">${escH(col)}</th>`).join('')}</tr></thead>
               <tbody>`;
-          filas.forEach(({nombre:nombrePlato,filaIdx})=>{
+          filas.forEach(({nombre:nombrePlato,unid,filaIdx})=>{
             const itemKey=nombre+'::'+nombrePlato;
             const row=estado[itemKey]||{cantidad_porciones:'',vajilla:'',cantidad_vajilla:''};
             const vx=vajPorId(row.vid);
             html+=`<tr>
               <td style="padding:4px 5px;font-size:12px;color:var(--text)">${escH(nombrePlato)}</td>
               <td style="padding:2px 2px">${vajInputHtml(vx,row.vajilla,'armado',key,secIdx,filaIdx)}</td>
-              <td style="padding:2px 2px"><input type="number" value="${escH(String(row.cantidad_vajilla||''))}"
+              ${(()=>{ const man=String(row.cantidad_vajilla==null?'':row.cantidad_vajilla).trim(), auto=!man&&!!unid;
+                return `<td style="padding:2px 2px"><input type="number" value="${escH(man||unid)}" placeholder="${escH(unid)}" class="${auto?'vaj-cant-auto':''}"
+                title="${unid?'Sale sola de las Unidades de la Comanda ('+escH(unid)+'). Si escribís otro número, queda el tuyo; si lo borrás, vuelve a la de la Comanda.':''}"
                 style="width:100%;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:3px 5px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"
-                oninput="updateArmadoVajillaCampo('${key}',${secIdx},${filaIdx},'cantidad_vajilla',this.value);vajAvisosPintar('${key}','armado')">${vajAvisoHtml(`vaj-av-${key}-${secIdx}-${filaIdx}`,vx,vx?(vTot[vx._id]||0):0)}</td>
+                oninput="this.classList.remove('vaj-cant-auto');updateArmadoVajillaCampo('${key}',${secIdx},${filaIdx},'cantidad_vajilla',this.value);vajAvisosPintar('${key}','armado')">`; })()}${vajAvisoHtml(`vaj-av-${key}-${secIdx}-${filaIdx}`,vx,vx?(vTot[vx._id]||0):0)}</td>
             </tr>`;
           });
           html+=`</tbody></table></div>`;
@@ -10499,8 +10556,10 @@ function htmlTablaMenuSecciones(c, datos){
   h += `<button class="btn btn-primary" style="font-size:11px" onclick="agregarSeccionMenu('${key}')">＋ Agregar sección</button>`;
   h += `</div>`;
 
+  if(key==='com_menu') comFotosCargar(comandaEventoActual);
   if(!secciones.length){
     h += htmlTablaMenuPlana(c, datos);
+    if(key==='com_menu') h += comFotosHtml('__menu__', 'com-fotos-flat');
     h += `</div>`;
     return h;
   }
@@ -10543,6 +10602,7 @@ function htmlTablaMenuSecciones(c, datos){
     });
     h += `</tbody></table></div>`;
     h += `<button class="btn btn-outline" style="margin-top:6px;font-size:11px" onclick="addFilaSeccion('${key}',${secIdx},${c.cols.length})">+ Agregar fila</button>`;
+    if(key==='com_menu') h += comFotosHtml(sec.nombre||'', 'com-fotos-'+secIdx);
     h += `</div>`;
   });
   h += `</div>`;
@@ -10590,8 +10650,10 @@ function eliminarSeccionMenu(key, secIdx){
   const sec = secciones?.[secIdx];
   if(!sec) return;
   const nombre = (sec.nombre||'').trim() || `Sección ${secIdx+1}`;
-  if(!confirm(`¿Eliminar la sección "${nombre}" y sus ${(sec.filas||[]).length} fila(s)?`)) return;
+  const nFotos=key==='com_menu'&&Array.isArray(_comFotos[ev.id])?_comFotos[ev.id].filter(f=>f.sec===(sec.nombre||'')).length:0;
+  if(!confirm(`¿Eliminar la sección "${nombre}" y sus ${(sec.filas||[]).length} fila(s)${nFotos?' y '+nFotos+' foto(s)':''}?`)) return;
   secciones.splice(secIdx,1);
+  if(key==='com_menu') comFotosBorrarSeccion(ev, sec.nombre||'', secciones);
   renderEventoSheet(ev, comandaSheetActual);
   guardarEventoActual();
 }
@@ -10604,7 +10666,106 @@ function renombrarSeccionMenu(key, secIdx, nuevoNombre){
   if(!ev) return;
   const sec = ev.datos[key+'_secciones']?.[secIdx];
   if(!sec) return;
+  const viejo = sec.nombre||'';
   sec.nombre = nuevoNombre;
+  if(key==='com_menu') comFotosRenombrar(ev.id, viejo, nuevoNombre||'', 'com-fotos-'+secIdx);
+}
+
+// ── Comanda: fotos como observación de cada sección del menú ──
+// Colección comanda_fotos (doc por foto: ev, per, sec = nombre de la sección
+// o '__menu__' si el menú no tiene secciones, img, cap, ts, quien). Fuera del
+// doc del evento para no pasar el máximo de 1 MiB.
+let _comFotos={}, _comFotosT={};
+function comFotosCol(){ return fbDb.collection('comanda_fotos'); }
+function comFotosCargar(evId){
+  if(!evId || _comFotos[evId]) return;
+  _comFotos[evId]='cargando';
+  comFotosCol().where('ev','==',evId).get().then(snap=>{
+    _comFotos[evId]=snap.docs.map(d=>({...d.data(), _id:d.id})).sort((a,b)=>(a.ts||0)-(b.ts||0));
+    comFotosPintar(evId);
+  }).catch(e=>{ console.warn('Comanda: no se pudieron traer las fotos', e); _comFotos[evId]=[]; comFotosPintar(evId); });
+}
+function comFotosHtml(sec, id){
+  return `<div class="com-fotos" id="${id}" data-sec="${escH(sec)}">${comFotosInner(comandaEventoActual, sec)}</div>`;
+}
+function comFotosInner(evId, sec){
+  const todas=_comFotos[evId], lista=Array.isArray(todas)?todas.filter(f=>f.sec===sec):[];
+  const fotos=lista.map(f=>`<div class="com-foto">
+      <img src="${f.img}" alt="" onclick="comFotoVer('${f._id}')" title="Clic para agrandar">
+      <input type="text" value="${escH(f.cap||'')}" placeholder="Observación…" onchange="comFotoCap('${f._id}',this.value)">
+      <button type="button" class="com-foto-x" onclick="comFotoBorrar('${f._id}')" title="Borrar foto">✕</button>
+    </div>`).join('');
+  return `<div class="com-fotos-hd">📷 Fotos / observaciones${lista.length?' ('+lista.length+')':''}
+      <label class="btn btn-outline com-fotos-btn">＋ Agregar foto<input type="file" accept="image/*,.heic,.heif" multiple style="display:none" onchange="comFotosSubir(this)"></label>
+      ${todas==='cargando'?'<span class="com-fotos-est">Cargando…</span>':''}</div>
+    ${fotos?`<div class="com-fotos-grid">${fotos}</div>`:''}`;
+}
+function comFotosPintar(evId){
+  if(evId!==comandaEventoActual) return;
+  document.querySelectorAll('#modal-evento-detalle .com-fotos').forEach(el=>{ el.innerHTML=comFotosInner(evId, el.dataset.sec); });
+}
+function comFotosEvento(){ return DB.comanda.eventos[comandaPeriodoActual]?.find(e=>e.id===comandaEventoActual); }
+function comFotosNovedad(ev, sec, txt){
+  novRegistrar({mod:'comanda', acc:'editar', que:'el evento', titulo:ev.nombre||'', ref:{tipo:'evento', per:comandaPeriodoActual, id:ev.id},
+    det:[{c:'📷 Fotos'+(sec&&sec!=='__menu__'?' · '+sec:''), a:'', d:txt}]});
+}
+async function comFotosSubir(inp){
+  const box=inp.closest('.com-fotos'), ev=comFotosEvento();
+  const files=[...(inp.files||[])]; inp.value='';
+  if(!box || !ev || !files.length) return;
+  const sec=box.dataset.sec||'', evId=ev.id;
+  if(!Array.isArray(_comFotos[evId])) _comFotos[evId]=[];
+  const est=document.createElement('span'); est.className='com-fotos-est'; box.querySelector('.com-fotos-hd').appendChild(est);
+  let ok=0;
+  for(let i=0;i<files.length;i++){
+    est.textContent='Subiendo '+(i+1)+' de '+files.length+'…';
+    try{
+      const img=await pedArchivoAJpeg(files[i]);
+      const ref=comFotosCol().doc(), doc={ev:evId, per:comandaPeriodoActual, sec, img, cap:'', ts:Date.now(), quien:novMail()};
+      await ref.set(doc);
+      _comFotos[evId].push({...doc, _id:ref.id}); ok++;
+    }catch(e){ console.warn('Comanda: foto', e); alert('No se pudo subir «'+files[i].name+'» ('+e.message+').'); }
+  }
+  comFotosPintar(evId);
+  if(ok) comFotosNovedad(ev, sec, ok===1?'1 foto agregada':ok+' fotos agregadas');
+}
+function comFotoBuscar(id){ const l=_comFotos[comandaEventoActual]; return Array.isArray(l)?l.find(f=>f._id===id):null; }
+function comFotoVer(id){
+  const f=comFotoBuscar(id); if(!f) return;
+  mpModalGen('📷 '+(f.sec&&f.sec!=='__menu__'?f.sec:'Menú del evento'), `<img src="${f.img}" alt="" style="display:block;max-width:100%;max-height:74vh;margin:0 auto;border-radius:8px">${f.cap?`<div style="margin-top:10px;font-size:13px;text-align:center">${escH(f.cap)}</div>`:''}`, 1000);
+}
+function comFotoCap(id, v){
+  const f=comFotoBuscar(id); if(!f) return;
+  f.cap=v;
+  comFotosCol().doc(id).update({cap:v}).catch(e=>alert('No se pudo guardar la observación: '+e.message));
+}
+async function comFotoBorrar(id){
+  const f=comFotoBuscar(id), ev=comFotosEvento(); if(!f) return;
+  if(!confirm('¿Borrar esta foto?')) return;
+  try{
+    await comFotosCol().doc(id).delete();
+    _comFotos[comandaEventoActual]=_comFotos[comandaEventoActual].filter(x=>x._id!==id);
+    comFotosPintar(comandaEventoActual);
+    if(ev) comFotosNovedad(ev, f.sec, '1 foto borrada');
+  }catch(e){ alert('No se pudo borrar: '+e.message); }
+}
+// Al renombrar la sección, sus fotos la siguen (se guarda 1 s después de dejar de escribir).
+function comFotosRenombrar(evId, viejo, nuevo, boxId){
+  const box=document.getElementById(boxId); if(box) box.dataset.sec=nuevo;
+  const l=_comFotos[evId]; if(!Array.isArray(l)) return;
+  l.filter(f=>f.sec===viejo).forEach(f=>{
+    f.sec=nuevo;
+    clearTimeout(_comFotosT[f._id]);
+    _comFotosT[f._id]=setTimeout(()=>comFotosCol().doc(f._id).update({sec:f.sec}).catch(e=>console.warn('Comanda: renombrar foto', e)), 1000);
+  });
+}
+// Al eliminar una sección, se borran sus fotos (si no queda otra sección con el mismo nombre).
+function comFotosBorrarSeccion(ev, nombre, secciones){
+  const l=_comFotos[ev.id]; if(!Array.isArray(l)) return;
+  if((secciones||[]).some(x=>(x.nombre||'')===nombre)) return;
+  const fuera=l.filter(f=>f.sec===nombre); if(!fuera.length) return;
+  _comFotos[ev.id]=l.filter(f=>f.sec!==nombre);
+  fuera.forEach(f=>comFotosCol().doc(f._id).delete().catch(e=>console.warn('Comanda: borrar foto', e)));
 }
 
 function addFilaSeccion(key, secIdx, numCols){
@@ -10919,6 +11080,11 @@ function vajArmadoUnirCant(r){
   const v=String(r.cantidad_vajilla==null?'':r.cantidad_vajilla).trim(), p=String(r.cantidad_porciones==null?'':r.cantidad_porciones).trim();
   if(!v && p){ r.cantidad_vajilla=r.cantidad_porciones; r.cantidad_porciones=''; }
 }
+// Cantidad de un renglón de Armado vajilla: la escrita a mano o, si no hay, las Unidades del plato en la Comanda.
+function vajArmadoCant(r, unid){
+  const man=r?String(r.cantidad_vajilla==null?'':r.cantidad_vajilla).trim():'';
+  return man || String(unid==null?'':unid).trim() || (r&&r.cantidad_porciones) || '';
+}
 // Renglones de Armado vajilla del evento (mismo armado que la pantalla).
 function vajArmadoFilas(datos, key){
   const estado=datos[key]&&typeof datos[key]==='object'&&!Array.isArray(datos[key])?datos[key]:{};
@@ -10928,7 +11094,8 @@ function vajArmadoFilas(datos, key){
     const p=Array.isArray(f)?String(f[0]||'').trim():''; if(!p) return;
     const row=estado[(sec.nombre||'Sin sección')+'::'+p];
     vajArmadoUnirCant(row);
-    out.push({secIdx, filaIdx, row});
+    const unid=Array.isArray(f)?String(f[1]==null?'':f[1]).trim():'';
+    out.push({secIdx, filaIdx, row, unid});
   }));
   return out;
 }
@@ -10936,7 +11103,7 @@ function vajArmadoFilas(datos, key){
 function vajTotales(datos, key, tipo){
   const t={};
   if(tipo==='salon') (Array.isArray(datos[key])?datos[key]:[]).forEach(s=>(s.items||[]).forEach(it=>{ if(it.vid) t[it.vid]=(t[it.vid]||0)+vajCant(it.cantidad); }));
-  else vajArmadoFilas(datos, key).forEach(({row})=>{ if(row&&row.vid) t[row.vid]=(t[row.vid]||0)+vajCant(row.cantidad_vajilla); });
+  else vajArmadoFilas(datos, key).forEach(({row,unid})=>{ if(row&&row.vid) t[row.vid]=(t[row.vid]||0)+vajCant(vajArmadoCant(row,unid)); });
   return t;
 }
 // Al escribir una cantidad: actualiza los avisos de stock sin redibujar.
@@ -11397,13 +11564,12 @@ function buildValueItems(ev, item){
     const rows=[];
     seccionesMenu.forEach(sec=>{
       const nombreSec=sec.nombre||'Sin sección';
-      const platos=(sec.filas||[]).map(f=>Array.isArray(f)?String(f[0]||'').trim():'').filter(Boolean);
+      const platos=(sec.filas||[]).filter(f=>Array.isArray(f)&&String(f[0]||'').trim());
       if(!platos.length) return;
       rows.push({__seccion:nombreSec});
-      platos.forEach(p=>{
-        const r=estado[nombreSec+'::'+p]||{};
-        const cant=String(r.cantidad_vajilla==null?'':r.cantidad_vajilla).trim()||r.cantidad_porciones||'';
-        rows.push([p, r.vajilla||'', cant]);
+      platos.forEach(f=>{
+        const p=String(f[0]).trim(), r=estado[nombreSec+'::'+p]||{};
+        rows.push([p, r.vajilla||'', vajArmadoCant(r, f[1])]);
       });
     });
     // Se dibuja como tabla_menu para que la columna Menú salga más ancha.
@@ -13344,6 +13510,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-18', t:'Fichas Técnicas: en <b>Armado vajilla</b> la cantidad se completa sola con las <b>Unidades</b> de cada plato de la Comanda (en gris; si escribís otro número queda el tuyo). En la <b>Comanda</b>, cada sección del menú tiene <b>📷 Fotos / observaciones</b> para subir fotos con un comentario. Producción: al <b>importar recetas desde Excel</b>, en la pantalla de revisión ahora se pueden cambiar los <b>kilos</b> y la <b>merma</b> de cada ingrediente, sacar o agregar ingredientes y cambiar el insumo elegido.'},
   {f:'2026-11-18', t:'Fichas Técnicas: <b>Armado vajilla</b> queda con una sola columna de cantidad (Menú · Vajilla · Cantidad); lo que estaba en la columna que se sacó pasó a la que queda. En la ficha de cada evento hay un botón <b>💬 Chat</b> (con los mensajes sin leer) que abre el chat del evento, y desde el chat «📋 Ficha» vuelve a la ficha. En Stock vajilla se agregó el tipo <b>Ambientación</b>.'},
   {f:'2026-11-18', t:'Pedidos al sistema: nuevo selector para <b>ordenar la lista</b> (más urgentes primero, más recientes primero o más viejos primero; cada compu recuerda el elegido). Novedades: ahora también muestra <b>💡 Pedidos al sistema</b> (pedidos nuevos, cambios de estado y borrados) y <b>💬 Chat interno</b> (mensajes borrados y fijados).'},
   {f:'2026-11-12', t:'Presupuestos: <b>Descorche</b> en Incluye; la <b>fecha de emisión</b> se pone sola con el día en que se ve o descarga el PDF; en <b>Cantidad de personas</b> se puede escribir un rango (ej. 15-20); al confirmar, la ficha técnica se llama <b>tipo de evento + cliente</b> (ej. CENA BECCAR VARELA); y con <b>un clic en el renglón</b> se abre el presupuesto.'},
