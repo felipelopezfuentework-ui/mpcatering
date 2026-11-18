@@ -13329,7 +13329,7 @@ function pedSetFiltro(f){ _pedFiltro=f; renderPedidos(); }
 function pedFiltrar(){
   const yo=novMail(), q=prodNorm(_pedQ);
   return PEDIDOS.filter(p=>{
-    if(_pedFiltro==='abiertos' && !PED_ABIERTOS.includes(p.estado)) return false;
+    if(_pedFiltro==='abiertos' && (!PED_ABIERTOS.includes(p.estado) || p.estado==='info')) return false; // los que esperan más info van en «Falta info»
     if(_pedFiltro==='info' && p.estado!=='info') return false;
     if(_pedFiltro==='mios' && p.quien!==yo) return false;
     if(_pedFiltro==='resueltos' && PED_ABIERTOS.includes(p.estado)) return false;
@@ -13350,7 +13350,7 @@ function pedFiltrar(){
 function renderPedidos(){
   const cont=document.getElementById('ped-cont'); if(!cont) return;
   const yo=novMail(), admin=pedEsAdmin();
-  const n={abiertos:PEDIDOS.filter(p=>PED_ABIERTOS.includes(p.estado)).length, info:PEDIDOS.filter(p=>p.estado==='info').length,
+  const n={abiertos:PEDIDOS.filter(p=>PED_ABIERTOS.includes(p.estado)&&p.estado!=='info').length, info:PEDIDOS.filter(p=>p.estado==='info').length,
     mios:PEDIDOS.filter(p=>p.quien===yo).length, resueltos:PEDIDOS.filter(p=>!PED_ABIERTOS.includes(p.estado)).length, todos:PEDIDOS.length};
   const chip=(k,txt)=>`<button type="button" class="presu-seg-chip ${_pedFiltro===k?'on':''}" onclick="pedSetFiltro('${k}')">${txt}<b>${n[k]}</b></button>`;
   const mods=[...new Set(PEDIDOS.map(p=>p.donde&&p.donde.mod||'general'))];
@@ -13514,6 +13514,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-18', t:'Pedidos al sistema: los pedidos en <b>❓ Necesito más info</b> ya no aparecen en «Abiertos»: se ven en «Falta info» (y en Todos / Míos).'},
   {f:'2026-11-18', t:'Pedidos al sistema: al tocar <b>Enviar pedido</b> el formulario se cierra enseguida (se sigue enviando de fondo y avisa cuando llegó).'},
   {f:'2026-11-18', t:'Fichas Técnicas: en <b>Armado vajilla</b> la cantidad se completa sola con las <b>Unidades</b> de cada plato de la Comanda (en gris; si escribís otro número queda el tuyo). En la <b>Comanda</b>, cada sección del menú tiene <b>📷 Fotos / observaciones</b> para subir fotos con un comentario. Producción: al <b>importar recetas desde Excel</b>, en la pantalla de revisión ahora se pueden cambiar los <b>kilos</b> y la <b>merma</b> de cada ingrediente, sacar o agregar ingredientes y cambiar el insumo elegido.'},
   {f:'2026-11-18', t:'Fichas Técnicas: <b>Armado vajilla</b> queda con una sola columna de cantidad (Menú · Vajilla · Cantidad); lo que estaba en la columna que se sacó pasó a la que queda. En la ficha de cada evento hay un botón <b>💬 Chat</b> (con los mensajes sin leer) que abre el chat del evento, y desde el chat «📋 Ficha» vuelve a la ficha. En Stock vajilla se agregó el tipo <b>Ambientación</b>.'},
