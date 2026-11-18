@@ -13297,6 +13297,10 @@ async function pedEnviar(){
   const ref=FB_COL_PED.doc();
   const doc={n, ts:ahora, quien:yo, tipo:f.tipo, hoy, quiere, urg:f.urg, estado:'nuevo', donde, fotos:Object.keys(fotos),
     historial:[{ts:ahora, quien:yo, acc:'crear'}], actualizado:ahora, ultimoQuien:yo, resuelto:null};
+  // El formulario se cierra apenas se toca «Enviar» (antes esperaba la confirmación
+  // del servidor, que con fotos o mala conexión tardaba y parecía que no se enviaba).
+  mpCerrarModalGen(); _pedNuevo=null;
+  const avisoEnv=presuSegAviso('📤 Enviando el pedido #'+n+'…');
   try{
     if(doc.fotos.length){
       try{ await FB_COL_PED_FOTOS.doc(ref.id).set({...fotos, ts:ahora}); }
@@ -13304,13 +13308,13 @@ async function pedEnviar(){
     }
     await ref.set(doc);
   }catch(e){
-    f.enviando=false; if(b){ b.disabled=false; b.textContent='Enviar pedido'; }
-    err.textContent='No se pudo enviar ('+e.message+'). Probá de nuevo en un rato.';
+    if(avisoEnv) avisoEnv.remove();
+    alert('No se pudo enviar el pedido #'+n+' ('+e.message+').\n\nProbá de nuevo en un rato con «💡 Pedir un cambio».\n\nLo que habías escrito:\n'+quiere);
     return;
   }
   novRegistrar({mod:'pedidos', acc:'crear', que:'el pedido', titulo:'#'+n+' · '+pedCorto(quiere,80), ref:{tipo:'pedido', id:ref.id},
     det:[{c:'Dónde', a:'', d:pedDondeTxt(donde)}, {c:'Tipo', a:'', d:(PED_TIPOS[f.tipo]||{}).lbl||f.tipo}]});
-  mpCerrarModalGen(); _pedNuevo=null;
+  if(avisoEnv) avisoEnv.remove();
   presuSegAviso('✅ Pedido #'+n+' enviado. Lo podés seguir en "Pedidos al sistema".');
 }
 
@@ -13510,6 +13514,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-18', t:'Pedidos al sistema: al tocar <b>Enviar pedido</b> el formulario se cierra enseguida (se sigue enviando de fondo y avisa cuando llegó).'},
   {f:'2026-11-18', t:'Fichas Técnicas: en <b>Armado vajilla</b> la cantidad se completa sola con las <b>Unidades</b> de cada plato de la Comanda (en gris; si escribís otro número queda el tuyo). En la <b>Comanda</b>, cada sección del menú tiene <b>📷 Fotos / observaciones</b> para subir fotos con un comentario. Producción: al <b>importar recetas desde Excel</b>, en la pantalla de revisión ahora se pueden cambiar los <b>kilos</b> y la <b>merma</b> de cada ingrediente, sacar o agregar ingredientes y cambiar el insumo elegido.'},
   {f:'2026-11-18', t:'Fichas Técnicas: <b>Armado vajilla</b> queda con una sola columna de cantidad (Menú · Vajilla · Cantidad); lo que estaba en la columna que se sacó pasó a la que queda. En la ficha de cada evento hay un botón <b>💬 Chat</b> (con los mensajes sin leer) que abre el chat del evento, y desde el chat «📋 Ficha» vuelve a la ficha. En Stock vajilla se agregó el tipo <b>Ambientación</b>.'},
   {f:'2026-11-18', t:'Pedidos al sistema: nuevo selector para <b>ordenar la lista</b> (más urgentes primero, más recientes primero o más viejos primero; cada compu recuerda el elegido). Novedades: ahora también muestra <b>💡 Pedidos al sistema</b> (pedidos nuevos, cambios de estado y borrados) y <b>💬 Chat interno</b> (mensajes borrados y fijados).'},
@@ -14464,6 +14469,7 @@ function presuSegAviso(msg, color){
   el.textContent=msg;
   document.body.appendChild(el);
   setTimeout(()=>el.remove(), 4500);
+  return el;
 }
 // Datos vacíos de un evento según COMANDA_TEMPLATE (lo mismo que "+ Agregar evento").
 function comandaDatosVacios(){
