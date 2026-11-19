@@ -6745,8 +6745,11 @@ function cotizRecetaInfo(row){
     porciones=tk*1000/parseFloat(cfg.peso_porcion);
   }
   const sinPorciones=!(porciones>0);
+  // Kilos que salen de la receta (lo que queda después de la merma): para cotizar a granel o por gramos.
+  const kgTotal=filas.reduce((acc,r)=>acc+kgQuedanIng(r.kgs,r.merma),0);
   return {tipo, nombre, visible:nombre.replace(/^(PLATO|SUB) - /,''), filas, cfg, costoReceta, porciones,
     sinPorciones, costoPorcion:sinPorciones?0:costoReceta/porciones,
+    kgTotal, sinKg:!(kgTotal>0), costoKg:kgTotal>0?costoReceta/kgTotal:0,
     unidad:UNIDAD_LABELS[cfg.tipo_unidad]||'porciones'};
 }
 function abrirRecetaDesdeCotizador(tipo,nombre){ tipo==='sub'?abrirModalSub(nombre):abrirModalPlato(nombre); }
@@ -12102,20 +12105,65 @@ function presuPaxNum(p){
 function cotizPersonasDePresu(p){
   return presuPaxNum(p);
 }
+// Unidad de cada receta en la cotización (campo `modo`):
+//  pp  = porciones por persona (lo de siempre) · gpp = gramos por persona
+//  kg  = kilos a granel (total del evento)     · ug  = porciones/unidades a granel (total)
+const COTIZ_MODOS=[{v:'pp',l:'Porciones x persona'},{v:'gpp',l:'Gramos x persona'},{v:'kg',l:'Kg a granel'},{v:'ug',l:'Unidades a granel'}];
+function cotizModo(it){ return ['pp','gpp','kg','ug'].includes(it.modo)?it.modo:'pp'; }
+const cotizModoKg=m=>m==='gpp'||m==='kg';
+// Cantidad total: porciones (pp/ug) o kilos (gpp/kg).
 function cotizCantidad(c,it){
   const pers=parseFloat(c.personas)||0;
-  if(it.tipo==='plato'||it.tipo==='sub') return pers>0?(parseFloat(it.porPersona)||0)*pers:(parseFloat(it.cant)||0);
+  if(it.tipo==='plato'||it.tipo==='sub'){
+    const m=cotizModo(it);
+    if(m==='gpp') return (parseFloat(it.gpp)||0)*pers/1000;
+    if(m==='kg') return parseFloat(it.kg)||0;
+    if(m==='ug') return parseFloat(it.unidTot)||0;
+    return pers>0?(parseFloat(it.porPersona)||0)*pers:(parseFloat(it.cant)||0);
+  }
   return parseFloat(it.cant)||0;
+}
+// Costo de una receta en la cotización. falta = la receta no tiene porciones o kilos cargados.
+function cotizCostoReceta(c,it,info){
+  info=info||cotizRecetaInfo(it);
+  if(!info) return {tot:null,unit:0,falta:null};
+  const porKg=cotizModoKg(cotizModo(it));
+  if(porKg? info.sinKg : info.sinPorciones) return {tot:null,unit:0,falta:porKg?'kg':'porc',info};
+  const unit=porKg?info.costoKg:info.costoPorcion;
+  return {tot:unit*cotizCantidad(c,it),unit,porKg,info};
+}
+// Equivalencia para mostrar al lado (en gris).
+function cotizEquivalencia(c,it){
+  const pers=parseFloat(c.personas)||0, m=cotizModo(it), cant=cotizCantidad(c,it);
+  if(m==='kg') return pers>0&&cant>0?'≈ '+fmtN(cant*1000/pers,0)+' g x persona':'';
+  if(m==='ug') return pers>0&&cant>0?'≈ '+fmtN(cant/pers,2)+' x persona':'';
+  return '';
+}
+function cotizSetModo(id,m){
+  const it=cotizItem(id); if(!it||cotizModo(it)===m) return;
+  const c=_cotizEdit, pers=parseFloat(c.personas)||0, info=cotizRecetaInfo(it);
+  // Se pasa la cantidad que había a la unidad nueva (si se puede).
+  const antes=cotizCantidad(c,it), eraKg=cotizModoKg(cotizModo(it));
+  let kg=null, porc=null;
+  if(info){
+    const kgPorc=info.porciones>0&&info.kgTotal>0?info.kgTotal/info.porciones:0;
+    if(eraKg){ kg=antes; porc=kgPorc?antes/kgPorc:null; } else { porc=antes; kg=kgPorc?antes*kgPorc:null; }
+  }
+  it.modo=m;
+  if(m==='pp'){ if(porc!=null&&pers>0) it.porPersona=porc/pers; else if(porc!=null) it.cant=porc; }
+  else if(m==='ug'){ it.unidTot=porc!=null?Math.round(porc*100)/100:(parseFloat(it.unidTot)||0); }
+  else if(m==='kg'){ it.kg=kg!=null?Math.round(kg*1000)/1000:(parseFloat(it.kg)||0); }
+  else if(m==='gpp'){ it.gpp=kg!=null&&pers>0?Math.round(kg*1000/pers):(parseFloat(it.gpp)||0); }
+  cotizCambio(); renderCotizEditor();
 }
 function cotizCalc(c){
   let menu=0, otros=0; const sinPorc=[];
   cotizItemsVigentes(c).forEach(it=>{
     const cant=cotizCantidad(c,it);
     if(it.tipo==='plato'||it.tipo==='sub'){
-      const info=cotizRecetaInfo(it);
-      if(!info) return;
-      if(info.sinPorciones){ sinPorc.push(info.visible); return; }
-      menu+=info.costoPorcion*cant;
+      const r=cotizCostoReceta(c,it);
+      if(r.falta){ sinPorc.push(r.info.visible+(r.falta==='kg'?' (sin kilos)':' (sin porciones)')); return; }
+      if(r.tot!=null) menu+=r.tot;
     } else otros+=cant*(parseFloat(it.montoUnit)||0);
   });
   const pers=parseFloat(c.personas)||0, total=menu+otros;
@@ -12276,9 +12324,13 @@ function cotizSetItem(id,campo,valor){
   const it=cotizItem(id); if(!it) return;
   const num=campo==='montoUnit'?cotizPesos(valor):parseKgCampo(valor);
   if(campo==='desc') it.desc=valor;
-  else if(campo==='cant'&&(it.tipo==='plato'||it.tipo==='sub')){
-    const pers=parseFloat(_cotizEdit.personas)||0;
-    if(pers>0) it.porPersona=num/pers; else it.cant=num;
+  else if((campo==='cant'||campo==='porPersona')&&(it.tipo==='plato'||it.tipo==='sub')){
+    const pers=parseFloat(_cotizEdit.personas)||0, m=cotizModo(it);
+    if(campo==='porPersona'){ if(m==='gpp') it.gpp=num; else it.porPersona=num; }
+    else if(m==='kg') it.kg=num;
+    else if(m==='ug') it.unidTot=num;
+    else if(m==='gpp'){ if(pers>0) it.gpp=num*1000/pers; }
+    else if(pers>0) it.porPersona=num/pers; else it.cant=num;
   } else it[campo]=num;
   cotizCambio(); cotizActualizarNumeros(id);
 }
@@ -12377,7 +12429,7 @@ function cotizToggleDetalle(id){
   const rows=it.tipo==='sub'?DB.subproductos.filter(x=>x.subproducto===it.plato):DB.recetas_platos.filter(x=>x.plato===it.plato);
   const tr=document.getElementById('cotiz-fila'+id); if(!tr) return;
   const det=document.createElement('tr'); det.id='cotiz-det'+id;
-  det.innerHTML=`<td colspan="7" style="background:var(--surface2);padding:8px 12px"><div class="tw"><table>
+  det.innerHTML=`<td colspan="8" style="background:var(--surface2);padding:8px 12px"><div class="tw"><table>
     <thead><tr><th>Componente</th><th class="num">Kg</th><th class="num">% Merma</th><th class="num">Kg que quedan</th><th class="num">Costo unitario</th><th class="num">Costo total</th></tr></thead>
     <tbody>${rows.map(r=>`<tr><td>${escH(r.componente)}</td><td class="num">${fmtN(r.kgs,4)}</td>
       <td class="num" style="color:var(--text3)">${parseFloat(r.merma)>0?fmtN(r.merma,1)+'%':'—'}</td>
@@ -12407,18 +12459,31 @@ function renderCotizEditor(){
   const otros=c.items.filter(x=>!(x.tipo==='plato'||x.tipo==='sub'));
   const lineasMenu=cotizMenuLineas(c);
   if(lineasMenu && cotizAutoVincular(c, lineasMenu)) cotizCambio();
+  // Celdas de una receta: costo (x porción o x kg) | unidad | por persona | cantidad | total.
+  const celdasReceta=it=>{
+    const info=cotizRecetaInfo(it), r=cotizCostoReceta(c,it,info), m=cotizModo(it);
+    const costo=!r.falta&&info?fmt(r.unit)+(r.porKg?' <small style="color:var(--text3)">/kg</small>':''):`<span style="color:var(--red);font-size:11px">⚠ ${r.falta==='kg'?'Sin kilos':'Sin porciones'}</span>
+      ${info?`<button class="btn btn-outline" style="padding:1px 6px;font-size:10px" onclick="abrirRecetaDesdeCotizador('${it.tipo}',${escH(JSON.stringify(info.nombre))})">Cargar</button>`:''}`;
+    const sel=`<select class="cotiz-modo" onchange="cotizSetModo(${it.id},this.value)" style="${INP};padding:4px 5px">
+      ${COTIZ_MODOS.map(o=>`<option value="${o.v}"${o.v===m?' selected':''}>${o.l}</option>`).join('')}</select>`;
+    const granel=m==='kg'||m==='ug';
+    const ppVal=m==='gpp'?(parseFloat(it.gpp)||0):(parseFloat(it.porPersona)||0);
+    const pp=granel?`<span id="cotiz-eq${it.id}" style="color:var(--text3);font-size:11px">${cotizEquivalencia(c,it)}</span>`
+      :`<input type="text" inputmode="decimal" value="${kgTexto(ppVal)}" style="width:60px;text-align:right;${INP}"
+        oninput="cotizSetItem(${it.id},'porPersona',this.value)" id="cotiz-pp${it.id}"> <small style="color:var(--text3)">${m==='gpp'?'g':'porc.'}</small>`;
+    const uCant=cotizModoKg(m)?'kg':(m==='ug'?'unid.':'porc.');
+    return `<td class="num">${costo}</td>
+      <td>${sel}</td>
+      <td class="num" style="white-space:nowrap">${pp}</td>
+      <td class="num" style="white-space:nowrap"><input type="text" inputmode="decimal" value="${kgTexto(Math.round(cotizCantidad(c,it)*1000)/1000)}" style="width:75px;text-align:right;${INP}"
+        oninput="cotizSetItem(${it.id},'cant',this.value)" id="cotiz-cant${it.id}"> <small style="color:var(--text3)">${uCant}</small></td>
+      <td class="num" id="cotiz-tot${it.id}" style="font-weight:600"></td>`;
+  };
   const filaReceta=it=>{
     const info=cotizRecetaInfo(it);
-    const costo=info&&!info.sinPorciones?fmt(info.costoPorcion):`<span style="color:var(--red);font-size:11px">⚠ Sin porciones</span>
-      ${info?`<button class="btn btn-outline" style="padding:1px 6px;font-size:10px" onclick="abrirRecetaDesdeCotizador('${it.tipo}',${escH(JSON.stringify(info.nombre))})">Cargar</button>`:''}`;
     return `<tr id="cotiz-fila${it.id}">
       <td>${it.tipo==='sub'?'🧩':'🍴'} ${escH(info?info.visible:it.plato)}</td>
-      <td class="num">${costo}</td>
-      <td class="num"><input type="text" inputmode="decimal" value="${kgTexto(it.porPersona)}" style="width:60px;text-align:right;${INP}"
-        oninput="cotizSetItem(${it.id},'porPersona',this.value)" id="cotiz-pp${it.id}"></td>
-      <td class="num"><input type="text" inputmode="decimal" value="${kgTexto(cotizCantidad(c,it))}" style="width:75px;text-align:right;${INP}"
-        oninput="cotizSetItem(${it.id},'cant',this.value)" id="cotiz-cant${it.id}"></td>
-      <td class="num" id="cotiz-tot${it.id}" style="font-weight:600"></td>
+      ${celdasReceta(it)}
       <td style="white-space:nowrap;width:1%">
         <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Ver ingredientes" onclick="cotizToggleDetalle(${it.id})">🔍</button>
         <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Abrir la receta" onclick="cotizVerReceta(${it.id})">📖 Receta</button>
@@ -12430,25 +12495,17 @@ function renderCotizEditor(){
   let secAnt=null;
   const filaMenu=(l,i)=>{
     const it=cotizItemDeLinea(c, l.texto);
-    const titulo=l.seccion!==secAnt?`<tr class="cotiz-menu-sec"><td colspan="7">${escH(l.seccion||'Menú')}</td></tr>`:'';
+    const titulo=l.seccion!==secAnt?`<tr class="cotiz-menu-sec"><td colspan="8">${escH(l.seccion||'Menú')}</td></tr>`:'';
     secAnt=l.seccion;
     if(!it) return titulo+`<tr>
       <td class="cotiz-menu-txt">${escH(l.texto)}</td>
       <td><input class="dd-input" id="cotiz-lin${i}" type="text" placeholder="🔍 Buscar receta…" style="width:100%"></td>
-      <td class="num" colspan="4" style="color:var(--text3);font-size:11px">Elegí la receta para calcular el costo</td>
+      <td class="num" colspan="5" style="color:var(--text3);font-size:11px">Elegí la receta para calcular el costo</td>
       <td style="white-space:nowrap;width:1%"><button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Armar una receta nueva para este plato" onclick="cotizArmarReceta(${i})">＋ Armar receta</button></td></tr>`;
-    const info=cotizRecetaInfo(it);
-    const costo=info&&!info.sinPorciones?fmt(info.costoPorcion):`<span style="color:var(--red);font-size:11px">⚠ Sin porciones</span>
-      ${info?`<button class="btn btn-outline" style="padding:1px 6px;font-size:10px" onclick="abrirRecetaDesdeCotizador('${it.tipo}',${escH(JSON.stringify(info.nombre))})">Cargar</button>`:''}`;
     return titulo+`<tr id="cotiz-fila${it.id}">
       <td class="cotiz-menu-txt">${escH(l.texto)}</td>
       <td><input class="dd-input" id="cotiz-lin${i}" type="text" style="width:100%"></td>
-      <td class="num">${costo}</td>
-      <td class="num"><input type="text" inputmode="decimal" value="${kgTexto(it.porPersona)}" style="width:60px;text-align:right;${INP}"
-        oninput="cotizSetItem(${it.id},'porPersona',this.value)" id="cotiz-pp${it.id}"></td>
-      <td class="num"><input type="text" inputmode="decimal" value="${kgTexto(cotizCantidad(c,it))}" style="width:75px;text-align:right;${INP}"
-        oninput="cotizSetItem(${it.id},'cant',this.value)" id="cotiz-cant${it.id}"></td>
-      <td class="num" id="cotiz-tot${it.id}" style="font-weight:600"></td>
+      ${celdasReceta(it)}
       <td style="white-space:nowrap;width:1%">
         <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Ver ingredientes" onclick="cotizToggleDetalle(${it.id})">🔍</button>
         <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Abrir la receta" onclick="cotizVerReceta(${it.id})">📖 Receta</button>
@@ -12499,7 +12556,7 @@ function renderCotizEditor(){
     ${lineasMenu&&lineasMenu.length?`
     <div style="font-size:11.5px;color:var(--text3);margin-bottom:8px">El menú viene de las estaciones del presupuesto. Elegí al lado de cada plato la receta con la que se cotiza.</div>
     <div class="tw"><table>
-      <thead><tr><th>Plato del menú</th><th style="width:28%">Receta</th><th class="num">Costo x porción</th><th class="num">Por persona</th><th class="num">Cantidad</th><th class="num">Total</th><th></th></tr></thead>
+      <thead><tr><th>Plato del menú</th><th style="width:24%">Receta</th><th class="num">Costo unitario</th><th>Unidad</th><th class="num">Por persona</th><th class="num">Cantidad</th><th class="num">Total</th><th></th></tr></thead>
       <tbody>${lineasMenu.map(filaMenu).join('')}</tbody>
     </table></div>
     <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);margin:16px 0 8px">Otros platos (fuera del menú)</div>`:''}
@@ -12507,9 +12564,9 @@ function renderCotizEditor(){
       <input class="dd-input" id="cotiz-buscar" type="text" placeholder="🔍 Buscar plato o subproducto para agregar…" style="flex:1;min-width:260px">
     </div>
     <div class="tw"><table>
-      <thead><tr><th>Plato / subproducto</th><th class="num">Costo x porción</th><th class="num">Por persona</th><th class="num">Cantidad</th><th class="num">Total</th><th></th></tr></thead>
-      <tbody>${recetas.map(filaReceta).join('')||`<tr><td colspan="6" class="empty">${lineasMenu&&lineasMenu.length?'Si hace falta algo que no está en el menú, buscalo arriba.':'Buscá arriba los platos del menú. La cantidad arranca en 1 por persona.'}</td></tr>`}</tbody>
-      <tfoot><tr class="mp-tot-row"><td colspan="4">Subtotal menú</td><td class="num" id="cotiz-sub-menu"></td><td></td></tr></tfoot>
+      <thead><tr><th>Plato / subproducto</th><th class="num">Costo unitario</th><th>Unidad</th><th class="num">Por persona</th><th class="num">Cantidad</th><th class="num">Total</th><th></th></tr></thead>
+      <tbody>${recetas.map(filaReceta).join('')||`<tr><td colspan="7" class="empty">${lineasMenu&&lineasMenu.length?'Si hace falta algo que no está en el menú, buscalo arriba.':'Buscá arriba los platos del menú. La cantidad arranca en 1 por persona.'}</td></tr>`}</tbody>
+      <tfoot><tr class="mp-tot-row"><td colspan="5">Subtotal menú</td><td class="num" id="cotiz-sub-menu"></td><td></td></tr></tfoot>
     </table></div>
   </div>
 
@@ -12559,12 +12616,12 @@ function cotizActualizarNumeros(itemEditado){
     const cant=cotizCantidad(c,it);
     let tot;
     if(it.tipo==='plato'||it.tipo==='sub'){
-      const info=cotizRecetaInfo(it);
-      tot=info&&!info.sinPorciones?info.costoPorcion*cant:null;
+      tot=cotizCostoReceta(c,it).tot;
       const elC=document.getElementById('cotiz-cant'+it.id);
-      if(elC&&document.activeElement!==elC) elC.value=kgTexto(cant);
+      if(elC&&document.activeElement!==elC) elC.value=kgTexto(Math.round(cant*1000)/1000);
       const elP=document.getElementById('cotiz-pp'+it.id);
-      if(elP&&document.activeElement!==elP) elP.value=kgTexto(it.porPersona);
+      if(elP&&document.activeElement!==elP) elP.value=kgTexto(cotizModo(it)==='gpp'?Math.round((parseFloat(it.gpp)||0)*10)/10:it.porPersona);
+      set('cotiz-eq'+it.id, cotizEquivalencia(c,it));
     } else tot=cant*(parseFloat(it.montoUnit)||0);
     set('cotiz-tot'+it.id,tot===null?'—':fmt(tot));
   });
@@ -12582,7 +12639,7 @@ function cotizActualizarNumeros(itemEditado){
   const al=document.getElementById('cotiz-alerta');
   if(al){
     al.style.display=k.sinPorc.length?'block':'none';
-    al.textContent=k.sinPorc.length?'⚠ Sin porciones cargadas en la receta (no suman al costo): '+k.sinPorc.join(', '):'';
+    al.textContent=k.sinPorc.length?'⚠ Recetas sin rendimiento cargado (no suman al costo): '+k.sinPorc.join(', '):'';
   }
 }
 
@@ -12631,10 +12688,13 @@ function exportarCotizPDF(){
   doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
   doc.text('Personas: '+(k.pers||'—'),M,y); y+=8;
   const xr=[W-M-75,W-M-50,W-M-1];
-  tabla('Menú',[{t:'Plato / subproducto',x:M+1},{t:'Costo x porción',x:xr[0],a:'r'},{t:'Cantidad',x:xr[1],a:'r'},{t:'Total',x:xr[2],a:'r'}],
+  tabla('Menú',[{t:'Plato / subproducto',x:M+1},{t:'Costo unitario',x:xr[0],a:'r'},{t:'Cantidad',x:xr[1],a:'r'},{t:'Total',x:xr[2],a:'r'}],
     cotizItemsVigentes(c).filter(x=>x.tipo==='plato'||x.tipo==='sub').map(it=>{
-      const info=cotizRecetaInfo(it), cant=cotizCantidad(c,it), ok=info&&!info.sinPorciones;
-      return [info?info.visible:it.plato, ok?fmt(info.costoPorcion):'sin porciones', fmtN(cant,2), ok?fmt(info.costoPorcion*cant):'—'];
+      const info=cotizRecetaInfo(it), cant=cotizCantidad(c,it), r=cotizCostoReceta(c,it,info), m=cotizModo(it);
+      const ok=info&&!r.falta;
+      const u=cotizModoKg(m)?'kg':(m==='ug'?'unid.':'porc.');
+      const det=m==='gpp'?' ('+fmtN(it.gpp,0)+' g x pers.)':(m==='kg'||m==='ug'?' (a granel)':'');
+      return [(info?info.visible:it.plato)+det, ok?fmt(r.unit)+(r.porKg?'/kg':''):(r.falta==='kg'?'sin kilos':'sin porciones'), fmtN(cant,2)+' '+u, ok?fmt(r.tot):'—'];
     }), fmt(k.menu));
   tabla('Otros costos',[{t:'Concepto',x:M+1},{t:'Cantidad',x:xr[0],a:'r'},{t:'$ unitario',x:xr[1],a:'r'},{t:'Total',x:xr[2],a:'r'}],
     c.items.filter(x=>!(x.tipo==='plato'||x.tipo==='sub')).map(it=>{
@@ -13651,6 +13711,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-19', t:'Cotización: cada plato tiene ahora una <b>Unidad</b> para elegir: <b>Porciones x persona</b> (como antes), <b>Gramos x persona</b>, <b>Kg a granel</b> (total del evento) o <b>Unidades a granel</b>. Por gramos o kilos el costo sale del costo por kg de la receta. Al cambiar la unidad la cantidad se pasa sola a la nueva.'},
   {f:'2026-11-19', t:'Recetas: donde aparezca una receta (Subproductos y Platos en las tres vistas, la ventana de la receta, Cotización y Eventos a producir) sale el botón rojo <b>💲 N sin precio</b> si tiene insumos sin precio (también los de sus subproductos). Al tocarlo se cargan los precios ahí mismo y los costos se recalculan solos.'},
   {f:'2026-11-19', t:'Cotización: cada plato tiene el botón <b>📖 Receta</b> para abrir su receta, y los platos del menú sin receta tienen <b>＋ Armar receta</b> (se abre una receta nueva con el nombre del plato y al guardarla queda elegida).'},
   {f:'2026-11-19', t:'Cotización: las recetas de platos que ya no están en el menú del presupuesto (porque se borraron o cambiaron) ya no se suman al costo ni salen en el PDF interno.'},
