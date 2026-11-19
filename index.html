@@ -1825,7 +1825,7 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
             <tfoot id="sub-items-tfoot"></tfoot>
           </table></div>
           <div id="sub-tot-bar" class="mp-tot"></div>
-          <button class="btn btn-outline" style="margin-top:10px;font-size:11px" onclick="addSubItem()">+ Agregar componente</button>
+          <button class="btn btn-outline" style="margin-top:10px;font-size:11px" onclick="addSubItem()">+ Agregar componente</button><span id="sub-sinprecio"></span>
         </div>
 
         <div class="recipe-section">
@@ -1933,7 +1933,7 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
             <tfoot id="plato-items-tfoot"></tfoot>
           </table></div>
           <div id="plato-tot-bar" class="mp-tot"></div>
-          <button class="btn btn-outline" style="margin-top:10px;font-size:11px" onclick="addPlatoItem()">+ Agregar componente</button>
+          <button class="btn btn-outline" style="margin-top:10px;font-size:11px" onclick="addPlatoItem()">+ Agregar componente</button><span id="plato-sinprecio"></span>
         </div>
 
         <div class="recipe-section">
@@ -3617,6 +3617,102 @@ function mpModalGen(titulo,html,ancho){
 }
 function mpCerrarModalGen(){ const el=document.getElementById('mp-modal-gen'); if(el) el.remove(); }
 
+// ── Atajo «💲 N sin precio»: en cualquier lugar donde aparece una receta,
+// muestra cuántos insumos (también los de sus subproductos) no tienen precio
+// y abre una ventana para cargarlos ahí mismo. ──
+function recSinPrecioLista(recetas, comps, usoComps){
+  const m=new Map(), vistos=new Set();
+  const ver=(comp,uso,prof)=>{
+    comp=String(comp||'');
+    if(comp.startsWith('SUB - ')){
+      if(prof>4 || vistos.has(comp+'|'+uso)) return; vistos.add(comp+'|'+uso);
+      prodFilas(comp).forEach(f=>ver(f.componente, comp, prof+1)); return;
+    }
+    if(!comp.startsWith('INSUMO - ')) return;
+    const ins=(DB.insumos||[]).find(x=>x.key===comp);
+    if(ins && parseFloat(ins.costo)>0) return;
+    if(!m.has(comp)) m.set(comp,{key:comp, ins:ins||null, nombre:ins?ins.nombre:prodCorto(comp), usos:new Set()});
+    if(uso) m.get(comp).usos.add(uso);
+  };
+  (recetas||[]).forEach(r=>{ if(r) prodFilas(r).forEach(f=>ver(f.componente, r, 0)); });
+  (comps||[]).forEach(c=>ver(c, usoComps||'', 0));
+  return [...m.values()].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+}
+const REC_SP_ESTILO='padding:3px 9px;font-size:11px;white-space:nowrap;background:rgba(192,57,43,.08);color:var(--red);border:1px solid rgba(192,57,43,.35)';
+function recSinPrecioBtn(recetas, texto){
+  recetas=(recetas||[]).filter(Boolean);
+  const l=recSinPrecioLista(recetas);
+  if(!l.length) return '';
+  const arg=JSON.stringify(recetas).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+  return `<button type="button" class="btn rec-sinprecio" style="${REC_SP_ESTILO}" title="Insumos sin precio: ${escH(l.map(x=>x.nombre).join(', '))}"
+    onclick="event.stopPropagation();recSinPrecioAbrir(${arg})">💲 ${l.length} sin precio${texto?' '+texto:''}</button>`;
+}
+// Ventanas de subproducto / plato: cuenta lo que está cargado (aunque no se guardó).
+function recSinPrecioModalPintar(tipo){
+  const el=document.getElementById((tipo==='sub'?'sub':'plato')+'-sinprecio'); if(!el) return;
+  const l=recSinPrecioLista(null, _rendItems(tipo).map(x=>x.comp).filter(Boolean));
+  el.innerHTML=l.length?`<button type="button" class="btn rec-sinprecio" style="${REC_SP_ESTILO};margin-top:10px;margin-left:8px" title="Insumos sin precio: ${escH(l.map(x=>x.nombre).join(', '))}"
+    onclick="recSinPrecioAbrir(null,'${tipo==='sub'?'sub':'plato'}')">💲 ${l.length} insumo${l.length===1?'':'s'} sin precio · cargar</button>`:'';
+}
+let _rspLista=[];
+function recSinPrecioAbrir(recetas, modalTipo){
+  _rspLista=modalTipo ? recSinPrecioLista(null, _rendItems(modalTipo).map(x=>x.comp).filter(Boolean), '') : recSinPrecioLista(recetas);
+  if(!_rspLista.length){ alert('✓ Todos los insumos tienen precio.'); return; }
+  const INP='background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:6px 8px;font-size:13px;text-align:right';
+  const filas=_rspLista.map((x,i)=>{
+    const usos=[...x.usos].map(u=>(prodEsSub(u)?'🧩 ':'🍴 ')+escH(prodCorto(u))).join(', ');
+    if(!x.ins) return `<tr><td><b>${escH(x.nombre)}</b>${usos?`<div style="font-size:11px;color:var(--text3)">en ${usos}</div>`:''}</td>
+      <td colspan="3" style="font-size:12px;color:var(--red)">No está en la lista de Insumos (se borró o cambió de nombre): corregilo en la receta.</td></tr>`;
+    const kg=parseFloat(x.ins.formato_kg)||1;
+    return `<tr><td><b>${escH(x.nombre)}</b>${usos?`<div style="font-size:11px;color:var(--text3)">en ${usos}</div>`:''}</td>
+      <td class="num"><input id="rsp-p${i}" type="text" inputmode="decimal" placeholder="$ 0" style="width:110px;${INP}" oninput="recSinPrecioPrev(${i})"></td>
+      <td class="num"><input id="rsp-k${i}" type="text" inputmode="decimal" value="${escH(kgTexto(kg))}" style="width:70px;${INP}" oninput="recSinPrecioPrev(${i})"></td>
+      <td class="num" id="rsp-v${i}" style="color:var(--text3);white-space:nowrap">—</td></tr>`;
+  }).join('');
+  mpModalGen('💲 Insumos sin precio', `
+    <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Poné el precio sin IVA y cuántos kg (o unidades) trae ese precio. Los que dejes vacíos quedan como están.</div>
+    <div class="tw"><table><thead><tr><th>Insumo</th><th class="num">Precio $</th><th class="num">Kg / unid.</th><th class="num">$ por kg</th></tr></thead><tbody>${filas}</tbody></table></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+      <button class="btn btn-outline" onclick="mpCerrarModalGen()">Cancelar</button>
+      <button class="btn btn-primary" onclick="recSinPrecioGuardar()">✓ Guardar precios</button></div>`, 760);
+  setTimeout(()=>{ const el=document.getElementById('rsp-p'+_rspLista.findIndex(x=>x.ins)); if(el) el.focus(); },60);
+}
+function recSinPrecioPrev(i){
+  const p=insParseNum((document.getElementById('rsp-p'+i)||{}).value,false), k=insParseNum((document.getElementById('rsp-k'+i)||{}).value,true);
+  const el=document.getElementById('rsp-v'+i); if(el) el.textContent=p>0?fmt(k>0?p/k:p):'—';
+}
+function recSinPrecioGuardar(){
+  const hechos=[];
+  _recetasDiferidas={subs:new Set(), platos:new Set()};
+  try{
+    _rspLista.forEach((x,i)=>{
+      if(!x.ins) return;
+      const p=insParseNum((document.getElementById('rsp-p'+i)||{}).value,false);
+      if(!(p>0)) return;
+      const k=insParseNum((document.getElementById('rsp-k'+i)||{}).value,true);
+      const ins=DB.insumos.find(z=>z._id===x.ins._id); if(!ins) return;
+      insMarcarManual(ins);
+      ins.precio_formato=p; ins.formato_kg=k>0?k:1; ins.costo=ins.precio_formato/ins.formato_kg;
+      guardarInsumo(ins._id);
+      recalcularRecetasPorInsumo(ins.key,false);
+      hechos.push(ins);
+    });
+  } finally {
+    var subs=[..._recetasDiferidas.subs], platos=[..._recetasDiferidas.platos];
+    _recetasDiferidas=null;
+  }
+  if(!hechos.length){ alert('No cargaste ningún precio.'); return; }
+  subs.forEach(n=>guardarSubproductoDoc(n));
+  platos.forEach(n=>guardarPlatoDoc(n));
+  mpCerrarModalGen();
+  try{ renderInsumos(); }catch(e){}
+  _repintarRecetasTrasRecalculo();
+  const activa=id=>{ const t=document.getElementById(id); return t&&t.classList.contains('active'); };
+  if(_cotizEdit && activa('tab-costeo')) renderCotizEditor();
+  if(activa('tab-prod_eventos')) renderProdEventos();
+  ['sub','plato'].forEach(recSinPrecioModalPintar);
+}
+
 function insVerUsos(id){
   const x=DB.insumos.find(i=>i._id===id); if(!x) return;
   const subs=[...new Set(DB.subproductos.filter(r=>r.componente===x.key).map(r=>r.subproducto))];
@@ -5194,6 +5290,7 @@ function _totModal(tipo){
   tf.innerHTML=items.length?_totFilaHtml(t,tipo==='sub'?1:2,true):'';
   const st=_rendState(tipo);
   bar.innerHTML=items.length?_totBarraHtml(t.costo,st.calcUnidades||0,UNIDAD_LABELS[st.tipo_unidad]):'';
+  recSinPrecioModalPintar(tipo);
 }
 
 function rendUpdateCosto(tipo){
@@ -5695,7 +5792,7 @@ function recMenuMas(btn,tipo){
 }
 function _recBotonesFila(tipo,nombre,chico){
   const meta=_tipoMeta(tipo), n=escH(nombre);
-  return `<button class="btn btn-outline" style="padding:${chico?'3px 9px;font-size:10.5px':'4px 10px;font-size:11px'}" ${meta.editAttr}="${n}">✏️ Editar</button>`
+  return recSinPrecioBtn([nombre])+`<button class="btn btn-outline" style="padding:${chico?'3px 9px;font-size:10.5px':'4px 10px;font-size:11px'}" ${meta.editAttr}="${n}">✏️ Editar</button>`
     +`<button class="btn btn-outline mp-mas" title="Más opciones" data-receta="${n}" onclick="event.stopPropagation();recMenuMas(this,'${tipo}')">⋯</button>`;
 }
 // Filtros de la lista de recetas (Subproductos / Platos): porciones y orden.
@@ -12325,6 +12422,7 @@ function renderCotizEditor(){
       <td style="white-space:nowrap;width:1%">
         <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Ver ingredientes" onclick="cotizToggleDetalle(${it.id})">🔍</button>
         <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Abrir la receta" onclick="cotizVerReceta(${it.id})">📖 Receta</button>
+        ${recSinPrecioBtn([it.plato])}
         <button class="btn btn-danger" onclick="cotizQuitar(${it.id})">🗑</button></td>
     </tr>`;
   };
@@ -12354,6 +12452,7 @@ function renderCotizEditor(){
       <td style="white-space:nowrap;width:1%">
         <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Ver ingredientes" onclick="cotizToggleDetalle(${it.id})">🔍</button>
         <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Abrir la receta" onclick="cotizVerReceta(${it.id})">📖 Receta</button>
+        ${recSinPrecioBtn([it.plato])}
         <button class="btn btn-danger" title="Quitar la receta de este plato" onclick="cotizQuitar(${it.id})">🗑</button></td>
     </tr>`;
   };
@@ -12395,6 +12494,7 @@ function renderCotizEditor(){
   </div>
 
   <div class="card cotiz-card">${sec(2,'Menú (platos y subproductos)')}
+    ${(()=>{ const b=recSinPrecioBtn([...new Set(cotizItemsVigentes(c).filter(x=>x.tipo==='plato'||x.tipo==='sub').map(x=>x.plato))],'en esta cotización'); return b?`<div style="margin:-4px 0 10px">${b}</div>`:''; })()}
     <div id="cotiz-alerta" class="alert alert-error" style="display:none;margin-bottom:10px"></div>
     ${lineasMenu&&lineasMenu.length?`
     <div style="font-size:11.5px;color:var(--text3);margin-bottom:8px">El menú viene de las estaciones del presupuesto. Elegí al lado de cada plato la receta con la que se cotiza.</div>
@@ -13551,6 +13651,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-19', t:'Recetas: donde aparezca una receta (Subproductos y Platos en las tres vistas, la ventana de la receta, Cotización y Eventos a producir) sale el botón rojo <b>💲 N sin precio</b> si tiene insumos sin precio (también los de sus subproductos). Al tocarlo se cargan los precios ahí mismo y los costos se recalculan solos.'},
   {f:'2026-11-19', t:'Cotización: cada plato tiene el botón <b>📖 Receta</b> para abrir su receta, y los platos del menú sin receta tienen <b>＋ Armar receta</b> (se abre una receta nueva con el nombre del plato y al guardarla queda elegida).'},
   {f:'2026-11-19', t:'Cotización: las recetas de platos que ya no están en el menú del presupuesto (porque se borraron o cambiaron) ya no se suman al costo ni salen en el PDF interno.'},
   {f:'2026-11-18', t:'Presupuestos: la <b>Fecha de emisión</b> ahora se puede cambiar a mano. Si la cambiás, queda fija y el PDF no la pisa; con «usar la del día» vuelve a ponerse sola.'},
@@ -14221,6 +14322,7 @@ function prodHtmlPaso1(d){
             avisos.push(`<div class="prod-aviso">⚠ Usa <b>${escH(prodCorto(f.componente))}</b>, que no tiene cargado cuánto rinde. ${btnAbrir(f.componente)}</div>`);
         });
       }
+      if(r && !l.noProduce){ const sp=recSinPrecioBtn([r]); if(sp) avisos.push(`<div class="prod-aviso">Hay insumos sin precio en esta receta. ${sp}</div>`); }
       const ok=prodLineaLista(l);
       return `<div class="prod-plato ${l.noProduce?'prod-off':''}">
         <div class="prod-plato-hd">
@@ -14348,7 +14450,7 @@ function prodHtmlPaso2(d){
         return `<tr><td>${prodEsSub(x.componente)?'🧩 <b>'+escH(prodCorto(x.componente))+'</b> <span class="prod-para">(se prepara aparte, más abajo)</span>':escH(prodNombreComp(x.componente))}</td><td class="num prod-kg">${prodNum(kg)} kg</td></tr>`;
       }).join('');
       return `<div class="prod-est">
-        <div class="prod-est-hd"><span>${ico(j.receta)} ${escH(prodCorto(j.receta))}${paraTxt(j)}</span><span class="prod-est-cnt">${prodNum(j.planificado,2)} ${escH(prodUnidadLbl(j.receta))}</span></div>
+        <div class="prod-est-hd"><span>${ico(j.receta)} ${escH(prodCorto(j.receta))}${paraTxt(j)} ${recSinPrecioBtn([j.receta])}</span><span class="prod-est-cnt">${prodNum(j.planificado,2)} ${escH(prodUnidadLbl(j.receta))}</span></div>
         <table class="prod-tabla prod-ing"><tbody>${filas||'<tr><td class="empty">La receta no tiene ingredientes.</td></tr>'}</tbody></table>
       </div>`;
     }).join('')||'<div class="empty">No hay recetas para producir.</div>';
@@ -14356,6 +14458,7 @@ function prodHtmlPaso2(d){
   return `
     <div class="prod-nec-bar">
       <div class="presu-seg-chips">${chip('insumo','🧾 Todo junto')}${chip('receta','🍴 Por receta')}</div>
+      ${recSinPrecioBtn(js.map(j=>j.receta),'en este evento')}
       <span class="prod-nec-res">${js.length} receta${js.length===1?'':'s'} · ${ins.length} insumo${ins.length===1?'':'s'}${_prodVista2==='insumo'&&ins.length?(()=>{ const t=d.tengo||{}, rev=ins.filter(i=>t[i.key]).length, f=ins.filter(i=>t[i.key]==='no').length; return ` · revisados ${rev} de ${ins.length}${f?` · <b style="color:var(--red)">faltan ${f}</b>`:''}`; })():''}</span>
     </div>
     ${cuerpo}
