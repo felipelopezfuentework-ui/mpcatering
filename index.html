@@ -5618,7 +5618,7 @@ function _guardarSubReal(nombre){
   novRecetaGuardada('sub', _novAntes, nombre);
   guardarSubproductoDoc(nombre);
   guardarMaestroSubs();
-  cotizActualizarNumeros();
+  cotizTrasGuardarReceta(nombre);
 }
 
 // ── Menú desplegable compartido ──────────────────────────────────────────
@@ -5762,7 +5762,7 @@ function aplicarProcPanel(){
   document.querySelectorAll('.proc-toggle').forEach(b=>b.textContent=pleg?'⟨':'⟩');
 }
 function abrirModalPlato(platoName){
-  ddClose();
+  ddClose(); _cotizRecetaPend=null;
   aplicarProcPanel();
   editPlatoOld=platoName;
   document.getElementById('modal-plato-nombre').value=platoName?platoName.replace('PLATO - ',''):'';
@@ -5962,7 +5962,7 @@ function _guardarPlatoReal(nombre){
   novRecetaGuardada('plato', _novAntes, nombre);
   guardarPlatoDoc(nombre);
   guardarMaestroPlatos();
-  cotizActualizarNumeros();
+  cotizTrasGuardarReceta(nombre);
 }
 
 function renderPlatos(){
@@ -12012,7 +12012,7 @@ function cotizCantidad(c,it){
 }
 function cotizCalc(c){
   let menu=0, otros=0; const sinPorc=[];
-  (c.items||[]).forEach(it=>{
+  cotizItemsVigentes(c).forEach(it=>{
     const cant=cotizCantidad(c,it);
     if(it.tipo==='plato'||it.tipo==='sub'){
       const info=cotizRecetaInfo(it);
@@ -12213,6 +12213,15 @@ function cotizMenuLineas(c){
   if(!p) return null;
   return presuMenuEstaciones(p).flatMap(e=>String(e.items||'').split('\n').map(t=>t.trim()).filter(Boolean).map(t=>({texto:t, seccion:e.titulo||''})));
 }
+// Ítems que cuentan: las recetas de renglones del menú que ya no están en el
+// presupuesto (se borró o cambió el plato) no se ven ni suman, ni en el total
+// ni en el PDF. Quedan guardadas por si el renglón vuelve.
+function cotizItemsVigentes(c){
+  const l=cotizMenuLineas(c);
+  if(!l||!l.length) return c.items||[];
+  const hay=new Set(l.map(x=>prodNorm(x.texto)));
+  return (c.items||[]).filter(it=>!it.menuTexto || hay.has(prodNorm(it.menuTexto)));
+}
 function cotizItemDeLinea(c, texto){ return (c.items||[]).find(it=>it.menuTexto && prodNorm(it.menuTexto)===prodNorm(texto)); }
 // Renglones sin receta: se completa con la receta ya elegida antes para ese
 // plato (en Producción o en otra cotización); si ya había un ítem suelto con
@@ -12230,9 +12239,33 @@ function cotizAutoVincular(c, lineas){
   });
   return cambio;
 }
+// Atajos a la receta desde la cotización: abrir la que está elegida o armar
+// una nueva con el nombre del plato del menú (al guardarla queda vinculada).
+let _cotizRecetaPend=null;
+function cotizVerReceta(id){
+  const it=cotizItem(id); if(!it||!it.plato) return;
+  abrirRecetaDesdeCotizador(it.tipo, it.plato);
+}
+function cotizArmarReceta(idx){
+  const l=(cotizMenuLineas(_cotizEdit)||[])[idx]; if(!l) return;
+  abrirModalPlato(null);
+  document.getElementById('modal-plato-nombre').value=String(l.texto).replace(/ +/g,' ').trim().toUpperCase();
+  _cotizRecetaPend={texto:l.texto};
+}
+function cotizTrasGuardarReceta(nombre){
+  const pend=_cotizRecetaPend; _cotizRecetaPend=null;
+  if(!_cotizEdit) return;
+  if(pend && !prodEsSub(nombre)){ cotizVincularLinea(pend.texto, nombre); return; }
+  const tab=document.getElementById('tab-costeo');
+  if(tab && tab.classList.contains('active')) renderCotizEditor(); else cotizActualizarNumeros();
+}
 function cotizElegirRecetaLinea(idx, val){
+  const l=(cotizMenuLineas(_cotizEdit)||[])[idx]; if(!l) return;
+  cotizVincularLinea(l.texto, val);
+}
+function cotizVincularLinea(texto, val){
   const c=_cotizEdit; if(!c||!val) return;
-  const l=(cotizMenuLineas(c)||[])[idx]; if(!l) return;
+  const l={texto};
   const tipo=prodEsSub(val)?'sub':'plato';
   const it=cotizItemDeLinea(c, l.texto);
   if(it){ it.plato=val; it.tipo=tipo; }
@@ -12290,7 +12323,8 @@ function renderCotizEditor(){
         oninput="cotizSetItem(${it.id},'cant',this.value)" id="cotiz-cant${it.id}"></td>
       <td class="num" id="cotiz-tot${it.id}" style="font-weight:600"></td>
       <td style="white-space:nowrap;width:1%">
-        <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Ver receta" onclick="cotizToggleDetalle(${it.id})">🔍</button>
+        <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Ver ingredientes" onclick="cotizToggleDetalle(${it.id})">🔍</button>
+        <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Abrir la receta" onclick="cotizVerReceta(${it.id})">📖 Receta</button>
         <button class="btn btn-danger" onclick="cotizQuitar(${it.id})">🗑</button></td>
     </tr>`;
   };
@@ -12303,7 +12337,8 @@ function renderCotizEditor(){
     if(!it) return titulo+`<tr>
       <td class="cotiz-menu-txt">${escH(l.texto)}</td>
       <td><input class="dd-input" id="cotiz-lin${i}" type="text" placeholder="🔍 Buscar receta…" style="width:100%"></td>
-      <td class="num" colspan="4" style="color:var(--text3);font-size:11px">Elegí la receta para calcular el costo</td><td></td></tr>`;
+      <td class="num" colspan="4" style="color:var(--text3);font-size:11px">Elegí la receta para calcular el costo</td>
+      <td style="white-space:nowrap;width:1%"><button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Armar una receta nueva para este plato" onclick="cotizArmarReceta(${i})">＋ Armar receta</button></td></tr>`;
     const info=cotizRecetaInfo(it);
     const costo=info&&!info.sinPorciones?fmt(info.costoPorcion):`<span style="color:var(--red);font-size:11px">⚠ Sin porciones</span>
       ${info?`<button class="btn btn-outline" style="padding:1px 6px;font-size:10px" onclick="abrirRecetaDesdeCotizador('${it.tipo}',${escH(JSON.stringify(info.nombre))})">Cargar</button>`:''}`;
@@ -12317,7 +12352,8 @@ function renderCotizEditor(){
         oninput="cotizSetItem(${it.id},'cant',this.value)" id="cotiz-cant${it.id}"></td>
       <td class="num" id="cotiz-tot${it.id}" style="font-weight:600"></td>
       <td style="white-space:nowrap;width:1%">
-        <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Ver receta" onclick="cotizToggleDetalle(${it.id})">🔍</button>
+        <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Ver ingredientes" onclick="cotizToggleDetalle(${it.id})">🔍</button>
+        <button class="btn btn-outline" style="padding:3px 7px;font-size:11px" title="Abrir la receta" onclick="cotizVerReceta(${it.id})">📖 Receta</button>
         <button class="btn btn-danger" title="Quitar la receta de este plato" onclick="cotizQuitar(${it.id})">🗑</button></td>
     </tr>`;
   };
@@ -12496,7 +12532,7 @@ function exportarCotizPDF(){
   doc.text('Personas: '+(k.pers||'—'),M,y); y+=8;
   const xr=[W-M-75,W-M-50,W-M-1];
   tabla('Menú',[{t:'Plato / subproducto',x:M+1},{t:'Costo x porción',x:xr[0],a:'r'},{t:'Cantidad',x:xr[1],a:'r'},{t:'Total',x:xr[2],a:'r'}],
-    c.items.filter(x=>x.tipo==='plato'||x.tipo==='sub').map(it=>{
+    cotizItemsVigentes(c).filter(x=>x.tipo==='plato'||x.tipo==='sub').map(it=>{
       const info=cotizRecetaInfo(it), cant=cotizCantidad(c,it), ok=info&&!info.sinPorciones;
       return [info?info.visible:it.plato, ok?fmt(info.costoPorcion):'sin porciones', fmtN(cant,2), ok?fmt(info.costoPorcion*cant):'—'];
     }), fmt(k.menu));
@@ -13515,6 +13551,8 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-19', t:'Cotización: cada plato tiene el botón <b>📖 Receta</b> para abrir su receta, y los platos del menú sin receta tienen <b>＋ Armar receta</b> (se abre una receta nueva con el nombre del plato y al guardarla queda elegida).'},
+  {f:'2026-11-19', t:'Cotización: las recetas de platos que ya no están en el menú del presupuesto (porque se borraron o cambiaron) ya no se suman al costo ni salen en el PDF interno.'},
   {f:'2026-11-18', t:'Presupuestos: la <b>Fecha de emisión</b> ahora se puede cambiar a mano. Si la cambiás, queda fija y el PDF no la pisa; con «usar la del día» vuelve a ponerse sola.'},
   {f:'2026-11-18', t:'Pedidos al sistema: los pedidos en <b>❓ Necesito más info</b> ya no aparecen en «Abiertos»: se ven en «Falta info» (y en Todos / Míos).'},
   {f:'2026-11-18', t:'Pedidos al sistema: al tocar <b>Enviar pedido</b> el formulario se cierra enseguida (se sigue enviando de fondo y avisa cuando llegó).'},
