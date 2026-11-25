@@ -25,6 +25,7 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Vajilla por plato precargada** en el armado de vajilla, según el criterio de Mariana. *(Necesita la lista de Mariana.)*
 
 ## Hecho
+- 25/11/2026 — **Sincronización (volvía a pasar lo de módulos a medias)**: la copia local ya no se comparte entre pestañas (cada pestaña habla con la base por su cuenta); el cartel de "no sincroniza" ahora también salta si algún módulo no recibió los datos del servidor o si la base no confirma la señal de Actividad en 2 minutos.
 - 18/11/2026 — **Armado vajilla**: una sola columna de cantidad, que se completa sola con las Unidades de la Comanda. **Comanda**: fotos con observación por sección del menú (falta: que salgan en el PDF, si se quiere). **Ficha ↔ chat**: botón 💬 Chat en la ficha. **Stock vajilla**: tipo Ambientación. **Importar recetas de Excel**: se editan kg, merma e ingredientes en la revisión. **Pedidos**: ordenar por fecha. **Novedades**: suma Pedidos y Chat.
 - 12/11/2026 — **Fichas Técnicas › Stock vajilla**: maestro de vajilla (descripción/material + color + tamaño = nombre, stock, área y tipo); Vajilla salón y Armado vajilla eligen solo de ahí y avisan si se pide más de lo que hay.
 - 12/11/2026 — **Sistema más rápido al abrir** (copia local de los datos en cada compu); arreglado que los módulos aparecieran a medias; cartel que bloquea si no sincroniza y obliga a actualizar.

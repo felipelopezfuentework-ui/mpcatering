@@ -6852,7 +6852,12 @@ const fbDb=firebase.firestore();
 // Las rutinas que escriben reparaciones esperan a los datos confirmados por el
 // servidor (_mpSrv), nunca trabajan sobre la copia local.
 try{ fbDb.settings({cacheSizeBytes:300*1024*1024, merge:true}); }catch(e){ console.warn('Firestore settings', e); }
-fbDb.enablePersistence({synchronizeTabs:true}).catch(e=>console.warn('Sin copia local de la base:', e&&e.code));
+// Copia local solo para UNA pestaña por compu (sin synchronizeTabs). Con varias
+// pestañas compartiendo la copia, solo una habla con la base y las demás
+// dependen de ella: si esa queda dormida en segundo plano, las otras se quedan
+// con datos viejos sin enterarse (pasó en 11/2026: módulos a medias, "como en
+// otro sistema"). Las pestañas extra funcionan igual, bajando de internet.
+fbDb.enablePersistence().catch(e=>console.warn('Sin copia local de la base (otra pestaña la usa):', e&&e.code));
 // Antes se copiaba toda la base (con las fotos de los presupuestos) a
 // localStorage en cada cambio: frenaba mucho y ya no se usa.
 try{ localStorage.removeItem('foodcost_mp_v3'); }catch(e){}
@@ -6950,10 +6955,13 @@ function actGuardar(){
   if(!fbAuth.currentUser||!_actDesde) return;
   // Token a mano para poder borrar el doc al cerrar la pestaña (actBorrarAlCerrar).
   fbAuth.currentUser.getIdToken().then(t=>{ _actToken=t; }).catch(()=>{});
+  // Latido de la sincronización: la base confirma esta escritura solo si la
+  // conexión está viva (mpSyncRevisar avisa si no la confirma).
+  if(!_mpLatidoPend) _mpLatidoPend=Date.now();
   FB_COL_ACT.doc(actDocId()).set({
     mail:novMail(), nombre:novNombre(novMail()), mod:perfilActivo||'', tab:perfilActivo?(_actTab||''):'',
     ts:Date.now(), desde:_actDesde, visible:document.visibilityState!=='hidden', sesion:_actSesion, compu:_actCompu
-  }).catch(e=>console.warn('Actividad: no se pudo anotar', e));
+  }).then(()=>{ _mpLatidoPend=0; }).catch(e=>console.warn('Actividad: no se pudo anotar', e));
 }
 // Cambio de módulo/pestaña: se anota enseguida (agrupando cambios seguidos).
 function actAvisar(tab){
@@ -7099,10 +7107,15 @@ function reconvertirArraysAnidados(value){
 const _mpSrv={};
 const MP_SYNC_ESPERA_SEG=45, MP_SYNC_CORTE_SEG=60;
 let _mpConectado=false, _mpDesconectadoDesde=0, _mpSyncInicio=0, _mpSyncTimer=null, _mpSyncCaido=false;
+// Colecciones que tienen que llegar del servidor (las registra mpSnap) y
+// desde cuándo espera confirmación la última señal de Actividad (0 = confirmada).
+const _mpEsperadas=new Set(); let _mpLatidoPend=0;
+const MP_LATIDO_SEG=120;
 // Envuelve el callback de un listener con includeMetadataChanges: anota cuándo
 // llegan los datos del servidor y no redibuja por cambios que son solo de estado.
 function mpSnap(clave, fn){
   let primera=true;
+  _mpEsperadas.add(clave);
   return snap=>{
     const antes=!!_mpSrv[clave];
     if(!snap.metadata.fromCache) _mpSrv[clave]=true;
@@ -7123,6 +7136,7 @@ function mpSyncIniciar(){
 function mpSyncDetener(){
   clearInterval(_mpSyncTimer); _mpSyncTimer=null; _mpSyncCaido=false; _mpConectado=false; _mpDesconectadoDesde=0; _mainCargado=false;
   Object.keys(_mpSrv).forEach(k=>delete _mpSrv[k]);
+  _mpEsperadas.clear(); _mpLatidoPend=0;
   const ov=document.getElementById('mp-sync-caido'); if(ov) ov.remove();
 }
 function mpSyncRevisar(){
@@ -7130,12 +7144,25 @@ function mpSyncRevisar(){
   const ahora=Date.now();
   if(!navigator.onLine){ mpSyncCartel('offline'); return; }
   if(!_mpConectado){ if(ahora-_mpSyncInicio>MP_SYNC_ESPERA_SEG*1000) mpSyncCartel('no-arranca'); return; }
+  // Algún módulo sigue mostrando solo la copia local (no llegó del servidor).
+  if(ahora-_mpSyncInicio>MP_SYNC_ESPERA_SEG*1000 && [..._mpEsperadas].some(k=>!_mpSrv[k])){
+    console.warn('Sin datos del servidor:', [..._mpEsperadas].filter(k=>!_mpSrv[k]));
+    mpSyncCartel('no-arranca'); return;
+  }
+  // La conexión parece viva pero la base no confirma lo que se le manda.
+  if(_mpLatidoPend && document.visibilityState==='visible' && ahora-_mpLatidoPend>MP_LATIDO_SEG*1000){ mpSyncCartel('cortada'); return; }
   if(_mpDesconectadoDesde && document.visibilityState==='visible' && ahora-_mpDesconectadoDesde>MP_SYNC_CORTE_SEG*1000) mpSyncCartel('cortada');
   else if(!_mpDesconectadoDesde) mpSyncCartel(null);
 }
 // Al volver internet o la pestaña, se cuenta de nuevo (la base se reconecta sola en unos segundos).
-['online','offline'].forEach(ev=>window.addEventListener(ev,()=>{ if(_mpDesconectadoDesde) _mpDesconectadoDesde=Date.now(); mpSyncRevisar(); }));
-document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && _mpDesconectadoDesde) _mpDesconectadoDesde=Date.now(); });
+['online','offline'].forEach(ev=>window.addEventListener(ev,()=>{ if(_mpDesconectadoDesde) _mpDesconectadoDesde=Date.now(); if(_mpLatidoPend) _mpLatidoPend=Date.now(); mpSyncRevisar(); }));
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible') return;
+  if(_mpDesconectadoDesde) _mpDesconectadoDesde=Date.now();
+  // Al volver a la pestaña (quizás después de horas dormida) se cuenta de nuevo;
+  // Actividad manda una señal enseguida y sirve de prueba de la conexión.
+  if(_mpLatidoPend) _mpLatidoPend=Date.now();
+});
 // Un listener que da error queda muerto: no vuelve a traer cambios. Se bloquea
 // el sistema hasta actualizar, para que nadie trabaje con datos viejos.
 function mpSyncFallo(origen, err){
@@ -13711,6 +13738,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-25', t:'Sincronización: arreglado otra vez que el sistema se abriera con algunos módulos a medias, como si fuera otra versión. Ahora cada pestaña se conecta sola a la base (antes dependían de una sola pestaña, y si esa se dormía las otras quedaban con datos viejos), y si algún módulo no recibe los datos o la conexión queda muerta, sale el cartel para actualizar.'},
   {f:'2026-11-19', t:'Cotización: cada plato tiene ahora una <b>Unidad</b> para elegir: <b>Porciones x persona</b> (como antes), <b>Gramos x persona</b>, <b>Kg a granel</b> (total del evento) o <b>Unidades a granel</b>. Por gramos o kilos el costo sale del costo por kg de la receta. Al cambiar la unidad la cantidad se pasa sola a la nueva.'},
   {f:'2026-11-19', t:'Recetas: donde aparezca una receta (Subproductos y Platos en las tres vistas, la ventana de la receta, Cotización y Eventos a producir) sale el botón rojo <b>💲 N sin precio</b> si tiene insumos sin precio (también los de sus subproductos). Al tocarlo se cargan los precios ahí mismo y los costos se recalculan solos.'},
   {f:'2026-11-19', t:'Cotización: cada plato tiene el botón <b>📖 Receta</b> para abrir su receta, y los platos del menú sin receta tienen <b>＋ Armar receta</b> (se abre una receta nueva con el nombre del plato y al guardarla queda elegida).'},
