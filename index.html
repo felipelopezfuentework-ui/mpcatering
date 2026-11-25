@@ -767,8 +767,12 @@ input.vaj-elegir{width:100%;background:transparent;border:none;border-bottom:1px
 input.vaj-elegir:focus{cursor:text;border-bottom-color:var(--mp-violet)}
 input.vaj-elegir.vaj-sin{color:var(--red,#c0392b);border-bottom:1px dashed var(--red,#c0392b)}
 .vaj-falta{font-size:10.5px;font-weight:700;color:var(--red,#c0392b);text-align:center;line-height:1.2;min-height:0}
-#mp-sync-caido{position:fixed;inset:0;z-index:100001;background:rgba(13,4,24,.6);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;animation:mpAparece .3s ease}
-#mp-sync-caido .mpv-card{background:var(--surface);border-radius:20px;padding:30px 34px 22px;max-width:440px;width:100%;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.45);border:2px solid var(--red,#c0392b)}
+#mp-sync-caido{position:fixed;inset:0;z-index:100001;background:rgba(13,4,24,.35);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:16px;animation:mpAparece .4s ease}
+#mp-sync-caido.mp-sync-suave{background:transparent;backdrop-filter:none;pointer-events:none;align-items:flex-start;padding-top:18px}
+#mp-sync-caido .mpv-pill{background:var(--surface);color:var(--mp-plum);border:1.5px solid var(--mp-gold);border-radius:999px;padding:9px 18px;font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.18);animation:mpModal .35s ease}
+#mp-sync-caido .mpv-giro{display:inline-block;animation:mpGiro 1s linear infinite}
+@keyframes mpGiro{to{transform:rotate(360deg)}}
+#mp-sync-caido .mpv-card{background:var(--surface);border-radius:20px;padding:28px 32px 22px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.25);border:1.5px solid var(--mp-gold);animation:mpModal .45s cubic-bezier(.2,.9,.3,1.1)}
 #mp-sync-caido .mpv-ico{font-size:44px;line-height:1;margin-bottom:10px}
 #mp-sync-caido .mpv-tit{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--mp-plum);line-height:1.25}
 #mp-sync-caido .mpv-txt{font-size:14px;color:var(--text2);margin:8px 0 20px}
@@ -7110,7 +7114,7 @@ let _mpConectado=false, _mpDesconectadoDesde=0, _mpSyncInicio=0, _mpSyncTimer=nu
 // Colecciones que tienen que llegar del servidor (las registra mpSnap) y
 // desde cuándo espera confirmación la última señal de Actividad (0 = confirmada).
 const _mpEsperadas=new Set(); let _mpLatidoPend=0;
-const MP_LATIDO_SEG=120;
+const MP_LATIDO_SEG=30; // una señal chica la base la confirma en menos de 1 s
 // Envuelve el callback de un listener con includeMetadataChanges: anota cuándo
 // llegan los datos del servidor y no redibuja por cambios que son solo de estado.
 function mpSnap(clave, fn){
@@ -7126,72 +7130,116 @@ function mpSnap(clave, fn){
   };
 }
 function mpConexion(ok){
-  if(ok){ _mpConectado=true; _mpDesconectadoDesde=0; if(!_mpSyncCaido) mpSyncCartel(null); }
+  if(ok){ _mpConectado=true; _mpDesconectadoDesde=0;
+    const ov=document.getElementById('mp-sync-caido'); if(ov && ov.dataset.tipo==='offline') mpSyncCartel(null); }
   else if(!_mpDesconectadoDesde) _mpDesconectadoDesde=Date.now();
 }
 function mpSyncIniciar(){
-  _mpSyncInicio=Date.now(); _mpSyncCaido=false;
+  _mpSyncInicio=Date.now(); _mpSyncCaido=false; _mpArreglo=null;
   clearInterval(_mpSyncTimer); _mpSyncTimer=setInterval(mpSyncRevisar,5000);
 }
 function mpSyncDetener(){
   clearInterval(_mpSyncTimer); _mpSyncTimer=null; _mpSyncCaido=false; _mpConectado=false; _mpDesconectadoDesde=0; _mainCargado=false;
   Object.keys(_mpSrv).forEach(k=>delete _mpSrv[k]);
-  _mpEsperadas.clear(); _mpLatidoPend=0;
+  _mpEsperadas.clear(); _mpLatidoPend=0; _mpArreglo=null;
   const ov=document.getElementById('mp-sync-caido'); if(ov) ov.remove();
 }
+// Qué anda mal con la sincronización (null = todo bien o todavía arrancando).
+function mpSyncProblema(ahora){
+  const espero=ahora-_mpSyncInicio>MP_SYNC_ESPERA_SEG*1000, visible=document.visibilityState==='visible';
+  if(!_mpConectado) return espero?'no-arranca':null;
+  // Algún módulo sigue mostrando solo la copia local (no llegó del servidor).
+  if(espero && [..._mpEsperadas].some(k=>!_mpSrv[k])) return 'no-arranca';
+  // La conexión parece viva pero la base no confirma lo que se le manda.
+  if(_mpLatidoPend && visible && ahora-_mpLatidoPend>MP_LATIDO_SEG*1000) return 'cortada';
+  if(_mpDesconectadoDesde && visible && ahora-_mpDesconectadoDesde>MP_SYNC_CORTE_SEG*1000) return 'cortada';
+  return null;
+}
 function mpSyncRevisar(){
-  if(_mpSyncCaido || !fbAuth.currentUser) return;
+  if(!fbAuth.currentUser) return;
+  if(_mpSyncCaido){ if(_mpSyncCaido!=='cupo') mpSyncArreglar('error'); return; }
   const ahora=Date.now();
   if(!navigator.onLine){ mpSyncCartel('offline'); return; }
-  if(!_mpConectado){ if(ahora-_mpSyncInicio>MP_SYNC_ESPERA_SEG*1000) mpSyncCartel('no-arranca'); return; }
-  // Algún módulo sigue mostrando solo la copia local (no llegó del servidor).
-  if(ahora-_mpSyncInicio>MP_SYNC_ESPERA_SEG*1000 && [..._mpEsperadas].some(k=>!_mpSrv[k])){
-    console.warn('Sin datos del servidor:', [..._mpEsperadas].filter(k=>!_mpSrv[k]));
-    mpSyncCartel('no-arranca'); return;
-  }
-  // La conexión parece viva pero la base no confirma lo que se le manda.
-  if(_mpLatidoPend && document.visibilityState==='visible' && ahora-_mpLatidoPend>MP_LATIDO_SEG*1000){ mpSyncCartel('cortada'); return; }
-  if(_mpDesconectadoDesde && document.visibilityState==='visible' && ahora-_mpDesconectadoDesde>MP_SYNC_CORTE_SEG*1000) mpSyncCartel('cortada');
-  else if(!_mpDesconectadoDesde) mpSyncCartel(null);
+  const prob=mpSyncProblema(ahora);
+  if(prob){ mpSyncArreglar(prob); return; }
+  if(!_mpConectado || _mpDesconectadoDesde) return; // arrancando o reconectándose: se espera
+  if(_mpArreglo){ _mpArreglo=null; mpIndicadorPoniendoAlDia(false); }
+  mpSyncCartel(null);
 }
-// Al volver internet o la pestaña, se cuenta de nuevo (la base se reconecta sola en unos segundos).
-['online','offline'].forEach(ev=>window.addEventListener(ev,()=>{ if(_mpDesconectadoDesde) _mpDesconectadoDesde=Date.now(); if(_mpLatidoPend) _mpLatidoPend=Date.now(); mpSyncRevisar(); }));
-document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState!=='visible') return;
-  if(_mpDesconectadoDesde) _mpDesconectadoDesde=Date.now();
-  // Al volver a la pestaña (quizás después de horas dormida) se cuenta de nuevo;
-  // Actividad manda una señal enseguida y sirve de prueba de la conexión.
-  if(_mpLatidoPend) _mpLatidoPend=Date.now();
-});
-// Un listener que da error queda muerto: no vuelve a traer cambios. Se bloquea
-// el sistema hasta actualizar, para que nadie trabaje con datos viejos.
+// Arreglo sin molestar, en tres pasos:
+// 1) reconecta la base por su cuenta (como apagar y prender el wifi, solo para el sistema);
+// 2) si a los 25 s sigue mal y no se está escribiendo nada, se actualiza sola;
+// 3) recién si no puede (se está escribiendo, o ya se actualizó sola hace poco) muestra un aviso suave.
+let _mpArreglo=null;
+const MP_ARREGLO_SEG=25, MP_RECARGA_SOLA_MIN=10;
+function mpSyncArreglar(tipo){
+  const ahora=Date.now();
+  if(!_mpArreglo){
+    _mpArreglo={desde:ahora};
+    console.warn('Sincronización: '+tipo+' → reconectando', [..._mpEsperadas].filter(k=>!_mpSrv[k]));
+    mpIndicadorPoniendoAlDia(true);
+    fbDb.disableNetwork().then(()=>fbDb.enableNetwork()).catch(()=>{});
+    if(_mpLatidoPend) _mpLatidoPend=ahora;
+    if(_mpDesconectadoDesde) _mpDesconectadoDesde=ahora;
+    setTimeout(()=>{ if(typeof actGuardar==='function') actGuardar(); }, 1500);
+    return;
+  }
+  if(ahora-_mpArreglo.desde<MP_ARREGLO_SEG*1000) return;
+  if(mpPuedeRecargarSola()){ mpRecargarSola(); return; }
+  mpSyncCartel('poner-al-dia');
+}
+function mpPuedeRecargarSola(){
+  if(document.visibilityState!=='visible') return false;
+  if(document.querySelector('.modal-ov.open, #ped-modal')) return false; // hay una ventana abierta
+  const a=document.activeElement; if(a && a!==document.body && esCampoEditable(a)) return false;
+  let ult=0; try{ ult=Number(sessionStorage.getItem('mp_recarga_sola')||0); }catch(e){}
+  return Date.now()-ult>MP_RECARGA_SOLA_MIN*60000;
+}
+function mpRecargarSola(){
+  try{ sessionStorage.setItem('mp_recarga_sola', String(Date.now())); }catch(e){}
+  let ov=document.getElementById('mp-sync-caido');
+  if(!ov){ ov=document.createElement('div'); ov.id='mp-sync-caido'; document.body.appendChild(ov); }
+  ov.dataset.tipo='recargando'; ov.className='mp-sync-suave';
+  ov.innerHTML='<div class="mpv-pill"><span class="mpv-giro">⟳</span> Poniendo al día los datos…</div>';
+  setTimeout(()=>location.replace(location.pathname+'?v='+Date.now()+location.hash), 700);
+}
+function mpIndicadorPoniendoAlDia(si){
+  const el=document.getElementById('autosave-indicator'); if(!el) return;
+  if(si){ el.textContent='⟳ Poniendo al día…'; el.classList.remove('header-sync-error'); el.style.opacity='1'; }
+  else marcarSincronizado();
+}
+// Un listener que da error queda muerto: no vuelve a traer cambios. Se arregla
+// igual que arriba (se actualiza sola si se puede), para que nadie trabaje con datos viejos.
 function mpSyncFallo(origen, err){
   console.error('Error al sincronizar '+origen+':', err);
   if(!fbAuth.currentUser) return; // se cerró la sesión
-  _mpSyncCaido=true;
-  mpSyncCartel(err&&err.code==='resource-exhausted'?'cupo':'error', origen, err);
+  if(err&&err.code==='resource-exhausted'){ _mpSyncCaido='cupo'; mpSyncCartel('cupo', origen, err); return; }
+  _mpSyncCaido='error';
+  // Un listener muerto no se revive reconectando: directo a actualizarse sola.
+  if(!_mpArreglo) _mpArreglo={desde:Date.now()-MP_ARREGLO_SEG*1000};
+  mpIndicadorPoniendoAlDia(true);
+  mpSyncArreglar('error');
 }
 function mpSyncCartel(tipo, origen, err){
   let ov=document.getElementById('mp-sync-caido');
-  if(!tipo){ if(ov) ov.remove(); return; }
+  if(!tipo){ if(ov && ov.dataset.tipo!=='recargando') ov.remove(); return; }
+  if(ov && ov.dataset.tipo==='recargando') return;
   const T={
-    offline:['📶','Sin conexión a internet','El sistema queda en pausa para que nadie trabaje con datos viejos. Sigue solo apenas vuelva internet.',false],
-    'no-arranca':['⚠️','El sistema no logra sincronizar','No están llegando los datos. Actualizá la página para volver a conectarte.',true],
-    cortada:['⚠️','Se cortó la sincronización','Hace más de un minuto que no hay conexión con la base. Actualizá la página.',true],
-    error:['⛔','Se cortó la sincronización','Hubo un error y la conexión con la base no se recupera sola. Actualizá la página para seguir (lo ya guardado no se pierde).',true],
-    cupo:['⛔','Se llegó al límite de uso diario de la base','Firebase (plan gratis) frenó el acceso por hoy. Se normaliza solo a la madrugada. Avisale a Felipe.',true]
+    offline:['📶','Se cortó internet','Apenas vuelva, el sistema sigue solo.',false],
+    'poner-al-dia':['🔄','Hay que poner al día los datos','Así ves todo completo y actualizado. Lo que ya guardaste no se pierde.',true],
+    cupo:['⏳','Por hoy se usó todo el cupo de la base','Firebase (plan gratis) frenó el acceso hasta la madrugada. Avisale a Felipe.',true]
   }[tipo];
   if(!T) return;
   if(ov && ov.dataset.tipo===tipo) return;
   if(!ov){ ov=document.createElement('div'); ov.id='mp-sync-caido'; document.body.appendChild(ov); }
-  ov.dataset.tipo=tipo;
+  ov.dataset.tipo=tipo; ov.className='';
   const det=err?String(err.code||err.message||'')+(origen?' · '+origen:''):'';
   ov.innerHTML=`<div class="mpv-card"><div class="mpv-ico">${T[0]}</div><div class="mpv-tit">${T[1]}</div>
     <div class="mpv-txt">${T[2]}</div>
-    ${T[3]?'<button type="button" class="btn btn-primary mpv-btn">⟳ Actualizar</button>':'<div class="mpv-espera">Esperando conexión…</div>'}
+    ${T[3]?'<button type="button" class="btn btn-primary mpv-btn">⟳ Poner al día</button>':'<div class="mpv-espera">Esperando conexión…</div>'}
     ${det?`<div class="mpv-det">${escH(det)}</div>`:''}</div>`;
   const b=ov.querySelector('.mpv-btn');
-  if(b) b.onclick=()=>{ b.disabled=true; b.textContent='Actualizando…'; location.replace(location.pathname+'?v='+Date.now()+location.hash); };
+  if(b) b.onclick=()=>{ b.disabled=true; b.textContent='Poniendo al día…'; location.replace(location.pathname+'?v='+Date.now()+location.hash); };
 }
 
 // Actualiza el indicador "☁ Sincronizado" (usado tanto al guardar localmente como al recibir cambios remotos)
@@ -13738,6 +13786,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-25', t:'Sincronización: si algo no llega bien, el sistema <b>se arregla solo</b>: primero se reconecta por su cuenta (arriba dice «⟳ Poniendo al día…») y, si hace falta, se actualiza solo cuando no estás escribiendo. Solo si no puede, aparece un aviso suave con el botón «Poner al día».'},
   {f:'2026-11-25', t:'Sincronización: arreglado otra vez que el sistema se abriera con algunos módulos a medias, como si fuera otra versión. Ahora cada pestaña se conecta sola a la base (antes dependían de una sola pestaña, y si esa se dormía las otras quedaban con datos viejos), y si algún módulo no recibe los datos o la conexión queda muerta, sale el cartel para actualizar.'},
   {f:'2026-11-19', t:'Cotización: cada plato tiene ahora una <b>Unidad</b> para elegir: <b>Porciones x persona</b> (como antes), <b>Gramos x persona</b>, <b>Kg a granel</b> (total del evento) o <b>Unidades a granel</b>. Por gramos o kilos el costo sale del costo por kg de la receta. Al cambiar la unidad la cantidad se pasa sola a la nueva.'},
   {f:'2026-11-19', t:'Recetas: donde aparezca una receta (Subproductos y Platos en las tres vistas, la ventana de la receta, Cotización y Eventos a producir) sale el botón rojo <b>💲 N sin precio</b> si tiene insumos sin precio (también los de sus subproductos). Al tocarlo se cargan los precios ahí mismo y los costos se recalculan solos.'},
