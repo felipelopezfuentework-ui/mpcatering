@@ -25,6 +25,7 @@ Al terminar algo, pasarlo a **Hecho** con la fecha. Lo nuevo que surja se agrega
 - [ ] **Vajilla por plato precargada** en el armado de vajilla, según el criterio de Mariana. *(Necesita la lista de Mariana.)*
 
 ## Hecho
+- 25/11/2026 — **Presupuestos**: lista ordenada por fecha del evento (próximos primero, después pasados, al final sin fecha). **Clientes/Fichas**: «Dirección de ingreso de proveedores» en el maestro de clientes, la ficha la trae de ahí.
 - 25/11/2026 — **Recetas**: «＋ Agregar insumo» en el buscador de ingredientes. **Presupuestos**: botón 🍸 BARRA para mostrar/ocultar la barra. **Fichas Técnicas**: botón 🧮 Presupuesto en la ficha (solo con acceso a Presupuestos).
 - 25/11/2026 — **Recetas**: botón «📄 PDF» a la vista en cada receta y PDF rediseñado para imprimir. **Presupuesto PDF**: renglón en blanco entre cada ítem de las estaciones.
 - 25/11/2026 — **Sincronización (volvía a pasar lo de módulos a medias)**: la copia local ya no se comparte entre pestañas (cada pestaña habla con la base por su cuenta); el cartel de "no sincroniza" ahora también salta si algún módulo no recibió los datos del servidor o si la base no confirma la señal de Actividad. Además se arregla sola sin cartel: reconecta, y si sigue mal se actualiza sola cuando no se está escribiendo (máx. una vez cada 10 min); el aviso, ahora suave, queda para último caso.

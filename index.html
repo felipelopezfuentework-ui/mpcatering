@@ -1603,6 +1603,11 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
     </div>
     <div class="form-row">
       <div class="form-field" style="flex:1">
+        <label>Dirección de ingreso de proveedores</label>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <input type="text" id="cli-dir-ingreso" style="width:100%;flex:1" placeholder="Ej: entrada de servicio por Calle X 123">
+          <button type="button" class="btn btn-outline" style="padding:5px 10px" title="Abrir en Google Maps" onclick="abrirMaps(document.getElementById('cli-dir-ingreso').value)">📍</button>
+        </div>
         <label>Observaciones de acceso</label>
         <textarea id="cli-obs-acceso" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
       </div>
@@ -8670,7 +8675,7 @@ const COMANDA_TEMPLATE = [
       {tipo:'campo', label:'Observaciones de acceso/logística', key:'obs_acceso'},
       {tipo:'campo', label:'Locación (tipo de establecimiento)', key:'locacion', sugerencias:['Casa particular','Oficina','Salón']},
       {tipo:'campo', label:'Ubicación', key:'ubicacion'},
-      {tipo:'campo', label:'Dirección de ingreso de proveedores', key:'dir_ingreso'},
+      {tipo:'campo', label:'Dirección de ingreso de proveedores', key:'dir_ingreso', readonlyClienteMaestro:true, soloConCliente:true},
       {tipo:'campo', label:'Horario de ingreso a la locación', key:'hora_ingreso'},
       {tipo:'campo', label:'Carga y descarga de equipamiento', key:'carga_descarga'},
       {tipo:'campo', label:'Fecha y hora de armado', key:'hora_armado'},
@@ -8992,6 +8997,7 @@ function abrirModalCliente(id){
   document.getElementById('cli-localidad').value           = cliente?.localidad||'';
   document.getElementById('cli-referente').value           = cliente?.referente||'';
   document.getElementById('cli-obs-acceso').value          = cliente?.obs_acceso||'';
+  document.getElementById('cli-dir-ingreso').value         = cliente?.dir_ingreso||'';
   document.getElementById('cli-obs-generales').value       = cliente?.obs_generales||'';
   document.getElementById('cli-particularidades').value    = cliente?.particularidades||'';
   document.getElementById('cli-fecha-cumpleanos').value    = cliente?.fecha_cumpleanos||'';
@@ -9056,6 +9062,7 @@ function guardarCliente(){
     localidad:         document.getElementById('cli-localidad').value.trim(),
     referente:         document.getElementById('cli-referente').value.trim(),
     obs_acceso:        document.getElementById('cli-obs-acceso').value.trim(),
+    dir_ingreso:       document.getElementById('cli-dir-ingreso').value.trim(),
     obs_generales:     document.getElementById('cli-obs-generales').value.trim(),
     particularidades:  document.getElementById('cli-particularidades').value.trim(),
     fecha_cumpleanos:  document.getElementById('cli-fecha-cumpleanos').value,
@@ -9162,6 +9169,8 @@ function aplicarClienteAEvento(clienteId){
   updateEventoDato('direccion_evento', cliente.direccion_evento||'');
   updateEventoDato('localidad', cliente.localidad||'');
   updateEventoDato('obs_acceso', cliente.obs_acceso||'');
+  // Ingreso de proveedores: atado al maestro (ver sincronizarClienteConMaestro).
+  updateEventoDato('dir_ingreso', cliente.dir_ingreso||'');
   renderEventoSheet(ev, comandaSheetActual);
   guardarEventoActual();
 }
@@ -9197,11 +9206,20 @@ function sincronizarClienteConMaestro(ev){
     contacto: cliente.nombre_cliente||cliente.razon_social||'',
     contacto_evento: (slot==='2'?cliente.contacto2_nombre:cliente.contacto1_nombre)||'',
     telefono: (slot==='2'?cliente.contacto2_telefono:cliente.contacto1_telefono)||'',
-    email_cliente: (slot==='2'?cliente.contacto2_email:cliente.contacto1_email)||''
+    email_cliente: (slot==='2'?cliente.contacto2_email:cliente.contacto1_email)||'',
+    dir_ingreso: cliente.dir_ingreso||''
     // direccion_evento/localidad/obs_acceso NO se resincronizan más: son
     // editables por evento (ver COMANDA_TEMPLATE) y no deben pisarse solas
     // con un cambio hecho puntualmente para este evento.
   };
+  // Ingreso de proveedores cargado antes en la ficha (cuando no estaba en el
+  // maestro): pasa al maestro del cliente en vez de perderse.
+  const dirVieja=String(ev.datos.dir_ingreso||'').trim();
+  if(!cliente.dir_ingreso && dirVieja){
+    cliente.dir_ingreso=dirVieja; campos.dir_ingreso=dirVieja;
+    FB_COL_CLIENTES.doc(clienteId).set({dir_ingreso:dirVieja, updated_at:new Date().toISOString()},{merge:true})
+      .catch(e=>console.warn('No se pudo pasar el ingreso de proveedores al cliente', e));
+  }
   let cambio=false;
   Object.entries(campos).forEach(([k,v])=>{
     if((ev.datos[k]||'')!==v){ updateEventoDato(k,v); cambio=true; }
@@ -9815,7 +9833,7 @@ function renderEventoSheet(ev, sheetIdx){
         ${c.readonly ? `<div style="font-size:10px;color:var(--text3);margin-top:3px;font-style:italic">Se edita desde la solapa Evento</div>` : ''}
       </div>`;
       html+=`</div>`;
-    } else if(c.tipo==='campo' && c.readonlyClienteMaestro){
+    } else if(c.tipo==='campo' && c.readonlyClienteMaestro && (!c.soloConCliente || datos.cliente_id)){
       const val = datos[c.key]||'';
       html+=`<div class="form-field form-field-compacto" style="margin-bottom:14px">
         <label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:4px">${escH(c.label)}</label>
@@ -13864,6 +13882,8 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-25', t:'Presupuestos: la lista se ordena por la fecha del evento. Primero los que vienen o están en curso (el más cercano arriba), después los que ya pasaron y al final los que no tienen fecha.'},
+  {f:'2026-11-25', t:'Clientes y Fichas Técnicas: campo nuevo <b>Dirección de ingreso de proveedores</b> en el Maestro de Clientes. En la ficha del evento se trae de ahí sola y se edita desde el cliente. Lo que ya estaba cargado en fichas viejas pasa al cliente.'},
   {f:'2026-11-25', t:'Recetas: si escribís un ingrediente que no está en la base de insumos, en el renglón aparece el botón <b>＋ Agregar insumo</b> (en platos, en la columna Tipo). Se carga ahí mismo con lo que escribiste como nombre y queda elegido en la receta.'},
   {f:'2026-11-25', t:'Presupuestos: arriba de todo de las estaciones está el botón <b>🍸 BARRA</b> para mostrarla u ocultarla. Oculta no sale en el PDF; visible aparece en la lista y se puede mover como las demás estaciones.'},
   {f:'2026-11-25', t:'Fichas Técnicas: botón <b>🧮 Presupuesto</b> al lado del Chat, para ir directo al presupuesto del evento (solo lo ven quienes tienen acceso a Presupuestos).'},
@@ -14146,7 +14166,7 @@ const NOV_CAMPOS_PRESU={cliente:'Cliente', tipoEvento:'Tipo de evento', fechaEve
   horarioInicio:'Hora de inicio', horarioFin:'Hora de fin', referentes:'Solicitante', salonCamareros:'Camareros', salonPrecio:'Precio servicio de salón',
   estaciones:'Estaciones del menú', precios:'Precios', incluye:'Incluye', noIncluye:'No incluye', clausulas:'Términos', menuIntro:'Intro del menú'};
 const NOV_CAMPOS_COTIZ={titulo:'Evento', cliente:'Cliente', fecha:'Fecha', personas:'Personas', precioPersona:'Precio por persona'};
-const NOV_CAMPOS_CLIENTE={nombre_cliente:'Nombre', razon_social:'Razón social', cuit:'CUIT', contacto1_nombre:'Contacto', contacto1_telefono:'Teléfono', contacto1_email:'Mail', direccion_evento:'Dirección', localidad:'Localidad', obs_generales:'Observaciones'};
+const NOV_CAMPOS_CLIENTE={nombre_cliente:'Nombre', razon_social:'Razón social', cuit:'CUIT', contacto1_nombre:'Contacto', contacto1_telefono:'Teléfono', contacto1_email:'Mail', direccion_evento:'Dirección', localidad:'Localidad', dir_ingreso:'Ingreso de proveedores', obs_generales:'Observaciones'};
 let _novLblEvento=null;
 function novCamposEvento(){
   if(_novLblEvento) return _novLblEvento;
@@ -14915,7 +14935,7 @@ function presuSegDatosEvento(p, cli){
   if(cli){
     Object.assign(datos, {cliente_id:cli.cliente_id, contacto:cli.nombre_cliente||cli.razon_social||p.cliente||'',
       contacto_referente_slot:'1', contacto_evento:cli.contacto1_nombre||'', telefono:cli.contacto1_telefono||'',
-      email_cliente:cli.contacto1_email||'', direccion_evento:cli.direccion_evento||'', localidad:cli.localidad||'', obs_acceso:cli.obs_acceso||''});
+      email_cliente:cli.contacto1_email||'', direccion_evento:cli.direccion_evento||'', localidad:cli.localidad||'', obs_acceso:cli.obs_acceso||'', dir_ingreso:cli.dir_ingreso||''});
   }
   Object.entries(CAMPOS_COMPARTIDOS).forEach(([origen,destinos])=>{
     if(datos[origen]) destinos.forEach(d=>{ datos[d]=datos[origen]; });
@@ -15020,6 +15040,19 @@ function presuFilaClic(e, id){
   if(t && t!==e.currentTarget) return;
   abrirModalPresupuesto(id);
 }
+// Orden de la lista por fecha del evento (a pedido): primero los que vienen o
+// están en curso, del más cercano; después los que ya pasaron, del más
+// reciente; al final los sin fecha (el más nuevo primero).
+function presuOrdenFecha(a,b){
+  const hoy=presuHoyISO();
+  const info=p=>{ const fs=presuFechas(p).filter(f=>/^\d{4}-\d{2}-\d{2}$/.test(f||'')); return fs.length?{f:fs[0], fin:fs[fs.length-1]}:null; };
+  const A=info(a), B=info(b);
+  if(!A||!B) return (!A&&!B) ? (b._id-a._id) : (A?-1:1);
+  const vA=A.fin>=hoy, vB=B.fin>=hoy;
+  if(vA!==vB) return vA?-1:1;
+  if(A.f===B.f) return b._id-a._id;
+  return vA ? (A.f<B.f?-1:1) : (A.f<B.f?1:-1);
+}
 function renderPresupuestos(){
   const searchEl=document.getElementById('presu-search');
   const q=(searchEl?searchEl.value:'').trim().toLowerCase();
@@ -15028,7 +15061,7 @@ function renderPresupuestos(){
     if(_presuSegFiltro!=='todos' && presuSegEstado(p)!==_presuSegFiltro) return false;
     if(!q) return true;
     return (p.cliente||'').toLowerCase().includes(q) || (p.tipoEvento||'').toLowerCase().includes(q);
-  }).sort((a,b)=>b._id-a._id);
+  }).sort(presuOrdenFecha);
   const countEl=document.getElementById('presu-count');
   if(countEl) countEl.textContent=(DB.presupuestos||[]).length;
   const tbody=document.getElementById('presu-tbody');
