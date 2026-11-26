@@ -320,7 +320,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .presu-barra-btn .pbb-est{font-size:12px;color:var(--text2)}
 .presu-barra-btn .pbb-acc{margin-left:auto;font-size:11.5px;font-weight:700;padding:4px 12px;border-radius:999px;background:var(--mp-plum);color:#fff}
 .presu-barra-btn:not(.on) .pbb-acc{background:var(--mp-gold,#c8a951)}
-.rec-add-ins{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;flex-shrink:0;padding:3px 9px;border-radius:999px;border:1.5px solid var(--mp-gold,#c8a951);background:rgba(200,169,81,.16);color:var(--mp-plum);font:700 11px/1.3 inherit;font-family:inherit;cursor:pointer;animation:mpAparece .25s ease}
+/* Mismo tamaño que la etiqueta de Tipo (.rec-tipo): entra en esa columna sin taparse con el buscador. */
+.rec-add-ins{display:inline-block;max-width:100%;box-sizing:border-box;flex-shrink:0;white-space:nowrap;text-align:center;padding:2px 5px;border-radius:8px;border:1px solid var(--mp-gold,#c8a951);background:rgba(200,169,81,.18);color:var(--mp-plum);font-family:inherit;font-size:9px;font-weight:700;line-height:1.15;cursor:pointer;animation:mpAparece .25s ease}
 .rec-add-ins:hover{background:rgba(200,169,81,.32)}
 
 /* ─── LOGIN ──────────────────────────────────────────────────── */
@@ -5407,7 +5408,7 @@ function buildSubTable(){ Object.keys(_recSinIns).forEach(k=>{ if(k.replace(/\d+
     <td style="padding:6px 8px">
       <div style="display:flex;align-items:center;gap:6px">
         <input class="dd-input" id="si${idx}" type="text" placeholder="Elegí un insumo o sub…" style="width:100%;min-width:0">
-        <button type="button" class="rec-add-ins" id="siadd${idx}" style="display:none" onclick="recAgregarInsumo('sub',${idx})" title="No está en la base de insumos: agregarlo">＋ Agregar insumo</button>
+        <button type="button" class="rec-add-ins" id="siadd${idx}" style="display:none" onclick="recAgregarInsumo('sub',${idx})" title="No está en la base de insumos: agregarlo">＋ Agregar<br>insumo</button>
       </div>
     </td>
     <td class="num" style="padding:6px 8px">
@@ -6003,7 +6004,7 @@ function recMarcarSinInsumo(tipo,idx,txt){
     const b=document.getElementById('siadd'+idx); if(b){ b.style.display=txt?'':'none'; b.title=txt?'Agregar «'+txt+'» a la base de insumos':''; }
   } else {
     const td=document.getElementById('pitipo'+idx); if(!td) return;
-    td.innerHTML=txt?`<button type="button" class="rec-add-ins" onclick="recAgregarInsumo('plato',${idx})" title="Agregar «${escH(txt)}» a la base de insumos">＋ Agregar insumo</button>`:recTipoBadge(platoItems[idx]);
+    td.innerHTML=txt?`<button type="button" class="rec-add-ins" onclick="recAgregarInsumo('plato',${idx})" title="Agregar «${escH(txt)}» a la base de insumos">＋ Agregar<br>insumo</button>`:recTipoBadge(platoItems[idx]);
   }
 }
 function recAgregarInsumo(tipo,idx){
