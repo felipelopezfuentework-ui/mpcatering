@@ -13882,7 +13882,7 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
-  {f:'2026-11-25', t:'Presupuestos: la lista se ordena por la fecha del evento. Primero los que vienen o están en curso (el más cercano arriba), después los que ya pasaron y al final los que no tienen fecha.'},
+  {f:'2026-11-25', t:'Presupuestos: la lista se ordena por la fecha del evento: la más nueva arriba y hacia abajo las más viejas. Al final los que no tienen fecha.'},
   {f:'2026-11-25', t:'Clientes y Fichas Técnicas: campo nuevo <b>Dirección de ingreso de proveedores</b> en el Maestro de Clientes. En la ficha del evento se trae de ahí sola y se edita desde el cliente. Lo que ya estaba cargado en fichas viejas pasa al cliente.'},
   {f:'2026-11-25', t:'Recetas: si escribís un ingrediente que no está en la base de insumos, en el renglón aparece el botón <b>＋ Agregar insumo</b> (en platos, en la columna Tipo). Se carga ahí mismo con lo que escribiste como nombre y queda elegido en la receta.'},
   {f:'2026-11-25', t:'Presupuestos: arriba de todo de las estaciones está el botón <b>🍸 BARRA</b> para mostrarla u ocultarla. Oculta no sale en el PDF; visible aparece en la lista y se puede mover como las demás estaciones.'},
@@ -15040,18 +15040,14 @@ function presuFilaClic(e, id){
   if(t && t!==e.currentTarget) return;
   abrirModalPresupuesto(id);
 }
-// Orden de la lista por fecha del evento (a pedido): primero los que vienen o
-// están en curso, del más cercano; después los que ya pasaron, del más
-// reciente; al final los sin fecha (el más nuevo primero).
+// Orden de la lista por fecha del evento (a pedido): la fecha más nueva arriba
+// y hacia abajo las más viejas; al final los sin fecha (el más nuevo primero).
 function presuOrdenFecha(a,b){
-  const hoy=presuHoyISO();
-  const info=p=>{ const fs=presuFechas(p).filter(f=>/^\d{4}-\d{2}-\d{2}$/.test(f||'')); return fs.length?{f:fs[0], fin:fs[fs.length-1]}:null; };
-  const A=info(a), B=info(b);
+  const f=p=>presuFechas(p)[0]||'';
+  const A=f(a), B=f(b);
   if(!A||!B) return (!A&&!B) ? (b._id-a._id) : (A?-1:1);
-  const vA=A.fin>=hoy, vB=B.fin>=hoy;
-  if(vA!==vB) return vA?-1:1;
-  if(A.f===B.f) return b._id-a._id;
-  return vA ? (A.f<B.f?-1:1) : (A.f<B.f?1:-1);
+  if(A===B) return b._id-a._id;
+  return A<B?1:-1;
 }
 function renderPresupuestos(){
   const searchEl=document.getElementById('presu-search');
