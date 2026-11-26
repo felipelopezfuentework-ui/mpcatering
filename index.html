@@ -311,6 +311,7 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .dd-item:hover{background:var(--accent-light);color:var(--accent)}
 .dd-item.active-sel{background:rgba(92,45,110,.1);color:var(--accent);font-weight:700}
 .dd-empty{padding:12px 14px;font-size:12px;color:var(--text3);font-style:italic}
+.presu-barra-tag{display:inline-block;margin:0 0 8px;padding:2px 10px;border-radius:999px;background:rgba(200,169,81,.18);color:var(--mp-plum);font-size:10.5px;font-weight:800;letter-spacing:.1em}
 .presu-barra-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;border-radius:10px;border:2px dashed var(--mp-gold,#c8a951);background:var(--surface);cursor:pointer;font-family:inherit;color:var(--mp-plum);text-align:left;transition:background .15s,border-color .15s}
 .presu-barra-btn.on{border-style:solid;background:rgba(200,169,81,.14)}
 .presu-barra-btn:hover{background:rgba(200,169,81,.22)}
@@ -319,7 +320,8 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .presu-barra-btn .pbb-est{font-size:12px;color:var(--text2)}
 .presu-barra-btn .pbb-acc{margin-left:auto;font-size:11.5px;font-weight:700;padding:4px 12px;border-radius:999px;background:var(--mp-plum);color:#fff}
 .presu-barra-btn:not(.on) .pbb-acc{background:var(--mp-gold,#c8a951)}
-.dd-item.dd-agregar{color:var(--accent);font-weight:700;background:rgba(92,45,110,.06);border-bottom:1px solid var(--border);border-top:1px solid var(--border)}
+.rec-add-ins{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;flex-shrink:0;padding:3px 9px;border-radius:999px;border:1.5px solid var(--mp-gold,#c8a951);background:rgba(200,169,81,.16);color:var(--mp-plum);font:700 11px/1.3 inherit;font-family:inherit;cursor:pointer;animation:mpAparece .25s ease}
+.rec-add-ins:hover{background:rgba(200,169,81,.32)}
 
 /* ─── LOGIN ──────────────────────────────────────────────────── */
 #login-screen{
@@ -3202,25 +3204,11 @@ function ddRender(opts, currentVal, query){
   const visible = q
     ? opts.filter(o => o.label.toLowerCase().includes(q) || o.val.toLowerCase().includes(q))
     : opts;
-  // Buscadores con alta (ingredientes de recetas): «＋ Agregar insumo» arriba si
-  // se escribió algo (con lo escrito como nombre), abajo de todo si no.
-  const ag = _ddAnchor && _ddAnchor._ddAgregar;
-  const qt = String(query||'').trim();
-  const agHtml = ag ? `<div class="dd-item dd-agregar">＋ Agregar insumo${qt?' «'+escH(qt)+'»':''}</div>` : '';
-  if(!visible.length && !ag){ ddPanel.innerHTML = '<div class="dd-empty">Sin resultados</div>'; return; }
-  const itemsHtml = visible.length ? visible.map(o =>
+  if(!visible.length){ ddPanel.innerHTML = '<div class="dd-empty">Sin resultados</div>'; return; }
+  ddPanel.innerHTML = visible.map(o =>
     `<div class="dd-item${o.val===currentVal?' active-sel':''}" data-val="${escH(o.val)}">${escH(o.label)}</div>`
-  ).join('') : '<div class="dd-empty">No está en la base de insumos</div>';
-  ddPanel.innerHTML = qt ? agHtml+itemsHtml : itemsHtml+agHtml;
-  const agEl = ddPanel.querySelector('.dd-agregar');
-  if(agEl) agEl.addEventListener('pointerdown', e => {
-    e.preventDefault();
-    _ddPicking = true;
-    ddPanel.classList.remove('show'); ddPanel.innerHTML = ''; _ddAnchor = null; _ddOnPick = null;
-    ag(qt);
-    setTimeout(() => { _ddPicking = false; }, 0);
-  });
-  ddPanel.querySelectorAll('.dd-item[data-val]').forEach(d => {
+  ).join('');
+  ddPanel.querySelectorAll('.dd-item').forEach(d => {
     // Use pointerdown so it fires before blur, and set _ddPicking immediately
     d.addEventListener('pointerdown', e => {
       e.preventDefault();          // prevents input from losing focus weirdly
@@ -3241,14 +3229,22 @@ function ddRender(opts, currentVal, query){
 }
 
 // Attach a searchable dropdown to a plain <input class="dd-input">
-// extra.agregarInsumo: suma «＋ Agregar insumo» (alta rápida con lo escrito como
-// nombre); el insumo nuevo queda elegido en ese renglón.
+// extra.sinCoincidencia(texto|null): avisa si lo escrito no coincide con
+// ninguna opción (texto) o si sí / se eligió una (null). Lo usan las recetas
+// para mostrar el botón «＋ Agregar insumo» en el renglón.
+const _ddNorm = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
 function attachDD(inputEl, getOpts, getCurrentVal, onPick, extra){
-  if(extra && extra.agregarInsumo) inputEl._ddAgregar = nombre => abrirAltaInsumoRapida({nombre}, nuevo => {
-    inputEl.dataset.val = nuevo.key;
-    inputEl.value = nuevo.nombre;
-    onPick(nuevo.key);
-  });
+  const sinCoinc = extra && extra.sinCoincidencia;
+  if(sinCoinc){
+    inputEl.addEventListener('input', () => {
+      const q = _ddNorm(inputEl.value);
+      if(!q){ sinCoinc(null); return; }
+      const hay = getOpts().some(o => _ddNorm(o.label).includes(q));
+      sinCoinc(hay ? null : inputEl.value.trim());
+    });
+    const pickOrig = onPick;
+    onPick = val => { sinCoinc(null); pickOrig(val); };
+  }
   // Track whether this input currently has the dropdown open
   inputEl.addEventListener('focus', () => {
     const opts = getOpts();
@@ -5395,7 +5391,7 @@ function abrirModalSub(subName){
   document.getElementById('modal-sub').classList.add('open');
 }
 
-function buildSubTable(){
+function buildSubTable(){ Object.keys(_recSinIns).forEach(k=>{ if(k.replace(/\d+$/,'')==='sub') delete _recSinIns[k]; });
   const tbody=document.getElementById('sub-items-tbody');
   if(!subItems.length){
     tbody.innerHTML='<tr><td colspan="7" class="empty">Agregá componentes abajo.</td></tr>';
@@ -5409,7 +5405,10 @@ function buildSubTable(){
     item.cr=cr;
     return `<tr id="sr${idx}">
     <td style="padding:6px 8px">
-      <input class="dd-input" id="si${idx}" type="text" placeholder="Elegí un insumo o sub…" style="width:100%">
+      <div style="display:flex;align-items:center;gap:6px">
+        <input class="dd-input" id="si${idx}" type="text" placeholder="Elegí un insumo o sub…" style="width:100%;min-width:0">
+        <button type="button" class="rec-add-ins" id="siadd${idx}" style="display:none" onclick="recAgregarInsumo('sub',${idx})" title="No está en la base de insumos: agregarlo">＋ Agregar insumo</button>
+      </div>
     </td>
     <td class="num" style="padding:6px 8px">
       <input type="text" inputmode="decimal" value="${kgTexto(kgNeto)}" placeholder="0,250"
@@ -5445,8 +5444,9 @@ function buildSubTable(){
         subItems[idx].pk=getCompPrice(val);
         recalcSubItem(idx);
       },
-      {agregarInsumo:true}
+      {sinCoincidencia:txt=>recMarcarSinInsumo('sub',idx,txt)}
     );
+    recRevisarRenglon('sub',idx,cv,insOpts());
   });
   rendUpdate('sub');
 }
@@ -5927,7 +5927,7 @@ function abrirModalPlato(platoName){
   document.getElementById('modal-plato').classList.add('open');
 }
 
-function buildPlatoTable(){
+function buildPlatoTable(){ Object.keys(_recSinIns).forEach(k=>{ if(k.replace(/\d+$/,'')==='plato') delete _recSinIns[k]; });
   const tbody=document.getElementById('plato-items-tbody');
   if(!platoItems.length){
     tbody.innerHTML='<tr><td colspan="8" class="empty">Agregá componentes abajo.</td></tr>';
@@ -5981,8 +5981,9 @@ function buildPlatoTable(){
         platoItems[idx].pk=getCompPrice(val);
         recalcPlatoItem(idx);
       },
-      {agregarInsumo:true}
+      {sinCoincidencia:txt=>recMarcarSinInsumo('plato',idx,txt)}
     );
+    recRevisarRenglon('plato',idx,cv,recOpcionesPlato());
   });
   rendUpdate('plato');
 }
@@ -5991,6 +5992,35 @@ function buildPlatoTable(){
 // juntos; el tipo de la fila se deduce de lo elegido y se muestra en la marca.
 function recOpcionesPlato(){
   return [...insOpts().map(o=>({val:o.val,label:'🥕 '+o.label})), ...subOpts().map(o=>({val:o.val,label:'🧩 '+o.label}))];
+}
+// «＋ Agregar insumo» en el renglón de la receta: aparece cuando lo escrito no
+// está en la base (o el renglón tiene un insumo que ya no existe). En platos va
+// en la columna Tipo; en subproductos, al lado del buscador.
+const _recSinIns={};
+function recMarcarSinInsumo(tipo,idx,txt){
+  if(txt) _recSinIns[tipo+idx]=txt; else delete _recSinIns[tipo+idx];
+  if(tipo==='sub'){
+    const b=document.getElementById('siadd'+idx); if(b){ b.style.display=txt?'':'none'; b.title=txt?'Agregar «'+txt+'» a la base de insumos':''; }
+  } else {
+    const td=document.getElementById('pitipo'+idx); if(!td) return;
+    td.innerHTML=txt?`<button type="button" class="rec-add-ins" onclick="recAgregarInsumo('plato',${idx})" title="Agregar «${escH(txt)}» a la base de insumos">＋ Agregar insumo</button>`:recTipoBadge(platoItems[idx]);
+  }
+}
+function recAgregarInsumo(tipo,idx){
+  const items=tipo==='sub'?subItems:platoItems;
+  if(!items[idx]) return;
+  abrirAltaInsumoRapida({nombre:_recSinIns[tipo+idx]||''}, nuevo=>{
+    const it=items[idx]; if(!it) return;
+    it.comp=nuevo.key; if(tipo==='plato') it.tipo='ins';
+    it.pk=getCompPrice(nuevo.key);
+    delete _recSinIns[tipo+idx];
+    if(tipo==='sub'){ buildSubTable(); recalcSubItem(idx); } else { buildPlatoTable(); recalcPlatoItem(idx); }
+  });
+}
+// Renglón con un insumo que ya no está en la base: ofrece agregarlo.
+function recRevisarRenglon(tipo,idx,cv,opts){
+  if(!cv || String(cv).startsWith('SUB - ') || opts.some(o=>o.val===cv)) return;
+  recMarcarSinInsumo(tipo,idx,String(cv).replace(/^INSUMO - /,''));
 }
 function recTipoBadge(item){
   if(!item||!item.comp) return '<span class="rec-tipo">—</span>';
@@ -13832,8 +13862,8 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
-  {f:'2026-11-25', t:'Recetas: en el buscador de ingredientes de subproductos y platos aparece <b>＋ Agregar insumo</b>. Si el insumo no está en la base, se carga ahí mismo (con lo que escribiste como nombre) y queda elegido en la receta.'},
-  {f:'2026-11-25', t:'Presupuestos: la barra tiene un botón grande <b>🍸 BARRA</b> para mostrarla u ocultarla. Oculta no sale en el PDF y queda plegada en el formulario.'},
+  {f:'2026-11-25', t:'Recetas: si escribís un ingrediente que no está en la base de insumos, en el renglón aparece el botón <b>＋ Agregar insumo</b> (en platos, en la columna Tipo). Se carga ahí mismo con lo que escribiste como nombre y queda elegido en la receta.'},
+  {f:'2026-11-25', t:'Presupuestos: arriba de todo de las estaciones está el botón <b>🍸 BARRA</b> para mostrarla u ocultarla. Oculta no sale en el PDF; visible aparece en la lista y se puede mover como las demás estaciones.'},
   {f:'2026-11-25', t:'Fichas Técnicas: botón <b>🧮 Presupuesto</b> al lado del Chat, para ir directo al presupuesto del evento (solo lo ven quienes tienen acceso a Presupuestos).'},
   {f:'2026-11-25', t:'Recetas: botón <b>📄 PDF</b> a la vista en cada receta de la lista, y el PDF de la receta tiene un diseño nuevo para imprimir (letra más grande, cuadros con rinde y pesos, tabla de ingredientes con total, pasos numerados).'},
   {f:'2026-11-25', t:'Presupuestos: en el PDF, entre cada ítem de las estaciones queda un renglón en blanco para que se lea más aireado.'},
@@ -15114,10 +15144,23 @@ function renderPresuEstaciones(){
   let nEst=0, enSeccion=false;
   // Dónde termina cada sección (para el botón "+ Agregar estación en esta sección").
   const finSeccion=i=>{ let j=i+1; while(j<lista.length && lista[j].tipo!=='seccion') j++; return j; };
-  cont.innerHTML=lista.map((e,i)=>{
+  // Barra: botón fijo arriba de todo que la muestra u oculta. Oculta no sale en
+  // el PDF ni en esta lista; visible aparece en su lugar y se mueve como las demás.
+  const iBarra=lista.findIndex(presuEsBarra);
+  const barraOn=iBarra>=0 && lista[iBarra].incluir!==false;
+  const oculta=e=>presuEsBarra(e) && e.incluir===false;
+  const barraBtn=`<button type="button" class="presu-barra-btn${barraOn?' on':''}" onclick="presuBarraToggle()" title="${barraOn?'Ocultar la barra (no sale en el PDF)':'Mostrar la barra en el PDF'}">
+      <span class="pbb-ico">🍸</span><span class="pbb-tit">BARRA</span>
+      <span class="pbb-est">${barraOn?'Visible · sale en el PDF':'Oculta · no sale en el PDF'}</span>
+      <span class="pbb-acc">${barraOn?'Ocultar':'Mostrar'}</span></button>`;
+  const cuerpo=lista.map((e,i)=>{
+    if(oculta(e)) return '';
     if(e.tipo==='seccion'){
       enSeccion=true;
       const fin=finSeccion(i);
+      // Sección que solo tiene la barra oculta: tampoco se muestra.
+      const resto=lista.slice(i+1,fin);
+      if(resto.length && resto.every(oculta)) return '';
       return `<div class="presu-sec-hd">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="presu-sec-lbl">SECCIÓN</span>
@@ -15132,22 +15175,16 @@ function renderPresuEstaciones(){
     }
     nEst++;
     return estHtml(e,i,nEst,enSeccion);
-  }).join('') || '<div style="font-size:11.5px;color:var(--text3)">Sin estaciones todavía.</div>';
+  }).join('');
+  cont.innerHTML=`<div style="margin-bottom:12px">${barraBtn}</div>`+(cuerpo || '<div style="font-size:11.5px;color:var(--text3)">Sin estaciones todavía.</div>');
   renderPresuFotos();
   presuCabeActualizar();
   function estHtml(e,i,num,dentro){
-    // La barra: botón grande que la muestra/oculta (oculta = no sale en el PDF y queda plegada).
-    const esBarra=!!(e.barra||/^barra cl[aá]sica$/i.test(String(e.titulo||'').trim()));
-    const barraOn=e.incluir!==false;
-    const barraBtn=esBarra?`<button type="button" class="presu-barra-btn${barraOn?' on':''}" onclick="presuBarraToggle(${i})" title="${barraOn?'Ocultar la barra (no sale en el PDF)':'Mostrar la barra en el PDF'}">
-        <span class="pbb-ico">🍸</span><span class="pbb-tit">BARRA</span>
-        <span class="pbb-est">${barraOn?'Visible · sale en el PDF':'Oculta · no sale en el PDF'}</span>
-        <span class="pbb-acc">${barraOn?'Ocultar':'Mostrar'}</span></button>`:'';
+    const esBarra=presuEsBarra(e);
     const borde=dentro?';margin-left:22px;border-left:3px solid var(--mp-gold,#c8a951)':'';
-    if(esBarra && !barraOn) return `<div style="margin-bottom:10px${dentro?';margin-left:22px':''}">${barraBtn}</div>`;
     return `
-    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)${e.incluir===false&&!esBarra?';opacity:.6':''}${borde}">
-      ${esBarra?`<div style="margin:0 0 10px">${barraBtn}</div>`:e.incluir!==undefined?`<label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin:0 0 10px;padding:7px 10px;border-radius:6px;background:var(--surface);border:1px dashed var(--border);font-weight:600"><input type="checkbox" ${e.incluir?'checked':''} onchange="_presuEdit.estaciones[${i}].incluir=this.checked;renderPresuEstaciones()"> Mostrar en el PDF</label>`:''}
+    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)${e.incluir===false&&!esBarra?';opacity:.6':''}${borde}${esBarra?';border-color:var(--mp-gold,#c8a951)':''}">
+      ${esBarra?`<div class="presu-barra-tag">🍸 BARRA</div>`:e.incluir!==undefined?`<label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin:0 0 10px;padding:7px 10px;border-radius:6px;background:var(--surface);border:1px dashed var(--border);font-weight:600"><input type="checkbox" ${e.incluir?'checked':''} onchange="_presuEdit.estaciones[${i}].incluir=this.checked;renderPresuEstaciones()"> Mostrar en el PDF</label>`:''}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <label style="margin:0">Estación ${num} — título</label>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -15165,9 +15202,13 @@ function renderPresuEstaciones(){
       ${e.bebidas?`<label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px"><input type="checkbox" ${presuBebidasTieneJugos(e)?'checked':''} onchange="presuBebidasJugos(${i},this.checked)"> Agregar jugos licuados</label>`:''}
     </div>`; }
 }
-function presuBarraToggle(i){
-  const e=_presuEdit&&_presuEdit.estaciones[i]; if(!e) return;
-  e.incluir=(e.incluir===false);
+function presuEsBarra(e){ return !!(e && e.tipo!=='seccion' && (e.barra||/^barra cl[aá]sica$/i.test(String(e.titulo||'').trim()))); }
+// Botón 🍸 BARRA: muestra/oculta la barra; si el presupuesto no tiene, la agrega al final.
+function presuBarraToggle(){
+  if(!_presuEdit) return;
+  const e=_presuEdit.estaciones.find(presuEsBarra);
+  if(!e){ _presuEdit.estaciones.push({...presuEstacionBarraClasica(), incluir:true}); }
+  else e.incluir=(e.incluir===false);
   renderPresuEstaciones();
 }
 // Aviso por estación: cuántos caracteres lleva y cuántos le entran para que
