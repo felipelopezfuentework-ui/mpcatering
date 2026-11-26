@@ -311,6 +311,15 @@ tr.total-row{background:rgba(92,45,110,.08)!important;font-weight:700;color:var(
 .dd-item:hover{background:var(--accent-light);color:var(--accent)}
 .dd-item.active-sel{background:rgba(92,45,110,.1);color:var(--accent);font-weight:700}
 .dd-empty{padding:12px 14px;font-size:12px;color:var(--text3);font-style:italic}
+.presu-barra-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;border-radius:10px;border:2px dashed var(--mp-gold,#c8a951);background:var(--surface);cursor:pointer;font-family:inherit;color:var(--mp-plum);text-align:left;transition:background .15s,border-color .15s}
+.presu-barra-btn.on{border-style:solid;background:rgba(200,169,81,.14)}
+.presu-barra-btn:hover{background:rgba(200,169,81,.22)}
+.presu-barra-btn .pbb-ico{font-size:20px;line-height:1}
+.presu-barra-btn .pbb-tit{font-weight:800;letter-spacing:.12em;font-size:13.5px}
+.presu-barra-btn .pbb-est{font-size:12px;color:var(--text2)}
+.presu-barra-btn .pbb-acc{margin-left:auto;font-size:11.5px;font-weight:700;padding:4px 12px;border-radius:999px;background:var(--mp-plum);color:#fff}
+.presu-barra-btn:not(.on) .pbb-acc{background:var(--mp-gold,#c8a951)}
+.dd-item.dd-agregar{color:var(--accent);font-weight:700;background:rgba(92,45,110,.06);border-bottom:1px solid var(--border);border-top:1px solid var(--border)}
 
 /* ─── LOGIN ──────────────────────────────────────────────────── */
 #login-screen{
@@ -1734,6 +1743,7 @@ body.mp-chat-on .tabs,body.mp-chat-on #ped-flotante{display:none!important}
         <button class="btn btn-outline" style="color:var(--red);border-color:rgba(192,57,43,.4)" onclick="exportarEventoPDF()">📄 PDF Completo</button>
         <button class="btn btn-outline" style="color:var(--mp-mid);border-color:rgba(92,45,110,.4)" onclick="exportarPestañaPDF()">📄 PDF Pestaña</button>
         <button class="btn btn-outline ev-btn-chat" style="color:#1f8a5b;border-color:rgba(31,138,91,.45);position:relative" onclick="evIrAlChat()" title="Abrir el chat de este evento">💬 Chat<span id="ev-chat-badge" class="ev-chat-badge" style="display:none"></span></button>
+        <button class="btn btn-outline" id="ev-btn-presu" style="display:none;color:#8c6134;border-color:rgba(140,97,52,.5)" onclick="evIrAlPresupuesto()" title="Abrir el presupuesto de este evento">🧮 Presupuesto</button>
         <button class="btn btn-outline" style="padding:4px 12px" onclick="cerrarModalEvento()">✕ Cerrar</button>
       </div>
       <div style="font-size:10px;color:var(--text3);margin-top:6px;white-space:nowrap">🔴 Fondo rojo = campo editable vacío &nbsp;&nbsp;|&nbsp;&nbsp; 🟣 Fondo violeta = campo que se edita desde otra solapa o desde el Maestro de Clientes</div>
@@ -3192,11 +3202,25 @@ function ddRender(opts, currentVal, query){
   const visible = q
     ? opts.filter(o => o.label.toLowerCase().includes(q) || o.val.toLowerCase().includes(q))
     : opts;
-  if(!visible.length){ ddPanel.innerHTML = '<div class="dd-empty">Sin resultados</div>'; return; }
-  ddPanel.innerHTML = visible.map(o =>
+  // Buscadores con alta (ingredientes de recetas): «＋ Agregar insumo» arriba si
+  // se escribió algo (con lo escrito como nombre), abajo de todo si no.
+  const ag = _ddAnchor && _ddAnchor._ddAgregar;
+  const qt = String(query||'').trim();
+  const agHtml = ag ? `<div class="dd-item dd-agregar">＋ Agregar insumo${qt?' «'+escH(qt)+'»':''}</div>` : '';
+  if(!visible.length && !ag){ ddPanel.innerHTML = '<div class="dd-empty">Sin resultados</div>'; return; }
+  const itemsHtml = visible.length ? visible.map(o =>
     `<div class="dd-item${o.val===currentVal?' active-sel':''}" data-val="${escH(o.val)}">${escH(o.label)}</div>`
-  ).join('');
-  ddPanel.querySelectorAll('.dd-item').forEach(d => {
+  ).join('') : '<div class="dd-empty">No está en la base de insumos</div>';
+  ddPanel.innerHTML = qt ? agHtml+itemsHtml : itemsHtml+agHtml;
+  const agEl = ddPanel.querySelector('.dd-agregar');
+  if(agEl) agEl.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    _ddPicking = true;
+    ddPanel.classList.remove('show'); ddPanel.innerHTML = ''; _ddAnchor = null; _ddOnPick = null;
+    ag(qt);
+    setTimeout(() => { _ddPicking = false; }, 0);
+  });
+  ddPanel.querySelectorAll('.dd-item[data-val]').forEach(d => {
     // Use pointerdown so it fires before blur, and set _ddPicking immediately
     d.addEventListener('pointerdown', e => {
       e.preventDefault();          // prevents input from losing focus weirdly
@@ -3217,7 +3241,14 @@ function ddRender(opts, currentVal, query){
 }
 
 // Attach a searchable dropdown to a plain <input class="dd-input">
-function attachDD(inputEl, getOpts, getCurrentVal, onPick){
+// extra.agregarInsumo: suma «＋ Agregar insumo» (alta rápida con lo escrito como
+// nombre); el insumo nuevo queda elegido en ese renglón.
+function attachDD(inputEl, getOpts, getCurrentVal, onPick, extra){
+  if(extra && extra.agregarInsumo) inputEl._ddAgregar = nombre => abrirAltaInsumoRapida({nombre}, nuevo => {
+    inputEl.dataset.val = nuevo.key;
+    inputEl.value = nuevo.nombre;
+    onPick(nuevo.key);
+  });
   // Track whether this input currently has the dropdown open
   inputEl.addEventListener('focus', () => {
     const opts = getOpts();
@@ -4672,7 +4703,10 @@ function confirmarAltaInsumoRapida(){
   const costo=parseFloat(document.getElementById('alta-ins-costo').value)||0;
   const proveedor=document.getElementById('alta-ins-proveedor').value||'';
   const formato=(document.getElementById('alta-ins-formato').value||'').trim();
-  const nuevo=addInsumo({nombre,costo,proveedor,formato});
+  // Si ya hay un insumo con ese nombre, se usa ese (no se duplica).
+  const ya=DB.insumos.find(i=>i.key==='INSUMO - '+nombre.toUpperCase() || String(i.nombre||'').trim().toUpperCase()===nombre.toUpperCase());
+  if(ya && !confirm('Ya existe el insumo «'+ya.nombre+'». ¿Usar ese?')) return;
+  const nuevo=ya||addInsumo({nombre,costo,proveedor,formato});
   const cb=_altaInsumoRapidaCallback;
   _altaInsumoRapidaCallback=null;
   cerrarModal('modal-alta-insumo-rapida');
@@ -5410,7 +5444,8 @@ function buildSubTable(){
         subItems[idx].comp=val;
         subItems[idx].pk=getCompPrice(val);
         recalcSubItem(idx);
-      }
+      },
+      {agregarInsumo:true}
     );
   });
   rendUpdate('sub');
@@ -5945,7 +5980,8 @@ function buildPlatoTable(){
         const tb=document.getElementById('pitipo'+idx); if(tb) tb.innerHTML=recTipoBadge(platoItems[idx]);
         platoItems[idx].pk=getCompPrice(val);
         recalcPlatoItem(idx);
-      }
+      },
+      {agregarInsumo:true}
     );
   });
   rendUpdate('plato');
@@ -9466,6 +9502,7 @@ function abrirEvento(periodoId, eventoId){
   if(sincronizarClienteConMaestro(ev)) guardarEventoActual();
   document.getElementById('modal-evento-titulo').textContent='📋 '+ev.nombre;
   evChatBadgePintar();
+  evPresuBtnPintar(ev);
   delete _comFotos[eventoId];
   // Construir tabs
   const tabsEl = document.getElementById('evento-sheet-tabs');
@@ -13795,6 +13832,9 @@ const NOV_MODS={
 const NOV_NOMBRES={'cocina.mppcatering@gmail.com':'Cocina','direccionmppcatering@gmail.com':'Dirección'};
 // Mejoras del sistema (pestaña "Sistema"): agregar arriba de todo.
 const NOV_SISTEMA=[
+  {f:'2026-11-25', t:'Recetas: en el buscador de ingredientes de subproductos y platos aparece <b>＋ Agregar insumo</b>. Si el insumo no está en la base, se carga ahí mismo (con lo que escribiste como nombre) y queda elegido en la receta.'},
+  {f:'2026-11-25', t:'Presupuestos: la barra tiene un botón grande <b>🍸 BARRA</b> para mostrarla u ocultarla. Oculta no sale en el PDF y queda plegada en el formulario.'},
+  {f:'2026-11-25', t:'Fichas Técnicas: botón <b>🧮 Presupuesto</b> al lado del Chat, para ir directo al presupuesto del evento (solo lo ven quienes tienen acceso a Presupuestos).'},
   {f:'2026-11-25', t:'Recetas: botón <b>📄 PDF</b> a la vista en cada receta de la lista, y el PDF de la receta tiene un diseño nuevo para imprimir (letra más grande, cuadros con rinde y pesos, tabla de ingredientes con total, pasos numerados).'},
   {f:'2026-11-25', t:'Presupuestos: en el PDF, entre cada ítem de las estaciones queda un renglón en blanco para que se lea más aireado.'},
   {f:'2026-11-25', t:'Sincronización: si algo no llega bien, el sistema <b>se arregla solo</b>: primero se reconecta por su cuenta (arriba dice «⟳ Poniendo al día…») y, si hace falta, se actualiza solo cuando no estás escribiendo. Solo si no puede, aparece un aviso suave con el botón «Poner al día».'},
@@ -15095,9 +15135,19 @@ function renderPresuEstaciones(){
   }).join('') || '<div style="font-size:11.5px;color:var(--text3)">Sin estaciones todavía.</div>';
   renderPresuFotos();
   presuCabeActualizar();
-  function estHtml(e,i,num,dentro){ return `
-    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)${e.incluir===false?';opacity:.6':''}${dentro?';margin-left:22px;border-left:3px solid var(--mp-gold,#c8a951)':''}">
-      ${e.incluir!==undefined?`<label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin:0 0 10px;padding:7px 10px;border-radius:6px;background:var(--surface);border:1px dashed var(--border);font-weight:600"><input type="checkbox" ${e.incluir?'checked':''} onchange="_presuEdit.estaciones[${i}].incluir=this.checked;renderPresuEstaciones()"> Mostrar en el PDF</label>`:''}
+  function estHtml(e,i,num,dentro){
+    // La barra: botón grande que la muestra/oculta (oculta = no sale en el PDF y queda plegada).
+    const esBarra=!!(e.barra||/^barra cl[aá]sica$/i.test(String(e.titulo||'').trim()));
+    const barraOn=e.incluir!==false;
+    const barraBtn=esBarra?`<button type="button" class="presu-barra-btn${barraOn?' on':''}" onclick="presuBarraToggle(${i})" title="${barraOn?'Ocultar la barra (no sale en el PDF)':'Mostrar la barra en el PDF'}">
+        <span class="pbb-ico">🍸</span><span class="pbb-tit">BARRA</span>
+        <span class="pbb-est">${barraOn?'Visible · sale en el PDF':'Oculta · no sale en el PDF'}</span>
+        <span class="pbb-acc">${barraOn?'Ocultar':'Mostrar'}</span></button>`:'';
+    const borde=dentro?';margin-left:22px;border-left:3px solid var(--mp-gold,#c8a951)':'';
+    if(esBarra && !barraOn) return `<div style="margin-bottom:10px${dentro?';margin-left:22px':''}">${barraBtn}</div>`;
+    return `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--surface2)${e.incluir===false&&!esBarra?';opacity:.6':''}${borde}">
+      ${esBarra?`<div style="margin:0 0 10px">${barraBtn}</div>`:e.incluir!==undefined?`<label style="display:flex;align-items:center;gap:7px;cursor:pointer;margin:0 0 10px;padding:7px 10px;border-radius:6px;background:var(--surface);border:1px dashed var(--border);font-weight:600"><input type="checkbox" ${e.incluir?'checked':''} onchange="_presuEdit.estaciones[${i}].incluir=this.checked;renderPresuEstaciones()"> Mostrar en el PDF</label>`:''}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <label style="margin:0">Estación ${num} — título</label>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
@@ -15114,6 +15164,11 @@ function renderPresuEstaciones(){
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px"><input type="checkbox" ${e.unaOpcion!==false?'checked':''} onchange="_presuEdit.estaciones[${i}].unaOpcion=this.checked;presuCabeLuego()"> Seleccionar 1 opción</label>
       ${e.bebidas?`<label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px"><input type="checkbox" ${presuBebidasTieneJugos(e)?'checked':''} onchange="presuBebidasJugos(${i},this.checked)"> Agregar jugos licuados</label>`:''}
     </div>`; }
+}
+function presuBarraToggle(i){
+  const e=_presuEdit&&_presuEdit.estaciones[i]; if(!e) return;
+  e.incluir=(e.incluir===false);
+  renderPresuEstaciones();
 }
 // Aviso por estación: cuántos caracteres lleva y cuántos le entran para que
 // salga entera en una hoja del PDF (lo mide el mismo armado del PDF).
@@ -17244,6 +17299,25 @@ function evIrAlChat(){
   const eId=comandaEventoActual; if(!eId) return;
   cerrarModalEvento();
   chatIr('ev_'+eId);
+}
+// Acceso directo de la ficha a su presupuesto: solo para quienes ven Presupuestos
+// y solo si el evento vino de un presupuesto que sigue existiendo.
+function evPresupuestoDe(ev){
+  if(!ev || !puedeVerPresupuestos() || !Array.isArray(DB.presupuestos)) return null;
+  return DB.presupuestos.find(p=>(ev.presupuesto_id && String(p._id)===String(ev.presupuesto_id)) || p.eventoFichaId===ev.id) || null;
+}
+function evPresuBtnPintar(ev){
+  const b=document.getElementById('ev-btn-presu'); if(!b) return;
+  const p=evPresupuestoDe(ev);
+  b.style.display=p?'':'none';
+  if(p) b.title='Abrir el presupuesto'+(p.cliente?' de '+p.cliente:'');
+}
+function evIrAlPresupuesto(){
+  const ev=(DB.comanda.eventos[comandaPeriodoActual]||[]).find(e=>e.id===comandaEventoActual);
+  const p=evPresupuestoDe(ev);
+  if(!p){ alert('No se encontró el presupuesto de este evento.'); return; }
+  cerrarModalEvento();
+  novIrRef({tipo:'presupuesto', id:p._id});
 }
 function evChatBadgePintar(){
   const el=document.getElementById('ev-chat-badge'); if(!el) return;
